@@ -1,0 +1,1 @@
+https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100
