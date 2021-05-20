@@ -7,7 +7,6 @@ for (let key in data) {
   if (data[i].anime.episodes == 0) {
     tr.innerHTML =
       "<th>" +
-      console.log(nextEpisode(id));
       nextEpisode(id) +
       "</th><th>[???]</th><td>" +
       data[i].anime.name +
@@ -47,7 +46,7 @@ function date(dt) {
   return days[n];
 }
 
-function nextEpisode(ne) {
+/* function nextEpisode(ne) {
   fetch("https://shikimori.one/api/animes/" + ne)
     .then((response) => {
       return response.json();
@@ -61,4 +60,17 @@ function nextEpisode(ne) {
     .catch((err) => {
       console.log(err);
     });
+} */
+
+async function nextEpisode(ne) {
+  let req = await fetch("https://shikimori.one/api/animes/" + ne, {
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+  let result = await req.json();
+      //console.log(result);
+  let time = date(result.next_episode_at);
+      console.log(time);
+  return time;
 }
