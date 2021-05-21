@@ -1,4 +1,6 @@
 //https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100
+
+function aniTable() {
 var i = 0;
 for (let key in data) {
   let tbody = document.querySelector(".data");
@@ -30,6 +32,7 @@ for (let key in data) {
     i++;
   }
 }
+}
 
 function date(dt) {
   let days = [
@@ -46,31 +49,39 @@ function date(dt) {
   return days[n];
 }
 
-/* function nextEpisode(ne) {
-  fetch("https://shikimori.one/api/animes/" + ne)
-    .then((response) => {
-      return response.json();
-    })
-    .then((result) => {
-      //console.log(result);
-      let time = date(result.next_episode_at);
-      //console.log(time);
-      return time;
-    })
-    .catch((err) => {
-      console.log(err);
-    });
-} */
+var headers = new Headers({
+  "Content-Type"  : "application/json",
+  "User-Agent"    : "AniSync",
+  "Authorization" : "Bearer eDDWr5M8v-K8QWuUZj9X_mRsryqlB5MSxzByJork0TM"
+});
 
-async function nextEpisode(ne) {
+function nextEpisode(ne) {
+    fetch("https://shikimori.one/api/animes/" + ne, {
+      headers: headers
+    })
+      .then((response) => {
+        return response.json();
+      })
+      .then((result) => {
+        //console.log(result);
+        let time = date(result.next_episode_at);
+        //console.log(time);
+        i++;
+        console.log(i);
+        return time;
+      })
+      .catch((err) => {
+        console.log(err);
+      });  
+}
+
+/* async function nextEpisode(ne) {
   let req = await fetch("https://shikimori.one/api/animes/" + ne, {
-    headers: {
-      "Content-Type": "application/json"
-    }
+    headers: headers
   });
   let result = await req.json();
       //console.log(result);
   let time = date(result.next_episode_at);
       console.log(time);
   return time;
-}
+} */
