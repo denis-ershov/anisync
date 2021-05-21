@@ -49,16 +49,8 @@ function date(dt) {
   return days[n];
 }
 
-var headers = new Headers({
-  "Content-Type"  : "application/json",
-  "User-Agent"    : "AniSync",
-  "Authorization" : "Bearer eDDWr5M8v-K8QWuUZj9X_mRsryqlB5MSxzByJork0TM"
-});
-
 function nextEpisode(ne) {
-    fetch("https://shikimori.one/api/animes/" + ne, {
-      headers: headers
-    })
+    fetch("https://shikimori.one/api/animes/" + ne)
       .then((response) => {
         return response.json();
       })
