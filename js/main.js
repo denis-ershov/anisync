@@ -67,6 +67,16 @@ function nextEpisode(ne) {
       });  
 }
 
+/*   fetch('https://shikimori.one/api/animes/'+id)
+  .then((response) => {
+    return response.json();
+  })
+  .then((result) => {
+    let time = date(result.next_episode_at);
+    return time;
+  }) */
+});
+
 /* async function nextEpisode(ne) {
   let req = await fetch("https://shikimori.one/api/animes/" + ne, {
     headers: headers
