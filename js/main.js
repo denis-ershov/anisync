@@ -1,5 +1,9 @@
 //https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100
 
+import ky from 'https://unpkg.com/ky/distribution/index.js';
+
+const json = await ky('https://shikimori.one/api/animes/99').json();
+
 /* function nextEpisode(ne) {
     return fetch("https://shikimori.one/api/animes/" + ne)
       .then(response => response.json())
