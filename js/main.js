@@ -42,8 +42,7 @@ function animeData(id, episodes) {
     .then((result) => {
       let data = {};
       let i = 0;
-      for (key in result) {
-        data[i] = {
+        data = {
           id: id,
           name: result.name,
           url: result.url,
@@ -51,10 +50,9 @@ function animeData(id, episodes) {
           dub: result.licensors,
           sub: result.fandubbers,
           watch_episodes: episodes,
-          all_episodes: result.episodes,
-        };
+          all_episodes: result.episodes
+        }
         i++;
-      }
       //console.log(data);
       return data;
     });
@@ -64,13 +62,29 @@ function animeData(id, episodes) {
 
 const info = animeList(watchList);
 
-var i = 0;
+/* async function animeBase() {
+  let base = {};
+  let i = 0;
+  let list = await info;
+  let y = 0;
 (function loopIt(i) {
   setTimeout(async function () {
-    let tbody = document.querySelector(".data");
+     base[i] = await animeData(list[i].id, list[i].episodes);
+     y++;
+     if (y == Object.keys(list).length) {
+      return(base);
+      }
+   if (i < Object.keys(list).length - 1) loopIt(i + 1);
+  }, 210);
+})(i);
+}
+
+const json = animeBase();
+
+let tbody = document.querySelector(".data");
     let tr = document.createElement("tr");
-    let list = await info;
-    let data = await animeData(list[i].id, list[i].episodes);
+    let data = json;
+    console.log(data);
     let dub = "";
     if (data[i].dub[0] == "Wakanim") {
       dub = "WAKANIM";
@@ -95,6 +109,43 @@ var i = 0;
       data[i].name +
       "</td><td>" +
       data[i].watch_episodes +
+      "</td><td>из</td><td>" +
+      allEpisodes +
+      "</td><td> </td>";
+    tbody.append(tr); */
+
+var i = 0;
+(function loopIt(i) {
+  setTimeout(async function () {
+    let tbody = document.querySelector(".data");
+    let tr = document.createElement("tr");
+    let list = await info;
+    let data = await animeData(list[i].id, list[i].episodes);
+    //console.log(data);
+    let dub = "";
+    if (data.dub[0] == "Wakanim") {
+      dub = "WAKANIM";
+    } else {
+      dub = "???";
+    }
+    let allEpisodes = "";
+    if (data.all_episodes == 0) {
+      allEpisodes = "?";
+    } else {
+      allEpisodes = data.all_episodes;
+    }
+
+    tr.innerHTML =
+      "<th>" +
+      data.next_episode +
+      "<th>[" +
+      dub +
+      "]</th><td><a href='https://shikimori.one/" +
+      data.url +
+      "'>" +
+      data.name +
+      "</td><td>" +
+      data.watch_episodes +
       "</td><td>из</td><td>" +
       allEpisodes +
       "</td><td> </td>";
