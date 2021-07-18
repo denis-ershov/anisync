@@ -50,7 +50,8 @@ function animeData(id, episodes) {
           dub: result.licensors,
           sub: result.fandubbers,
           watch_episodes: episodes,
-          all_episodes: result.episodes
+          all_episodes: result.episodes,
+          score: result.score
         }
         i++;
       //console.log(data);
@@ -144,6 +145,7 @@ var i = 0;
       data.url +
       "'>" +
       data.name +
+      "</td><td>" + data.score +
       "</td><td>" +
       data.watch_episodes +
       "</td><td>из</td><td>" +
