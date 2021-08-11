@@ -7,12 +7,34 @@ function delay() {
   return new Promise((resolve) => setTimeout(resolve, 210));
 }
 
+function sortByDate(a, b) {
+  if (a.anime.aired_on < b.anime.aired_on) {
+    return -1;
+  }
+  if (a.anime.aired_on > b.anime.aired_on) {
+    return 1;
+  }
+  return 0;
+}
+
+function sortByDay(a, b) {
+  //console.log(Object.values(a));
+  if (Object.values(a).next_episode < Object.values(b).next_episode) {
+    return -1;
+  }
+  if (Object.values(a).next_episode > Object.values(b).next_episode) {
+    return 1;
+  }
+  return 0;
+}
+
 function animeList(url) {
   return fetch(url)
     .then((response) => response.json())
     .then((result) => {
       let list = {};
       let i = 0;
+      result.sort(sortByDate);
       for (key in result) {
         list[i] = {
           id: result[i].anime.id,
@@ -73,20 +95,19 @@ async function animeData(id, episodes) {
   return fetch("https://shikimori.one/api/animes/" + id)
     .then((response) => response.json())
     .then((result) => {
+      //console.log(result);
       let data = {};
-      let i = 0;
       data = {
         id: id,
         name: result.name,
         url: result.url,
-        next_episode: nextEpisode(result.next_episode_at),
+        next_episode: result.next_episode_at,
         dub: result.licensors,
         sub: result.fandubbers,
         watch_episodes: episodes,
         all_episodes: result.episodes,
-        score: result.score
+        score: result.score,
       };
-      i++;
       //console.log(data);
       return data;
     });
@@ -132,201 +153,45 @@ async function print() {
   const json = await processArray(info);
 
   let tbody = document.querySelector(".data");
-  let tr = '';
+  let tr = "";
   let data = json;
-  console.log(data);
 
   for (let key in data) {
-    //console.log(key);
-    if (key == "Основное") {
-      tr = document.createElement("tr");
-      tr.innerHTML = '<th colspan="9">' + key + "</th>";
-        tbody.append(tr);
-      for (let item in data[key]) {
-        //console.log(key);
-        let dub = "";
-        if (data[key][item].dub[0] == "Wakanim") {
-          dub = "WAKANIM";
-        } else {
-          dub = "???";
-        }
-        let allEpisodes = "";
-        if (data[key][item].all_episodes == 0) {
-          allEpisodes = "?";
-        } else {
-          allEpisodes = data[key][item].all_episodes;
-        }
-        tr = document.createElement("tr");
-        tr.innerHTML =
-          "<th></th><th>" +
-          data[key][item].next_episode +
-          "<th>[" +
-          dub +
-          "]</th><td style='overflow: hidden;'><a href='https://shikimori.one" +
-          data[key][item].url +
-          "'>" +
-          data[key][item].name +
-          "</td><td>" +
-          data[key][item].score +
-          "</td><td>" +
-          data[key][item].watch_episodes +
-          "</td><td>из</td><td>" +
-          allEpisodes +
-          "</td><td> </td>";
-        tbody.append(tr);
+    tr = document.createElement("tr");
+    tr.innerHTML = '<th colspan="9">' + key + "</th>";
+    tbody.append(tr);
+    for (let item in data[key]) {
+      //console.log(key);
+      let dub = "";
+      if (data[key][item].dub[0] == "Wakanim") {
+        dub = "WAKANIM";
+      } else {
+        dub = "???";
       }
-    }
-    if (key == "Зима") {
-      tr = document.createElement("tr");
-      tr.innerHTML = '<th colspan="9">' + key + "</th>";
-        tbody.append(tr);
-      for (let item in data[key]) {
-        //console.log(key);
-        let dub = "";
-        if (data[key][item].dub[0] == "Wakanim") {
-          dub = "WAKANIM";
-        } else {
-          dub = "???";
-        }
-        let allEpisodes = "";
-        if (data[key][item].all_episodes == 0) {
-          allEpisodes = "?";
-        } else {
-          allEpisodes = data[key][item].all_episodes;
-        }
-        tr = document.createElement("tr");
-        tr.innerHTML =
-          "<th></th><th>" +
-          data[key][item].next_episode +
-          "<th>[" +
-          dub +
-          "]</th><td style='overflow: hidden;'><a href='https://shikimori.one" +
-          data[key][item].url +
-          "'>" +
-          data[key][item].name +
-          "</td><td>" +
-          data[key][item].score +
-          "</td><td>" +
-          data[key][item].watch_episodes +
-          "</td><td>из</td><td>" +
-          allEpisodes +
-          "</td><td> </td>";
-        tbody.append(tr);
+      let allEpisodes = "";
+      if (data[key][item].all_episodes == 0) {
+        allEpisodes = "?";
+      } else {
+        allEpisodes = data[key][item].all_episodes;
       }
-    }
-    if (key == "Весна") {
       tr = document.createElement("tr");
-      tr.innerHTML = '<th colspan="9">' + key + "</th>";
-        tbody.append(tr);
-      for (let item in data[key]) {
-        //console.log(key);
-        let dub = "";
-        if (data[key][item].dub[0] == "Wakanim") {
-          dub = "WAKANIM";
-        } else {
-          dub = "???";
-        }
-        let allEpisodes = "";
-        if (data[key][item].all_episodes == 0) {
-          allEpisodes = "?";
-        } else {
-          allEpisodes = data[key][item].all_episodes;
-        }
-        tr = document.createElement("tr");
-        tr.innerHTML =
-          "<th></th><th>" +
-          data[key][item].next_episode +
-          "<th>[" +
-          dub +
-          "]</th><td style='overflow: hidden;'><a href='https://shikimori.one" +
-          data[key][item].url +
-          "'>" +
-          data[key][item].name +
-          "</td><td>" +
-          data[key][item].score +
-          "</td><td>" +
-          data[key][item].watch_episodes +
-          "</td><td>из</td><td>" +
-          allEpisodes +
-          "</td><td> </td>";
-        tbody.append(tr);
-      }
-    }
-    if (key == "Лето") {
-      tr = document.createElement("tr");
-      tr.innerHTML = '<th colspan="9">' + key + "</th>";
-        tbody.append(tr);
-      for (let item in data[key]) {
-        //console.log(key);
-        let dub = "";
-        if (data[key][item].dub[0] == "Wakanim") {
-          dub = "WAKANIM";
-        } else {
-          dub = "???";
-        }
-        let allEpisodes = "";
-        if (data[key][item].all_episodes == 0) {
-          allEpisodes = "?";
-        } else {
-          allEpisodes = data[key][item].all_episodes;
-        }
-        tr = document.createElement("tr");
-        tr.innerHTML =
-          "<th></th><th>" +
-          data[key][item].next_episode +
-          "<th>[" +
-          dub +
-          "]</th><td style='overflow: hidden;'><a href='https://shikimori.one" +
-          data[key][item].url +
-          "'>" +
-          data[key][item].name +
-          "</td><td>" +
-          data[key][item].score +
-          "</td><td>" +
-          data[key][item].watch_episodes +
-          "</td><td>из</td><td>" +
-          allEpisodes +
-          "</td><td> </td>";
-        tbody.append(tr);
-      }
-    }
-    if (key == "Осень") {
-      tr = document.createElement("tr");
-      tr.innerHTML = '<th colspan="9">' + key + "</th>";
-        tbody.append(tr);
-      for (let item in data[key]) {
-        //console.log(key);
-        let dub = "";
-        if (data[key][item].dub[0] == "Wakanim") {
-          dub = "WAKANIM";
-        } else {
-          dub = "???";
-        }
-        let allEpisodes = "";
-        if (data[key][item].all_episodes == 0) {
-          allEpisodes = "?";
-        } else {
-          allEpisodes = data[key][item].all_episodes;
-        }
-        tr = document.createElement("tr");
-        tr.innerHTML =
-          "<th></th><th>" +
-          data[key][item].next_episode +
-          "<th>[" +
-          dub +
-          "]</th><td style='overflow: hidden;'><a href='https://shikimori.one" +
-          data[key][item].url +
-          "'>" +
-          data[key][item].name +
-          "</td><td>" +
-          data[key][item].score +
-          "</td><td>" +
-          data[key][item].watch_episodes +
-          "</td><td>из</td><td>" +
-          allEpisodes +
-          "</td><td> </td>";
-        tbody.append(tr);
-      }
+      tr.innerHTML =
+        "<th></th><th>" +
+        nextEpisode(data[key][item].next_episode) +
+        "<th>[" +
+        dub +
+        "]</th><td style='overflow: hidden;'><a href='https://shikimori.one" +
+        data[key][item].url +
+        "'>" +
+        data[key][item].name +
+        "</td><td>" +
+        data[key][item].score +
+        "</td><td>" +
+        data[key][item].watch_episodes +
+        "</td><td>из</td><td>" +
+        allEpisodes +
+        "</td><td> </td>";
+      tbody.append(tr);
     }
   }
 }
