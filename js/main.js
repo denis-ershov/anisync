@@ -18,15 +18,9 @@ function sortByDate(a, b) {
 }
 
 function sortByDay(a, b) {
-  //console.log(Object.values(a));
-  if (Object.values(a).next_episode < Object.values(b).next_episode) {
-    return -1;
-  }
-  if (Object.values(a).next_episode > Object.values(b).next_episode) {
-    return 1;
-  }
-  return 0;
-}
+  let days = { Понедельник: 1, Вторник: 2, Среда: 3, Четверг: 4, Пятница: 5, Суббота: 6, Воскресенье: 7};
+  return days[a.next_episode] - days[b.next_episode];
+} 
 
 function animeList(url) {
   return fetch(url)
@@ -101,7 +95,7 @@ async function animeData(id, episodes) {
         id: id,
         name: result.name,
         url: result.url,
-        next_episode: result.next_episode_at,
+        next_episode: nextEpisode(result.next_episode_at),
         dub: result.licensors,
         sub: result.fandubbers,
         watch_episodes: episodes,
@@ -119,7 +113,7 @@ async function processArray(obj) {
   //console.log(list);
   for (const item in list) {
     let now = new Date();
-    let onair = new Date(list[item].release_date);
+    var onair = new Date(list[item].release_date);
 
     if (now.getFullYear() - onair.getFullYear() > 1) {
       base["Основное"] = Object.assign(
@@ -151,43 +145,47 @@ async function processArray(obj) {
 
 async function print() {
   const json = await processArray(info);
+  Object.values(json['Лето']).sort(sortByDay);
 
   let tbody = document.querySelector(".data");
   let tr = "";
   let data = json;
 
   for (let key in data) {
+    //console.log(data[key]);
+    let db = Object.values(data[key]).sort(sortByDay);
+    //console.log(db);
     tr = document.createElement("tr");
     tr.innerHTML = '<th colspan="9">' + key + "</th>";
     tbody.append(tr);
-    for (let item in data[key]) {
-      //console.log(key);
+    for (let item in db) {
+      //console.log(db);
       let dub = "";
-      if (data[key][item].dub[0] == "Wakanim") {
+      if (db[item].dub[0] == "Wakanim") {
         dub = "WAKANIM";
       } else {
         dub = "???";
       }
       let allEpisodes = "";
-      if (data[key][item].all_episodes == 0) {
+      if (db[item].all_episodes == 0) {
         allEpisodes = "?";
       } else {
-        allEpisodes = data[key][item].all_episodes;
+        allEpisodes = db[item].all_episodes;
       }
       tr = document.createElement("tr");
       tr.innerHTML =
         "<th></th><th>" +
-        nextEpisode(data[key][item].next_episode) +
+        db[item].next_episode +
         "<th>[" +
         dub +
         "]</th><td style='overflow: hidden;'><a href='https://shikimori.one" +
-        data[key][item].url +
+        db[item].url +
         "'>" +
-        data[key][item].name +
+        db[item].name +
         "</td><td>" +
-        data[key][item].score +
+        db[item].score +
         "</td><td>" +
-        data[key][item].watch_episodes +
+        db[item].watch_episodes +
         "</td><td>из</td><td>" +
         allEpisodes +
         "</td><td> </td>";
