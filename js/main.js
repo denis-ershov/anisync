@@ -163,8 +163,11 @@ async function print() {
       let dub = "";
       if (db[item].dub[0] == "Wakanim") {
         dub = "WAKANIM";
+      }
+      else if (db[item].dub[0] == "Crunchyroll") {
+        dub = "Субтитры";
       } else {
-        dub = "???";
+        dub = "Anistar";
       }
       let allEpisodes = "";
       if (db[item].all_episodes == 0) {
