@@ -18,9 +18,17 @@ function sortByDate(a, b) {
 }
 
 function sortByDay(a, b) {
-  let days = { Понедельник: 1, Вторник: 2, Среда: 3, Четверг: 4, Пятница: 5, Суббота: 6, Воскресенье: 7};
+  let days = {
+    Понедельник: 1,
+    Вторник: 2,
+    Среда: 3,
+    Четверг: 4,
+    Пятница: 5,
+    Суббота: 6,
+    Воскресенье: 7,
+  };
   return days[a.next_episode] - days[b.next_episode];
-} 
+}
 
 function animeList(url) {
   return fetch(url)
@@ -145,7 +153,7 @@ async function processArray(obj) {
 
 async function print() {
   const json = await processArray(info);
-  Object.values(json['Лето']).sort(sortByDay);
+  Object.values(json["Лето"]).sort(sortByDay);
 
   let tbody = document.querySelector(".data");
   let tr = "";
@@ -156,15 +164,14 @@ async function print() {
     let db = Object.values(data[key]).sort(sortByDay);
     //console.log(db);
     tr = document.createElement("tr");
-    tr.innerHTML = '<th colspan="9">' + key + "</th>";
+    tr.innerHTML = '<th class="season" colspan="9">' + key + "</th>";
     tbody.append(tr);
     for (let item in db) {
       //console.log(db);
       let dub = "";
       if (db[item].dub[0] == "Wakanim") {
         dub = "WAKANIM";
-      }
-      else if (db[item].dub[0] == "Crunchyroll") {
+      } else if (db[item].dub[0] == "Crunchyroll") {
         dub = "Субтитры";
       } else {
         dub = "Anistar";
@@ -195,6 +202,21 @@ async function print() {
       tbody.append(tr);
     }
   }
+  front();
 }
 
 print();
+
+function front() {
+  let table = document.querySelector("body > div > table > tbody");
+  for (let i = 0, row; (row = table.rows[i]); i++) {
+    if (row.cells[7] != undefined || row.cells[4] != undefined) {
+    if (row.cells[7].innerHTML >= 20 || row.cells[7].innerHTML == "?") {
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(8)").style.backgroundColor = "#dad1f4";
+    }
+    if (row.cells[4].innerHTML <= 6.7) {
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#fa8072";
+    }
+  }
+  }
+}
