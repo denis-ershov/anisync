@@ -118,8 +118,15 @@ async function animeData(id, episodes) {
 async function processArray(obj) {
   let base = {};
   let list = await obj;
+  let size = Object.keys(await info).length;
+  const progress = document.querySelector('.progress-done');
   //console.log(list);
   for (const item in list) {
+
+  let persent = Math.round(100*item/size);
+  progress.style.width = persent + '%';
+  progress.style.opacity = 1;
+  
     let now = new Date();
     var onair = new Date(list[item].release_date);
 
@@ -202,6 +209,7 @@ async function print() {
       tbody.append(tr);
     }
   }
+  document.querySelector('.load').style.display = "none";
   front();
 }
 
