@@ -1,5 +1,5 @@
 # AniSync - Service for syncing anime list
-~~*__Shikimori / MyAnimeList / AniDB / AniList__*~~    
+___Shikimori / MyAnimeList / AniDB / AniList___    
 
 :anger: In developing :anger:    
 
