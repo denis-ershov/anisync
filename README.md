@@ -1,8 +1,8 @@
 # AniSync - Service for syncing anime list
-:anger: In developing :anger:
+:anger: In developing :anger:    
 [Preview](https://denis-ershov.github.io/anisync/)
 
-##Service capabilities 
+## Service capabilities 
 
 :white_check_mark: Displaying anime from the Watching list on Shikimori    
 :black_square_button: OAuth 2.0 authorization from Shikimori, MyAnimeList, AniDB and AniList services    
