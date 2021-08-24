@@ -99,6 +99,14 @@ async function animeData(id, episodes) {
     .then((result) => {
       //console.log(result);
       let data = {};
+      let nextDate = new Date(result.next_episode_at);
+      let newDate;
+      if (result.next_episode_at == null) {
+        newDate = '?';
+      } else {
+        newDate = nextDate.toLocaleDateString();
+      }
+
       data = {
         id: id,
         name: result.name,
@@ -109,6 +117,7 @@ async function animeData(id, episodes) {
         watch_episodes: episodes,
         all_episodes: result.episodes,
         score: result.score,
+        date_episode: newDate
       };
       //console.log(data);
       return data;
@@ -205,7 +214,7 @@ async function print() {
         db[item].watch_episodes +
         "</td><td>из</td><td>" +
         allEpisodes +
-        "</td><td> </td>";
+        "</td><td>"+ db[item].date_episode +"</td>";
       tbody.append(tr);
     }
   }
@@ -218,9 +227,12 @@ print();
 function front() {
   let table = document.querySelector("body > div > table > tbody");
   for (let i = 0, row; (row = table.rows[i]); i++) {
-    if (row.cells[7] != undefined || row.cells[4] != undefined) {
+    if (row.cells[7] != undefined || row.cells[5] != undefined || row.cells[4] != undefined) {
     if (row.cells[7].innerHTML >= 20 || row.cells[7].innerHTML == "?") {
       document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(8)").style.backgroundColor = "#dad1f4";
+    }
+    if ((row.cells[7].innerHTML - row.cells[5].innerHTML) == 1) {
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(6)").style.backgroundColor = "#ffe599";
     }
     if (row.cells[4].innerHTML <= 6.7) {
       document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#fa8072";
