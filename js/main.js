@@ -26,6 +26,7 @@ function sortByDay(a, b) {
     Пятница: 5,
     Суббота: 6,
     Воскресенье: 7,
+    Неизвестно: 8
   };
   return days[a.next_episode] - days[b.next_episode];
 }
@@ -61,9 +62,13 @@ function nextEpisode(time) {
     "Четверг",
     "Пятница",
     "Суббота",
+    "Неизвестно"
   ];
   let d = new Date(time);
   let n = d.getDay();
+  if (time == null) {
+    n = 7;
+  }
   return days[n];
 }
 
@@ -236,6 +241,9 @@ function front() {
     }
     if (row.cells[4].innerHTML <= 6.7) {
       document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#fa8072";
+    }
+    if (row.cells[4].innerHTML >= 7.8) {
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#66ff66";
     }
   }
   }
