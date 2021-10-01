@@ -248,3 +248,5 @@ function front() {
   }
   }
 }
+
+console.log(response_type);
