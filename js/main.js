@@ -26,7 +26,8 @@ function sortByDay(a, b) {
     Пятница: 5,
     Суббота: 6,
     Воскресенье: 7,
-    Неизвестно: 8
+    Неизвестно: 8,
+    Закончилось: 9
   };
   return days[a.next_episode] - days[b.next_episode];
 }
@@ -62,12 +63,16 @@ function nextEpisode(time) {
     "Четверг",
     "Пятница",
     "Суббота",
-    "Неизвестно"
+    "Неизвестно",
+    "Закончилось"
   ];
   let d = new Date(time);
   let n = d.getDay();
   if (time == null) {
     n = 7;
+  }
+  if (time == 'released') {
+    n = 8;
   }
   return days[n];
 }
@@ -103,12 +108,19 @@ async function animeData(id, episodes) {
     .then((response) => response.json())
     .then((result) => {
       //console.log(result);
+      let nxEpisode = result.next_episode_at;
+      if (result.status == 'released') {
+        nxEpisode = 'released';
+      }
       let data = {};
-      let nextDate = new Date(result.next_episode_at);
+      let nextDate = new Date(nxEpisode);
       let newDate;
-      if (result.next_episode_at == null) {
+      if (nxEpisode == null) {
         newDate = '?';
-      } else {
+      } else if (nxEpisode == 'released') {
+        newDate = 'Закончилось';
+      }
+      else {
         newDate = nextDate.toLocaleDateString();
       }
 
@@ -116,7 +128,7 @@ async function animeData(id, episodes) {
         id: id,
         name: result.name,
         url: result.url,
-        next_episode: nextEpisode(result.next_episode_at),
+        next_episode: nextEpisode(nxEpisode),
         dub: result.licensors,
         sub: result.fandubbers,
         watch_episodes: episodes,
