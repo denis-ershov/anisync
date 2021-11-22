@@ -1,4 +1,5 @@
 const code = location.search.substring(6);
+console.log(code);
 const url = 'https://shikimori.one/oauth/token';
 function accessToken (code) {
     return fetch(url, {  
@@ -17,6 +18,6 @@ function accessToken (code) {
       })
 }
 
-if (code != null) {
+if (code !== '') {
     accessToken(code);
 }
