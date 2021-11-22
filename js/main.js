@@ -17,6 +17,7 @@ function accessToken (code) {
       .then((response) => response.json())
     .then((result) => {
       let token = result.access_token;
+      console.log(token);
         return token;
     });
 }
