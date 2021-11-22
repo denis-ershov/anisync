@@ -1,5 +1,5 @@
-const watchList =
-  "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
+//const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
+const watchList = "https://shikimori.one/api/users/@me/anime_rates?status=watching&limit=100";
 
 const seasons = ["Зима", "Весна", "Лето", "Осень"];
 
@@ -33,7 +33,8 @@ function sortByDay(a, b) {
 }
 
 function animeList(url) {
-  return fetch(url)
+  const auth = accessToken(code);
+  return fetch(url, {headers : {'Authorization': 'Bearer' + auth}})
     .then((response) => response.json())
     .then((result) => {
       let list = {};
