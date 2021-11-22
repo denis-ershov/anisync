@@ -58,7 +58,7 @@ async function animeList(url) {
     .then((result) => {
       let list = {};
       let i = 0;
-      await result.sort(sortByDate);
+      result.sort(sortByDate);
       for (key in result) {
         list[i] = {
           id: result[i].anime.id,
