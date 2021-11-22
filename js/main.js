@@ -16,7 +16,8 @@ function accessToken (code) {
     return fetch(url, options)
       .then((response) => response.json())
     .then((result) => {
-        return result.access_token;
+      let token = result.access_token;
+        return token;
     });
 }
 
