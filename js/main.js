@@ -52,13 +52,13 @@ function sortByDay(a, b) {
   return days[a.next_episode] - days[b.next_episode];
 }
 
-function animeList(url) {
+async function animeList(url) {
   return fetch(url, {headers : {'Authorization': 'Bearer' + await accessToken(code)}})
     .then((response) => response.json())
     .then((result) => {
       let list = {};
       let i = 0;
-      result.sort(sortByDate);
+      await result.sort(sortByDate);
       for (key in result) {
         list[i] = {
           id: result[i].anime.id,
