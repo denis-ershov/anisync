@@ -52,8 +52,8 @@ function sortByDay(a, b) {
   return days[a.next_episode] - days[b.next_episode];
 }
 
-function animeList(url) {
-  const auth = accessToken(code);
+async function animeList(url) {
+  const auth = await accessToken(code);
   return fetch(url, {headers : {'Authorization': 'Bearer' + auth}})
     .then((response) => response.json())
     .then((result) => {
