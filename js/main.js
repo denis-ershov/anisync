@@ -3,6 +3,24 @@ const watchList = "https://shikimori.one/api/users/@me/anime_rates?status=watchi
 
 const seasons = ["Зима", "Весна", "Лето", "Осень"];
 
+const code = location.search.substring(6);
+console.log(code);
+function accessToken (code) {
+  const url = 'https://shikimori.one/oauth/token?grant_type=authorization_code&client_id=VR54LgcFVBy7f7skFdXd7y7pIC4XZKpkncJ2av38_Ic&client_secret=EtGBP7rD5cLX35BajNvxbfry-2z43EXKsZXR-c0QxZg&code='+code+'&redirect_uri=https://denis-ershov.github.io/anisync/';
+  const options = {  
+    method: 'post',  
+    headers: {  
+      "User-Agent": "AniSync"  
+    } 
+  }
+    return fetch(url, options)
+      .then((response) => response.json())
+    .then((result) => {
+        return result.access_token;
+    });
+}
+
+
 function delay() {
   return new Promise((resolve) => setTimeout(resolve, 210));
 }
