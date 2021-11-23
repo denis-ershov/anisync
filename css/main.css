@@ -9,7 +9,7 @@ body {
 	text-align: center;
 }
 
-.container-xl > .row > div:nth-child(n+2) > a {
+.on-hold {
 	pointer-events: none;
 	background-color: #9d9d9d;
     border-color: #9d9d9d;

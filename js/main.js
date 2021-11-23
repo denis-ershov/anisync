@@ -2,9 +2,12 @@ const code = location.search.substring(6);
 //console.log(code);
 
 if (code !== '') {
+    document.querySelector('div.container-xl > div.row > div:nth-child(1) > a').textContent = "Выйти";
+    document.querySelector('div.container-xl > div.row > div:nth-child(1) > a').classList.add('on-hold');
+    document.styleSheets[0].insertRule('div.container-xl > div.row > div:nth-child(1):hover{cursor: not-allowed;}', 0);
   print();
   }
-  else {
+  else { 
     document.querySelector('.load').style.display = "none";
     document.querySelector('.table').style.display = "none";
     document.querySelector('.info').style.display = "block";
