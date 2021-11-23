@@ -4,6 +4,16 @@ body {
     font-family: 'Nunito', sans-serif;
 }
 
+.container-xl > .row > div:nth-child(n+2) > a {
+	pointer-events: none;
+	background-color: #9d9d9d;
+    border-color: #9d9d9d;
+}
+
+.container-xl > .row > div:nth-child(n+2):hover {
+	cursor: not-allowed;
+}
+
 .thead { 
     font-style: italic;
 }
