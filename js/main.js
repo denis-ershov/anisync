@@ -1,12 +1,20 @@
+const code = location.search.substring(6);
+//console.log(code);
+
+if (code !== '') {
+  print();
+  }
+  else {
+    document.querySelector('.load').style.display = "none";
+    document.querySelector('.load').innetHTML = '<p>Войдите в свою учетную запись Shikimori!</p>'
+  }
+
 const shikiUrl = "https://shikimori.one/api/users/whoami";
 
 //const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
 const watchList = "https://shikimori.one/api/users/" + shikiId(shikiUrl) + "/anime_rates?status=watching&limit=100";
 
 const seasons = ["Зима", "Весна", "Лето", "Осень"];
-
-const code = location.search.substring(6);
-//console.log(code);
 
 async function accessToken (code) {
   const url = 'https://shikimori.one/oauth/token?grant_type=authorization_code&client_id=VR54LgcFVBy7f7skFdXd7y7pIC4XZKpkncJ2av38_Ic&client_secret=EtGBP7rD5cLX35BajNvxbfry-2z43EXKsZXR-c0QxZg&code='+code+'&redirect_uri=https://denis-ershov.github.io/anisync/';
@@ -270,14 +278,6 @@ async function print() {
   }
   document.querySelector('.load').style.display = "none";
   front();
-}
-
-if (code !== '') {
-print();
-}
-else {
-  document.querySelector('.load').style.display = "none";
-  document.querySelector('.load').innetHTML = '<p>Войдите в свою учетную запись Shikimori!</p>'
 }
 
 function front() {
