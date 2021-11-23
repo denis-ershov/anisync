@@ -180,7 +180,7 @@ async function animeData(id, episodes) {
 async function processArray(obj) {
   let base = {};
   let list = await obj;
-  let size = Object.keys(await info).length;
+  let size = Object.keys(list).length;
   const progress = document.querySelector('.progress-done');
   const seasons = ["Зима", "Весна", "Лето", "Осень"];
   //console.log(list);
