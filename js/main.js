@@ -12,7 +12,6 @@ if (code !== '') {
 const shikiUrl = "https://shikimori.one/api/users/whoami";
 
 //const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
-const watchList = "https://shikimori.one/api/users/" + shikiId(shikiUrl) + "/anime_rates?status=watching&limit=100";
 
 const seasons = ["Зима", "Весна", "Лето", "Осень"];
 
@@ -224,6 +223,7 @@ async function processArray(obj) {
 }
 
 async function print() {
+  let watchList = "https://shikimori.one/api/users/" + shikiId(shikiUrl) + "/anime_rates?status=watching&limit=100";
   let info = await animeList(watchList);
   const json = await processArray(info);
   Object.values(json["Лето"]).sort(sortByDay);
