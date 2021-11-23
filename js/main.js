@@ -8,7 +8,7 @@ if (code !== '') {
     document.querySelector('.load').style.display = "none";
     document.querySelector('.table').style.display = "none";
     document.querySelector('.info').style.display = "block";
-    document.querySelector('.info').innetHTML = '<span>Войдите в свою учетную запись Shikimori!</span>';
+    document.querySelector('.info > span').textContent = 'Войдите в свою учетную запись Shikimori!';
   }
 
 const shikiUrl = "https://shikimori.one/api/users/whoami";
