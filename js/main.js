@@ -54,7 +54,7 @@ function sortByDay(a, b) {
 }
 
 async function animeList(url) {
-  //let auth = await accessToken(code);
+  let auth = await accessToken(code);
   return fetch(url, /*{headers : {'Authorization': 'Bearer' + auth}}*/)
     .then((response) => response.json())
     .then((result) => {
