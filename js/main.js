@@ -13,8 +13,6 @@ if (code !== '') {
 
 //const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
 
-const seasons = ["Зима", "Весна", "Лето", "Осень"];
-
 async function accessToken (code) {
   const url = 'https://shikimori.one/oauth/token?grant_type=authorization_code&client_id=VR54LgcFVBy7f7skFdXd7y7pIC4XZKpkncJ2av38_Ic&client_secret=EtGBP7rD5cLX35BajNvxbfry-2z43EXKsZXR-c0QxZg&code='+code+'&redirect_uri=https://denis-ershov.github.io/anisync/';
   const options = {  
@@ -184,6 +182,7 @@ async function processArray(obj) {
   let list = await obj;
   let size = Object.keys(await info).length;
   const progress = document.querySelector('.progress-done');
+  const seasons = ["Зима", "Весна", "Лето", "Осень"];
   //console.log(list);
   for (const item in list) {
 
