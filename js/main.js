@@ -1,14 +1,6 @@
 const code = location.search.substring(6);
 //console.log(code);
 
-if (code !== '') {
-  print();
-  }
-  else {
-    document.querySelector('.load').style.display = "none";
-    document.querySelector('.load').innetHTML = '<p>Войдите в свою учетную запись Shikimori!</p>'
-  }
-
 const shikiUrl = "https://shikimori.one/api/users/whoami";
 
 //const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
@@ -141,8 +133,6 @@ function getSeason(date) {
 
 //animeData(48406);
 
-const info = animeList(watchList);
-
 async function animeData(id, episodes) {
   await delay();
   return fetch("https://shikimori.one/api/animes/" + id)
@@ -224,6 +214,15 @@ async function processArray(obj) {
   console.log("Done!");
   return base;
 }
+
+if (code !== '') {
+  var info = animeList(watchList);
+  print();
+  }
+  else {
+    document.querySelector('.load').style.display = "none";
+    document.querySelector('.load').innetHTML = '<p>Войдите в свою учетную запись Shikimori!</p>'
+  }
 
 async function print() {
   const json = await processArray(info);
