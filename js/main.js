@@ -1,5 +1,5 @@
-const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
-//const watchList = "https://shikimori.one/api/users/@me/anime_rates?status=watching&limit=100";
+//const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
+const watchList = "https://shikimori.one/api/users/@me/anime_rates?status=watching&limit=100";
 
 const seasons = ["Зима", "Весна", "Лето", "Осень"];
 
