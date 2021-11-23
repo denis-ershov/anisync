@@ -225,6 +225,7 @@ async function processArray(obj) {
 async function print() {
   let shikiUrl = "https://shikimori.one/api/users/whoami";
   let watchList = "https://shikimori.one/api/users/" + shikiId(shikiUrl) + "/anime_rates?status=watching&limit=100";
+  console.log(watchList);
   let info = await animeList(watchList);
   const json = await processArray(info);
   Object.values(json["Лето"]).sort(sortByDay);
