@@ -1,5 +1,7 @@
 //const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
-const watchList = "https://shikimori.one/api/users/@me/anime_rates?status=watching&limit=100";
+const watchList = "https://shikimori.one/api/users/" + shikiId(shikiUrl) + "/anime_rates?status=watching&limit=100";
+
+const shikiUrl = "https://shikimori.one/api/users/whoami";
 
 const seasons = ["Зима", "Весна", "Лето", "Осень"];
 
@@ -20,6 +22,16 @@ function accessToken (code) {
       let token = result.access_token;
       //console.log(token);
         return token;
+    });
+}
+
+async function shikiId (urlId) {
+  let auth = await accessToken(code);
+  return fetch(urlId, {headers : {'Authorization': 'Bearer ' + auth}})
+    .then((response) => response.json())
+    .then((result) => {
+      let myid = result.id;
+      return myid;
     });
 }
 
@@ -54,9 +66,7 @@ function sortByDay(a, b) {
 }
 
 async function animeList(url) {
-  let auth = await accessToken(code);
-  //console.log(auth);
-  return fetch(url, {headers : {'Authorization': 'Bearer ' + auth}})
+  return fetch(url)
     .then((response) => response.json())
     .then((result) => {
       let list = {};
@@ -262,7 +272,13 @@ async function print() {
   front();
 }
 
+if (code !== '') {
 print();
+}
+else {
+  document.querySelector('.load').style.display = "none";
+  document.querySelector('.load').innetHTML = '<p>Войдите в свою учетную запись Shikimori!</p>'
+}
 
 function front() {
   let table = document.querySelector("body > div > table > tbody");
