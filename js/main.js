@@ -229,9 +229,7 @@ async function print() {
   let sid =  await shikiId(shikiUrl);
   let watchList = "https://shikimori.one/api/users/" + sid + "/anime_rates?status=watching&limit=100";
   let info = await animeList(watchList);
-  console.log(info);
   const json = await processArray(info);
-  console.log(json);
   Object.values(json["Лето"]).sort(sortByDay);
 
   let tbody = document.querySelector(".data");
