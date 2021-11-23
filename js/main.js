@@ -1,6 +1,14 @@
 const code = location.search.substring(6);
 //console.log(code);
 
+if (code !== '') {
+  print();
+  }
+  else {
+    document.querySelector('.load').style.display = "none";
+    document.querySelector('.load').innetHTML = '<p>Войдите в свою учетную запись Shikimori!</p>'
+  }
+
 const shikiUrl = "https://shikimori.one/api/users/whoami";
 
 //const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
@@ -215,16 +223,8 @@ async function processArray(obj) {
   return base;
 }
 
-if (code !== '') {
-  var info = animeList(watchList);
-  print();
-  }
-  else {
-    document.querySelector('.load').style.display = "none";
-    document.querySelector('.load').innetHTML = '<p>Войдите в свою учетную запись Shikimori!</p>'
-  }
-
 async function print() {
+  let info = await animeList(watchList);
   const json = await processArray(info);
   Object.values(json["Лето"]).sort(sortByDay);
 
