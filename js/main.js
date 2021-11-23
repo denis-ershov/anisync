@@ -11,8 +11,6 @@ if (code !== '') {
     document.querySelector('.info > span').textContent = 'Войдите в свою учетную запись Shikimori!';
   }
 
-const shikiUrl = "https://shikimori.one/api/users/whoami";
-
 //const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
 
 const seasons = ["Зима", "Весна", "Лето", "Осень"];
@@ -225,6 +223,7 @@ async function processArray(obj) {
 }
 
 async function print() {
+  let shikiUrl = "https://shikimori.one/api/users/whoami";
   let watchList = "https://shikimori.one/api/users/" + shikiId(shikiUrl) + "/anime_rates?status=watching&limit=100";
   let info = await animeList(watchList);
   const json = await processArray(info);
