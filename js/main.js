@@ -1,7 +1,7 @@
+const shikiUrl = "https://shikimori.one/api/users/whoami";
+
 //const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
 const watchList = "https://shikimori.one/api/users/" + shikiId(shikiUrl) + "/anime_rates?status=watching&limit=100";
-
-const shikiUrl = "https://shikimori.one/api/users/whoami";
 
 const seasons = ["Зима", "Весна", "Лето", "Осень"];
 
