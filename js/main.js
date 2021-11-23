@@ -6,7 +6,9 @@ if (code !== '') {
   }
   else {
     document.querySelector('.load').style.display = "none";
-    document.querySelector('.load').innetHTML = '<p>Войдите в свою учетную запись Shikimori!</p>'
+    document.querySelector('.table').style.display = "none";
+    document.querySelector('.info').style.display = "block";
+    document.querySelector('.info').innetHTML = '<span>Войдите в свою учетную запись Shikimori!</span>';
   }
 
 const shikiUrl = "https://shikimori.one/api/users/whoami";
