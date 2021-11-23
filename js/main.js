@@ -4,7 +4,7 @@ const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=wat
 const seasons = ["Зима", "Весна", "Лето", "Осень"];
 
 const code = location.search.substring(6);
-console.log(code);
+//console.log(code);
 
 function accessToken (code) {
   const url = 'https://shikimori.one/oauth/token?grant_type=authorization_code&client_id=VR54LgcFVBy7f7skFdXd7y7pIC4XZKpkncJ2av38_Ic&client_secret=EtGBP7rD5cLX35BajNvxbfry-2z43EXKsZXR-c0QxZg&code='+code+'&redirect_uri=https://denis-ershov.github.io/anisync/';
@@ -18,7 +18,7 @@ function accessToken (code) {
       .then((response) => response.json())
     .then((result) => {
       let token = result.access_token;
-      console.log(token);
+      //console.log(token);
         return token;
     });
 }
@@ -55,6 +55,7 @@ function sortByDay(a, b) {
 
 async function animeList(url) {
   let auth = await accessToken(code);
+  console.log(auth);
   return fetch(url, /*{headers : {'Authorization': 'Bearer' + auth}}*/)
     .then((response) => response.json())
     .then((result) => {
