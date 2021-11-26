@@ -263,9 +263,10 @@ async function print() {
       tr.innerHTML =
         "<th></th><th>" +
         db[item].next_episode +
+        "</th>" +/*
         "<th>[" +
         dub +
-        "]</th><td style='overflow: hidden;'><a href='https://shikimori.one" +
+        "]</th>"+*/"<td style='overflow: hidden;'><a href='https://shikimori.one" +
         db[item].url +
         "'>" +
         db[item].name +
@@ -273,7 +274,7 @@ async function print() {
         db[item].score +
         "</td><td>" +
         db[item].watch_episodes +
-        "</td><td>из</td><td>" +
+        "</td><td><div class='btn-group btn-group-sm' role='group' aria-label='Управление просмотренными сериями'><button type='button' class='btn btn-outline-secondary'>&#8722;</button><button type='button' class='btn btn-outline-secondary'>&#43;</button></div></td><td>из</td><td>" +
         allEpisodes +
         "</td><td>"+ db[item].date_episode +"</td>";
       tbody.append(tr);

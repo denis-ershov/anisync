@@ -23,6 +23,11 @@ body {
     font-style: italic;
 }
 
+/*.thead > th, .data > tr > th, .data > tr > td {
+	width: 1px;
+	white-space: nowrap;
+}*/
+
 .season {
     text-transform: uppercase;
     font-weight: 900;
