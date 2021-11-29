@@ -33,6 +33,10 @@ body {
     font-weight: 900;
 }
 
+.inv {
+	display: none;
+}
+
 .info {
 	display: none;
 	padding-top: 50px;
