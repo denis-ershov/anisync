@@ -268,9 +268,9 @@ async function print() {
         "<th>[" +
         dub +
         "]</th>"+*/
-        "<th class='inv'>[" +
+        "<th class='inv'>" +
         db[item].id +
-        "]</th>"+"<td style='overflow: hidden;'><a href='https://shikimori.one" +
+        "</th>"+"<td style='overflow: hidden;'><a href='https://shikimori.one" +
         db[item].url +
         "'>" +
         db[item].name +
@@ -293,16 +293,16 @@ function front() {
   for (let i = 0, row; (row = table.rows[i]); i++) {
     if (row.cells[7] != undefined || row.cells[5] != undefined || row.cells[4] != undefined) {
     if (row.cells[7].innerHTML >= 20 || row.cells[7].innerHTML == "?") {
-      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(8)").style.backgroundColor = "#dad1f4";
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(9)").style.backgroundColor = "#dad1f4";
     }
     if ((row.cells[7].innerHTML - row.cells[5].innerHTML) == 1) {
-      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#ffe599";
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(6)").style.backgroundColor = "#ffe599";
     }
     if (row.cells[4].innerHTML <= 6.7) {
-      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(4)").style.backgroundColor = "#fa8072";
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#fa8072";
     }
     if (row.cells[4].innerHTML >= 7.8) {
-      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(4)").style.backgroundColor = "#66ff66";
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#66ff66";
     }
   }
   }
