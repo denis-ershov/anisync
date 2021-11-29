@@ -310,7 +310,7 @@ function front() {
 
 const tbody = document.querySelector('.data');
 
-async function updateEpisodeMinus(e) {
+async function updateEpisodePlus(e) {
   const row = e.target.closest('tr');
   let index = row.rowIndex;
   let aid = tbody.rows[index].cells[2];
