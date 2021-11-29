@@ -278,7 +278,7 @@ async function print() {
         db[item].score +
         "</td><td>" +
         db[item].watch_episodes +
-        "</td><td><div class='btn-group btn-group-sm' role='group' aria-label='Управление просмотренными сериями'><button type='button' class='btn btn-outline-secondary' onclick='updateEpisodeMinus(e)'>&#8722;</button><button type='button' class='btn btn-outline-secondary' onclick='updateEpisodePlus(e)'>&#43;</button></div></td><td>из</td><td>" +
+        "</td><td><div class='btn-group btn-group-sm' role='group' aria-label='Управление просмотренными сериями'><button type='button' class='btn btn-outline-secondary' onclick='updateEpisodeMinus(this)'>&#8722;</button><button type='button' class='btn btn-outline-secondary' onclick='updateEpisodePlus(this)'>&#43;</button></div></td><td>из</td><td>" +
         allEpisodes +
         "</td><td>"+ db[item].date_episode +"</td>";
       tbody.append(tr);
