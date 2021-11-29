@@ -332,6 +332,7 @@ async function updateEpisodeMinus(e) {
     .then((response) => response.json())
     .then((result) => {
       console.log(result);
+      print();
     });
 }
 
@@ -357,5 +358,6 @@ async function updateEpisodeMinus(e) {
       .then((response) => response.json())
       .then((result) => {
         console.log(result);
+        print();
       });
   }
