@@ -37,7 +37,8 @@ async function accessToken (code) {
 }
 
 async function shikiId (urlId) {
-  return fetch(urlId, {headers : {'Authorization': 'Bearer ' + auth}})
+  let d = await auth;
+  return fetch(urlId, {headers : {'Authorization': 'Bearer ' + d}})
     .then((response) => response.json())
     .then((result) => {
       let myid = result.id;
@@ -226,7 +227,8 @@ async function processArray(obj) {
 }
 
 async function print() {
-  let watchList = "https://shikimori.one/api/users/" + sid + "/anime_rates?status=watching&limit=100";
+  let d = await sid;
+  let watchList = "https://shikimori.one/api/users/" + d + "/anime_rates?status=watching&limit=100";
   const info = await animeList(watchList);
   const json = await processArray(info);
   Object.values(json["Лето"]).sort(sortByDay);
