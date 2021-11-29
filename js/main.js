@@ -6,8 +6,8 @@ if (code !== '') {
     document.querySelector('div.container-xl > div.row > div:nth-child(1) > a').classList.add('on-hold');
     document.styleSheets[0].insertRule('div.container-xl > div.row > div:nth-child(1):hover{cursor: not-allowed;}', 0);
     const shikiUrl = "https://shikimori.one/api/users/whoami";
-    var auth = await accessToken(code);
-    var sid =  await shikiId(shikiUrl);
+    var auth = accessToken(code);
+    var sid =  shikiId(shikiUrl);
   print();
   }
   else { 
