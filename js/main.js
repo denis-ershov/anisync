@@ -312,14 +312,14 @@ const tbody = document.querySelector('.data');
 
 async function updateEpisodePlus(e) {
   const row = e.closest('tr');
-  console.log(row);
+  //console.log(row);
   let index = row.rowIndex;
-  console.log(index);
+  //console.log(index);
   let aid = tbody.rows[index--].cells[2].innerText;
-  console.log(aid);
+  //console.log(aid);
   let ep = tbody.rows[index--].cells[5].innerText;
-  console.log(ep);
-  /*let d = await auth;
+  //console.log(ep);
+  let d = await auth;
   let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
   let options = {  
     method: 'patch',  
@@ -338,16 +338,20 @@ async function updateEpisodePlus(e) {
     .then((result) => {
       console.log(result);
       print();
-    });*/
+    });
 }
 
 async function updateEpisodeMinus(e) {
-    const row = e.closest('tr');
-    let index = row.rowIndex;
-    let aid = tbody.rows[index].cells[2];
-    let ep = tbody.rows[index].cells[5];
-    let d = await auth;
-    let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
+  const row = e.closest('tr');
+  //console.log(row);
+  let index = row.rowIndex;
+  //console.log(index);
+  let aid = tbody.rows[index--].cells[2].innerText;
+  //console.log(aid);
+  let ep = tbody.rows[index--].cells[5].innerText;
+  //console.log(ep);
+  let d = await auth;
+  let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
     let options = {  
       method: 'patch',  
       headers: {  
