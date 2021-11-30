@@ -315,9 +315,9 @@ async function updateEpisodePlus(e) {
   //console.log(row);
   let index = row.rowIndex;
   //console.log(index);
-  let aid = tbody.rows[index--].cells[2].innerText;
+  let aid = tbody.rows[--index].cells[2].innerText;
   //console.log(aid);
-  let ep = tbody.rows[index--].cells[5].innerText;
+  let ep = tbody.rows[--index].cells[5].innerText;
   //console.log(ep);
   let d = await auth;
   let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
@@ -331,7 +331,7 @@ async function updateEpisodePlus(e) {
     },
     body: JSON.stringify( {
       "user_rate": {
-        "episodes": ep++
+        "episodes": ++ep
       }
     } )  
   }
@@ -348,9 +348,9 @@ async function updateEpisodeMinus(e) {
   //console.log(row);
   let index = row.rowIndex;
   //console.log(index);
-  let aid = tbody.rows[index--].cells[2].innerText;
+  let aid = tbody.rows[--index].cells[2].innerText;
   //console.log(aid);
-  let ep = tbody.rows[index--].cells[5].innerText;
+  let ep = tbody.rows[--index].cells[5].innerText;
   //console.log(ep);
   let d = await auth;
   let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
@@ -364,7 +364,7 @@ async function updateEpisodeMinus(e) {
       },
       body: JSON.stringify( {
         "user_rate": {
-          "episodes": ep--
+          "episodes": ++ep
         }
       } )  
     }
