@@ -318,7 +318,7 @@ async function updateEpisodePlus(e) {
   console.log(aid);
   let ep = tbody.rows[index].cells[5].innerText;
   console.log(ep);
-  let d = await auth;
+  /*let d = await auth;
   let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
   let options = {  
     method: 'patch',  
@@ -337,7 +337,7 @@ async function updateEpisodePlus(e) {
     .then((result) => {
       console.log(result);
       print();
-    });
+    });*/
 }
 
 async function updateEpisodeMinus(e) {
