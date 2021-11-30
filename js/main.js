@@ -175,7 +175,8 @@ async function animeData(id, episodes) {
         watch_episodes: episodes,
         all_episodes: result.episodes,
         score: result.score,
-        date_episode: newDate
+        date_episode: newDate,
+        update_id: result.user_rate.id
       };
       //console.log(data);
       return data;
@@ -269,7 +270,7 @@ async function print() {
         dub +
         "]</th>"+*/
         "<th class='inv'>" +
-        db[item].id +
+        db[item].update_id +
         "</th>"+"<td style='overflow: hidden;'><a href='https://shikimori.one" +
         db[item].url +
         "'>" +
