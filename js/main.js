@@ -315,20 +315,14 @@ async function updateEpisodePlus(e) {
   row--;
   let index = tbody.rows[row];
   let aid = index.cells[2].innerText;
-  let ep = index.cells[5].innerText;
   let d = await auth;
-  let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
+  let url = 'https://shikimori.one/api/v2/user_rates/'+aid+'/increment';
   let options = {  
-    method: 'patch',  
+    method: 'post',  
     headers: {  
       "User-Agent": "AniSync",
       'Authorization': 'Bearer ' + d
-    },
-    body: JSON.stringify( {
-      "user_rate": {
-        "episodes": ++ep
-      }
-    } )  
+    }
   }
   fetch(url, options)
     .then((response) => response.json())
