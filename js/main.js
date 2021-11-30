@@ -311,14 +311,11 @@ function front() {
 const tbody = document.querySelector('.data');
 
 async function updateEpisodePlus(e) {
-  const row = e.closest('tr');
-  console.log(row);
-  let index = row.rowIndex;
-  console.log(index);
-  let aid = tbody.rows[index--].cells[2].innerText;
-  console.log(aid);
-  let ep = tbody.rows[index--].cells[5].innerText;
-  console.log(ep);
+  let row = e.closest('tr').rowIndex;
+  row--;
+  let index = tbody.rows[row];
+  let aid = index.cells[2].innerText;
+  let ep = index.cells[5].innerText;
   let d = await auth;
   let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
   let options = {  
@@ -344,14 +341,11 @@ async function updateEpisodePlus(e) {
 }
 
 async function updateEpisodeMinus(e) {
-  const row = e.closest('tr');
-  //console.log(row);
-  let index = row.rowIndex;
-  //console.log(index);
-  let aid = tbody.rows[index--].cells[2].innerText;
-  //console.log(aid);
-  let ep = tbody.rows[index--].cells[5].innerText;
-  //console.log(ep);
+  let row = e.closest('tr').rowIndex;
+  row--;
+  let index = tbody.rows[row];
+  let aid = index.cells[2].innerText;
+  let ep = index.cells[5].innerText;
   let d = await auth;
   let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
     let options = {  
