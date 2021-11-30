@@ -186,7 +186,7 @@ async function animeData(id, episodes) {
         date_episode: newDate,
         update_id: result.user_rate.id
       };
-      console.log(data);
+      //console.log(data);
       return data;
     });
 }
