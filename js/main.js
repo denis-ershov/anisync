@@ -312,9 +312,12 @@ const tbody = document.querySelector('.data');
 
 async function updateEpisodePlus(e) {
   const row = e.closest('tr');
+  console.log(row);
   let index = row.rowIndex;
   let aid = tbody.rows[index].cells[2];
+  console.log(aid);
   let ep = tbody.rows[index].cells[5];
+  console.log(ep);
   let d = await auth;
   let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
   let options = {  
