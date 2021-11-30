@@ -311,7 +311,7 @@ function front() {
 const tbody = document.querySelector('.data');
 
 async function updateEpisodePlus(e) {
-  const row = e.target.closest('tr');
+  const row = e.closest('tr');
   let index = row.rowIndex;
   let aid = tbody.rows[index].cells[2];
   let ep = tbody.rows[index].cells[5];
@@ -337,7 +337,7 @@ async function updateEpisodePlus(e) {
 }
 
 async function updateEpisodeMinus(e) {
-    const row = e.target.closest('tr');
+    const row = e.closest('tr');
     let index = row.rowIndex;
     let aid = tbody.rows[index].cells[2];
     let ep = tbody.rows[index].cells[5];
