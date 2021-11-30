@@ -323,8 +323,7 @@ async function updateEpisodePlus(e) {
     headers: {  
       "User-Agent": "AniSync",
       'Authorization': 'Bearer ' + d,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      'Content-Type': 'application/example'
     },
     body: JSON.stringify( {
       "user_rate": {
@@ -353,8 +352,7 @@ async function updateEpisodeMinus(e) {
       headers: {  
         "User-Agent": "AniSync",
         'Authorization': 'Bearer ' + d,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json' 
+        'Content-Type': 'application/example'
       },
       body: JSON.stringify( {
         "user_rate": {
