@@ -315,12 +315,13 @@ async function updateEpisodePlus(e) {
   let index = row.rowIndex;
   let aid = tbody.rows[index].cells[2];
   let ep = tbody.rows[index].cells[5];
+  let d = await auth;
   let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
   let options = {  
     method: 'patch',  
     headers: {  
       "User-Agent": "AniSync",
-      'Authorization': 'Bearer ' + auth  
+      'Authorization': 'Bearer ' + d 
     },
     body: JSON.stringify( {
       "user_rate": {
@@ -341,12 +342,13 @@ async function updateEpisodeMinus(e) {
     let index = row.rowIndex;
     let aid = tbody.rows[index].cells[2];
     let ep = tbody.rows[index].cells[5];
+    let d = await auth;
     let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
     let options = {  
       method: 'patch',  
       headers: {  
         "User-Agent": "AniSync",
-        'Authorization': 'Bearer ' + auth  
+        'Authorization': 'Bearer ' + d  
       },
       body: JSON.stringify( {
         "user_rate": {
