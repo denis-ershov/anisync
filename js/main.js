@@ -145,7 +145,15 @@ function getSeason(date) {
 
 async function animeData(id, episodes) {
   await delay();
-  return fetch("https://shikimori.one/api/animes/" + id)
+  let d = await auth;
+  let options = {  
+    method: 'get',  
+    headers: {  
+      "User-Agent": "AniSync",
+      'Authorization': 'Bearer ' + d
+    }
+  }
+  return fetch("https://shikimori.one/api/animes/" + id, options)
     .then((response) => response.json())
     .then((result) => {
       //console.log(result);
