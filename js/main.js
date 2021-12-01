@@ -357,7 +357,9 @@ async function updateEpisodeMinus(e) {
       },
       body: JSON.stringify( {
         "user_rate": {
-          "episodes": --ep
+          "user_id": sid,
+          "episodes": --ep,
+          "target_type": "Anime"
         }
       } )  
     }
