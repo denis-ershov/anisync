@@ -239,7 +239,7 @@ async function processArray(obj) {
     }
     //console.log(list[item]);
   }
-  console.log(base);
+  //console.log(base);
   console.log("Done!");
   return base;
 }
