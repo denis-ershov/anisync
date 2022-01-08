@@ -222,15 +222,24 @@ async function processArray(obj) {
         base["Зима"]
       );
     }
+    if (
+      now.getFullYear() - onair.getFullYear() <= 1 &&
+      seasons[getSeason(onair)] == "Осень"
+    ) {
+      base["Осень"] = Object.assign(
+        { [item]: await animeData(list[item].id, list[item].episodes) },
+        base["Осень"]
+      );
+    }
     if (now.getFullYear() - onair.getFullYear() == 0) {
       base[seasons[getSeason(onair)]] = Object.assign(
         { [item]: await animeData(list[item].id, list[item].episodes) },
         base[seasons[getSeason(onair)]]
       );
     }
-    console.log(list[item]);
+    //console.log(list[item]);
   }
-  //console.log(base);
+  console.log(base);
   console.log("Done!");
   return base;
 }
