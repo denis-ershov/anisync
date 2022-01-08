@@ -228,7 +228,7 @@ async function processArray(obj) {
         base[seasons[getSeason(onair)]]
       );
     }
-    //console.log(list[item]);
+    console.log(list[item]);
   }
   //console.log(base);
   console.log("Done!");
