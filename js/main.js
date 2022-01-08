@@ -240,7 +240,7 @@ async function print() {
   let watchList = "https://shikimori.one/api/users/" + d + "/anime_rates?status=watching&limit=100";
   const info = await animeList(watchList);
   const json = await processArray(info);
-  Object.values(json["Лето"]).sort(sortByDay);
+  //Object.values(json["Лето"]).sort(sortByDay);
 
   let tbody = document.querySelector(".data");
   let tr = "";
