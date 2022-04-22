@@ -316,11 +316,14 @@ function front() {
     if ((row.cells[8].innerHTML - row.cells[5].innerHTML) == 1) {
       document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(6)").style.backgroundColor = "#ffe599";
     }
-    if (row.cells[4].innerHTML <= 6.7) {
-      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#fa8072";
+    if (row.cells[4].innerHTML <= 6.5) {
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#f4cccc";
     }
-    if (row.cells[4].innerHTML >= 7.8) {
-      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#66ff66";
+    if (row.cells[4].innerHTML >= 6.5 && row.cells[4].innerHTML <= 7.7) {
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#d9ead3";
+    }
+    if (row.cells[4].innerHTML >= 7.7) {
+      document.querySelector("body > div > table > tbody > tr:nth-child(" + (i+1) + ") > td:nth-child(5)").style.backgroundColor = "#b7e1cd";
     }
   }
   }
