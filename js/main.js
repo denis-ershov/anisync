@@ -4,8 +4,13 @@ const CONFIG = {
   CLIENT_SECRET: 'EtGBP7rD5cLX35BajNvxbfry-2z43EXKsZXR-c0QxZg',
   REDIRECT_URI: 'https://denis-ershov.github.io/anisync/',
   BASE_URL: 'https://shikimori.one',
-  DELAY: 210,
-  BATCH_SIZE: 10 // Размер батча для параллельных запросов
+  // API лимиты: 5 запросов в секунду, 90 в минуту
+  RATE_LIMIT: {
+    REQUESTS_PER_SECOND: 4, // Немного меньше лимита для безопасности
+    REQUESTS_PER_MINUTE: 85, // Немного меньше лимита для безопасности
+    DELAY_BETWEEN_REQUESTS: 250, // 250ms между запросами (4 в секунду)
+    BATCH_SIZE: 4 // Уменьшаем размер батча
+  }
 };
 
 const DAYS = {
@@ -19,6 +24,53 @@ const DAY_PRIORITY = {
   Понедельник: 1, Вторник: 2, Среда: 3, Четверг: 4, Пятница: 5,
   Суббота: 6, Воскресенье: 7, Неизвестно: 8, Закончилось: 9
 };
+
+// Класс для управления частотой запросов
+class RateLimiter {
+  constructor() {
+    this.requestTimes = [];
+    this.requestsThisMinute = 0;
+    this.minuteStartTime = Date.now();
+  }
+
+  async waitForSlot() {
+    const now = Date.now();
+    
+    // Сброс счетчика запросов в минуту каждую минуту
+    if (now - this.minuteStartTime >= 60000) {
+      this.requestsThisMinute = 0;
+      this.minuteStartTime = now;
+    }
+    
+    // Проверка лимита в минуту
+    if (this.requestsThisMinute >= CONFIG.RATE_LIMIT.REQUESTS_PER_MINUTE) {
+      const waitTime = 60000 - (now - this.minuteStartTime);
+      console.log(`Достигнут лимит в минуту. Ожидание ${Math.ceil(waitTime/1000)} секунд...`);
+      await Utils.delay(waitTime);
+      this.requestsThisMinute = 0;
+      this.minuteStartTime = Date.now();
+    }
+    
+    // Проверка лимита в секунду
+    this.requestTimes = this.requestTimes.filter(time => now - time < 1000);
+    
+    if (this.requestTimes.length >= CONFIG.RATE_LIMIT.REQUESTS_PER_SECOND) {
+      const oldestRequest = Math.min(...this.requestTimes);
+      const waitTime = 1000 - (now - oldestRequest);
+      await Utils.delay(waitTime);
+    }
+    
+    // Добавляем время текущего запроса
+    this.requestTimes.push(Date.now());
+    this.requestsThisMinute++;
+    
+    // Дополнительная задержка между запросами
+    await Utils.delay(CONFIG.RATE_LIMIT.DELAY_BETWEEN_REQUESTS);
+  }
+}
+
+// Глобальный rate limiter
+const rateLimiter = new RateLimiter();
 
 // Глобальные переменные
 let authToken = null;
@@ -35,12 +87,21 @@ class ShikimoriAPI {
   }
 
   async request(url, options = {}) {
+    // Ждем разрешения на выполнение запроса
+    await rateLimiter.waitForSlot();
+    
     const response = await fetch(url, {
       ...options,
       headers: { ...this.headers, ...options.headers }
     });
     
     if (!response.ok) {
+      // Если получили 429 (Too Many Requests), ждем дольше
+      if (response.status === 429) {
+        console.log('Получен статус 429, ожидание 60 секунд...');
+        await Utils.delay(60000);
+        return this.request(url, options); // Повторяем запрос
+      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
@@ -84,7 +145,7 @@ class ShikimoriAPI {
 
 // Утилиты
 const Utils = {
-  delay: (ms = CONFIG.DELAY) => new Promise(resolve => setTimeout(resolve, ms)),
+  delay: (ms = CONFIG.RATE_LIMIT.DELAY_BETWEEN_REQUESTS) => new Promise(resolve => setTimeout(resolve, ms)),
   
   getSeason(date) {
     const month = date.getMonth();
@@ -308,31 +369,36 @@ class AniSync {
     const totalItems = animeList.length;
     const groupedAnime = {};
     
-    // Обрабатываем аниме батчами для улучшения производительности
-    for (let i = 0; i < totalItems; i += CONFIG.BATCH_SIZE) {
-      const batch = animeList.slice(i, i + CONFIG.BATCH_SIZE);
-      const batchPromises = batch.map(async (anime, index) => {
-        const actualIndex = i + index;
-        const percent = Math.round((actualIndex / totalItems) * 100);
-        DOMManager.updateProgress(percent);
-        
-        await Utils.delay();
+    console.log(`Загружаем данные для ${totalItems} аниме. Это займет примерно ${Math.ceil(totalItems * CONFIG.RATE_LIMIT.DELAY_BETWEEN_REQUESTS / 1000)} секунд...`);
+    
+    // Обрабатываем аниме последовательно с учетом rate limiting
+    for (let i = 0; i < totalItems; i++) {
+      const anime = animeList[i];
+      const percent = Math.round((i / totalItems) * 100);
+      DOMManager.updateProgress(percent);
+      
+      try {
         const animeData = await this.api.getAnimeData(anime.id);
-        return this.processAnimeData(animeData, anime, actualIndex);
-      });
-      
-      const batchResults = await Promise.all(batchPromises);
-      
-      // Группируем результаты по сезонам
-      batchResults.forEach(result => {
-        const { seasonKey, animeData, index } = result;
+        const result = this.processAnimeData(animeData, anime, i);
+        
+        const { seasonKey, animeData: processedData, index } = result;
         if (!groupedAnime[seasonKey]) {
           groupedAnime[seasonKey] = {};
         }
-        groupedAnime[seasonKey][index] = animeData;
-      });
+        groupedAnime[seasonKey][index] = processedData;
+        
+        // Обновляем прогресс в консоли каждые 10 элементов
+        if (i % 10 === 0) {
+          console.log(`Обработано ${i}/${totalItems} аниме (${percent}%)`);
+        }
+        
+      } catch (error) {
+        console.error(`Ошибка загрузки данных для аниме ID ${anime.id}:`, error);
+        // Продолжаем обработку остальных аниме
+      }
     }
     
+    DOMManager.updateProgress(100);
     return groupedAnime;
   }
 
