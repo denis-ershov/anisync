@@ -5,7 +5,7 @@ if (code !== '') {
     document.querySelector('div.container-xl > div.row > div:nth-child(1) > a').textContent = "Выйти";
     document.querySelector('div.container-xl > div.row > div:nth-child(1) > a').classList.add('on-hold');
     document.styleSheets[0].insertRule('div.container-xl > div.row > div:nth-child(1):hover{cursor: not-allowed;}', 0);
-    const shikiUrl = "https://shikimori.me/api/users/whoami";
+    const shikiUrl = "https://shikimori.one/api/users/whoami";
     var auth = accessToken(code);
     var sid =  shikiId(shikiUrl);
   print();
@@ -20,7 +20,7 @@ if (code !== '') {
 //const watchList = "https://shikimori.one/api/users/109874/anime_rates?status=watching&limit=100";
 
 async function accessToken (code) {
-  let url = 'https://shikimori.me/oauth/token?grant_type=authorization_code&client_id=VR54LgcFVBy7f7skFdXd7y7pIC4XZKpkncJ2av38_Ic&client_secret=EtGBP7rD5cLX35BajNvxbfry-2z43EXKsZXR-c0QxZg&code='+code+'&redirect_uri=https://denis-ershov.github.io/anisync/';
+  let url = 'https://shikimori.one/oauth/token?grant_type=authorization_code&client_id=VR54LgcFVBy7f7skFdXd7y7pIC4XZKpkncJ2av38_Ic&client_secret=EtGBP7rD5cLX35BajNvxbfry-2z43EXKsZXR-c0QxZg&code='+code+'&redirect_uri=https://denis-ershov.github.io/anisync/';
   let options = {  
     method: 'post',  
     headers: {  
@@ -153,7 +153,7 @@ async function animeData(id, episodes) {
       'Authorization': 'Bearer ' + d
     }
   }
-  return fetch("https://shikimori.me/api/animes/" + id, options)
+  return fetch("https://shikimori.one/api/animes/" + id, options)
     .then((response) => response.json())
     .then((result) => {
       //console.log(result);
@@ -246,7 +246,7 @@ async function processArray(obj) {
 
 async function print() {
   let d = await sid;
-  let watchList = "https://shikimori.me/api/users/" + d + "/anime_rates?status=watching&limit=100";
+  let watchList = "https://shikimori.one/api/users/" + d + "/anime_rates?status=watching&limit=100";
   const info = await animeList(watchList);
   const json = await processArray(info);
   //Object.values(json["Лето"]).sort(sortByDay);
@@ -288,7 +288,7 @@ async function print() {
         "]</th>"+*/
         "<th class='inv'>" +
         db[item].update_id +
-        "</th>"+"<td style='overflow: hidden;'><a href='https://shikimori.me" +
+        "</th>"+"<td style='overflow: hidden;'><a href='https://shikimori.one" +
         db[item].url +
         "'>" +
         db[item].name +
@@ -337,7 +337,7 @@ async function updateEpisodePlus(e) {
   let index = tbody.rows[row];
   let aid = index.cells[2].innerText;
   let d = await auth;
-  let url = 'https://shikimori.me/api/v2/user_rates/'+aid+'/increment';
+  let url = 'https://shikimori.one/api/v2/user_rates/'+aid+'/increment';
   let options = {  
     method: 'post',  
     headers: {  
@@ -360,7 +360,7 @@ async function updateEpisodeMinus(e) {
   let aid = index.cells[2].innerText;
   let ep = index.cells[5].innerText;
   let d = await auth;
-  let url = 'https://shikimori.me/api/v2/user_rates/'+aid;
+  let url = 'https://shikimori.one/api/v2/user_rates/'+aid;
     let options = {  
       method: 'patch',  
       headers: {  
