@@ -1,0 +1,21 @@
+{
+  "welcome_title": "Добро пожаловать в AniSync",
+  "welcome_description": "Находите, отслеживайте и синхронизируйте свои любимые аниме. Ваше следующее приключение всего в одном клике.",
+  "login_button": "Войти через Shikimori",
+  "footer_text": "Работает на Shikimori API и Genkit AI.",
+  "filter_by_title": "Фильтр по названию...",
+  "sort_by": "Сортировать по",
+  "sort_by_score": "Оценке",
+  "sort_by_title": "Названию",
+  "get_recommendation": "Получить рекомендацию",
+  "no_anime_found": "Аниме не найдено.",
+  "score": "Оценка",
+  "episodes_watched": "Просмотрено",
+  "episodes_short": "эп",
+  "synopsis": "Синопсис",
+  "generating_recommendation": "Генерация рекомендации...",
+  "your_ai_recommendation": "Ваша AI рекомендация",
+  "ai_analysis_description": "Наш AI анализирует вашу историю просмотров, чтобы найти идеальное аниме...",
+  "recommendation_ready_description": "Основываясь на ваших предпочтениях, мы думаем, вам это понравится!",
+  "close_button": "Закрыть"
+}

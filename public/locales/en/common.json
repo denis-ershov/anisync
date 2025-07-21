@@ -1,0 +1,21 @@
+{
+  "welcome_title": "Welcome to AniSync",
+  "welcome_description": "Discover, track, and sync your favorite anime seamlessly. Your next adventure is just a click away.",
+  "login_button": "Login with Shikimori",
+  "footer_text": "Powered by Shikimori API and Genkit AI.",
+  "filter_by_title": "Filter by title...",
+  "sort_by": "Sort by",
+  "sort_by_score": "Score",
+  "sort_by_title": "Title",
+  "get_recommendation": "Get Recommendation",
+  "no_anime_found": "No anime found matching your criteria.",
+  "score": "Score",
+  "episodes_watched": "Watched",
+  "episodes_short": "ep",
+  "synopsis": "Synopsis",
+  "generating_recommendation": "Generating Recommendation...",
+  "your_ai_recommendation": "Your AI Recommendation",
+  "ai_analysis_description": "Our AI is analyzing your watch history to find the perfect match...",
+  "recommendation_ready_description": "Based on your preferences, we think you'll love this!",
+  "close_button": "Close"
+}
