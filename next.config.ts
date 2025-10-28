@@ -1,4 +1,5 @@
 import type {NextConfig} from 'next';
+const withNextIntl = require('next-intl/plugin')('./i18n/request.ts');
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -8,6 +9,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  turbopack: {
+    // Turbopack is now stable, moved from experimental.turbo
+  },
   images: {
     remotePatterns: [
       {
@@ -16,12 +20,38 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'picsum.photos',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'myanimelist.net',
+        port: '',
+        pathname: '/**',
+      },
        {
         protocol: 'https',
-        hostname: 'shikimori.one',
+        hostname: 'anilist.co',
+        port: '',
+        pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'shikimori.one',
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

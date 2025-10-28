@@ -1,33 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-import i18nConfig from '../i18nConfig';
+import createMiddleware from 'next-intl/middleware';
+import {locales, pathnames} from './navigation';
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  // Не применять middleware к статическим переводам
-  if (pathname.startsWith('/locales/')) {
-    return NextResponse.next();
-  }
-
-  const locales: string[] = i18nConfig.locales;
-  const defaultLocale: string = i18nConfig.defaultLocale;
-
-  const isLocalePresent = locales.some(
-    (locale: string) => pathname === `/${locale}` || pathname.startsWith(`/${locale}/`)
-  );
-
-  if (!isLocalePresent) {
-    return NextResponse.redirect(
-      new URL(`/${defaultLocale}${pathname === '/' ? '' : pathname}`, request.url)
-    );
-  }
-
-  return NextResponse.next();
-}
-
+export default createMiddleware({
+  defaultLocale: 'en',
+  locales,
+  pathnames,
+});
+ 
 export const config = {
+  // Match all pathnames except for
+  // - … if they start with `/api`, `/_next` or `/_vercel`
+  // - … the ones containing a dot (e.g. `favicon.ico`, `sw.js`)
+  // - … service worker files
   matcher: [
-    // Все страницы, кроме api, статических файлов и locales
-    '/((?!api|_next/static|_next/image|favicon.ico|icon.png|locales).*)',
-  ],
+    // Match all pathnames except for
+    // - api routes
+    // - _next (Next.js internals)
+    // - _vercel (Vercel internals)  
+    // - auth routes (OAuth callbacks)
+    // - files with an extension (e.g. .ico, .js, .json, sw.js)
+    '/((?!api|auth|_next/static|_next/image|_vercel|favicon.ico|sw\\.js|.*\\..*).*)'
+  ]
 };

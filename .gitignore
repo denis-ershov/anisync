@@ -39,9 +39,9 @@ next-env.d.ts
 
 .genkit/*
 .env*
+*.sqlite
+*.log
 
 # firebase
 firebase-debug.log
 firestore-debug.log
-
-dev.md

@@ -1,0 +1,94 @@
+{
+  "placeholderImages": [
+    {
+      "id": "anime-1",
+      "description": "A vibrant city at night.",
+      "imageUrl": "https://images.unsplash.com/photo-1716273252767-2c69dee542fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8YW5pbWUlMjBsYW5kc2NhcGV8ZW58MHx8fHwxNzYxMDY0MzAwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "anime landscape"
+    },
+    {
+      "id": "anime-2",
+      "description": "A mystical forest scene.",
+      "imageUrl": "https://images.unsplash.com/photo-1514539079130-25950c84af65?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxmYW50YXN5JTIwd29ybGR8ZW58MHx8fHwxNzYxMTE0NjExfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "fantasy world"
+    },
+    {
+      "id": "anime-3",
+      "description": "A futuristic mech in battle.",
+      "imageUrl": "https://images.unsplash.com/photo-1667986292516-f27450ae75a9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8c2NpLWZpJTIwcm9ib3R8ZW58MHx8fHwxNzYxMDg4Njg1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "sci-fi robot"
+    },
+    {
+      "id": "anime-4",
+      "description": "High school students on a rooftop.",
+      "imageUrl": "https://images.unsplash.com/photo-1732534252987-b37494a42c3a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxzbGljZSUyMGxpZmV8ZW58MHx8fHwxNzYxMTUzNDEwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "slice life"
+    },
+    {
+      "id": "anime-5",
+      "description": "A lone warrior with a sword.",
+      "imageUrl": "https://images.unsplash.com/photo-1673498437299-da9488fa3752?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxhY3Rpb24lMjBhZHZlbnR1cmV8ZW58MHx8fHwxNzYxMDQxNzA4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "action adventure"
+    },
+    {
+      "id": "anime-6",
+      "description": "A magical girl transforming.",
+      "imageUrl": "https://images.unsplash.com/photo-1577633782839-983b5bc180c7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxtYWdpY2FsJTIwZ2lybHxlbnwwfHx8fDE3NjExMTQ4NzV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "magical girl"
+    },
+    {
+      "id": "anime-7",
+      "description": "A quiet cafe scene.",
+      "imageUrl": "https://images.unsplash.com/photo-1715679041788-57229ddbd399?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxjYWxtJTIwYWVzdGhldGljfGVufDB8fHx8MTc2MTE2MDY5NXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "calm aesthetic"
+    },
+    {
+      "id": "anime-8",
+      "description": "A space opera backdrop.",
+      "imageUrl": "https://images.unsplash.com/photo-1655059619746-403784da6588?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8c3BhY2UlMjBvcGVyYXxlbnwwfHx8fDE3NjExNjA2OTV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "space opera"
+    },
+    {
+      "id": "anime-9",
+      "description": "A detective investigating a case.",
+      "imageUrl": "https://images.unsplash.com/photo-1633266841047-719b5f737149?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8bXlzdGVyeSUyMHRocmlsbGVyfGVufDB8fHx8MTc2MTA0MjE4OXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "mystery thriller"
+    },
+    {
+      "id": "anime-10",
+      "description": "A delicious-looking anime meal.",
+      "imageUrl": "https://images.unsplash.com/photo-1628561427724-5ff41e3e5497?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8YW5pbWUlMjBmb29kfGVufDB8fHx8MTc2MTA2MDQxMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "anime food"
+    },
+    {
+      "id": "anime-11",
+      "description": "Athletes during a sports match.",
+      "imageUrl": "https://images.unsplash.com/photo-1760836205766-36a629f9ed4e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxzcG9ydHMlMjBhbmltZXxlbnwwfHx8fDE3NjExMzM4OTl8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "sports anime"
+    },
+    {
+      "id": "anime-12",
+      "description": "A samurai in a traditional setting.",
+      "imageUrl": "https://images.unsplash.com/photo-1618572671704-ef4f3add69ee?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxoaXN0b3JpY2FsJTIwc2FtdXJhaXxlbnwwfHx8fDE3NjExNjA2OTV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "historical samurai"
+    },
+    {
+      "id": "anime-13",
+      "description": "A post-apocalyptic wasteland.",
+      "imageUrl": "https://images.unsplash.com/photo-1706952692679-60f10b47ca11?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxkeXN0b3BpYW4lMjBmdXR1cmV8ZW58MHx8fHwxNzYxMTM3Nzg5fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "dystopian future"
+    },
+    {
+      "id": "anime-14",
+      "description": "A concert scene with idols.",
+      "imageUrl": "https://images.unsplash.com/photo-1708638870523-a4148677fccd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxtdXNpYyUyMGlkb2x8ZW58MHx8fHwxNzYxMTYwNjk1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "music idol"
+    },
+    {
+      "id": "anime-15",
+      "description": "A tense psychological standoff.",
+      "imageUrl": "https://images.unsplash.com/photo-1749936351329-2e6ffff3696f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxwc3ljaG9sb2dpY2FsJTIwdGhyaWxsZXJ8ZW58MHx8fHwxNzYxMDc5ODI1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "psychological thriller"
+    }
+  ]
+}

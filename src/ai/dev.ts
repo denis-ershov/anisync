@@ -1,4 +1,4 @@
 import { config } from 'dotenv';
 config();
 
-import '@/ai/flows/generate-anime-recommendation.ts';
+import '@/ai/flows/anime-recommendation-from-watchlist.ts';
