@@ -19,11 +19,19 @@ ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
 ENV NEXT_PUBLIC_RELEASES_MODULE_ENABLED=$NEXT_PUBLIC_RELEASES_MODULE_ENABLED
 ENV NEXT_PUBLIC_TORRENTS_MODULE_ENABLED=$NEXT_PUBLIC_TORRENTS_MODULE_ENABLED
 ENV NEXT_PUBLIC_REGISTRATION_OPEN=$NEXT_PUBLIC_REGISTRATION_OPEN
-COPY --from=deps /app/node_modules ./node_modules
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/web ./apps/web
+# Root hoist may expose zod@4 (serwist); app needs its own zod@3 from apps/web/node_modules.
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 WORKDIR /app/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
+# Placeholders so config.ts can import during `next build`; real secrets at runtime.
+ENV APP_BASE_URL=$NEXT_PUBLIC_BASE_URL
+ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
+ENV JWT_SECRET=build-time-placeholder-min-16
+ENV CRON_SECRET=build-time-placeholder-min-16
+ENV INTERNAL_SERVICE_SECRET=build-time-placeholder-min-16
 RUN pnpm run build
 
 FROM node:22-alpine AS runner
@@ -47,6 +55,7 @@ COPY --from=builder /app/apps/web/scripts ./apps/web/scripts
 COPY --from=builder /app/apps/web/src ./apps/web/src
 COPY --from=builder /app/apps/web/tsconfig.json ./apps/web/tsconfig.json
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=builder /app/apps/web/docker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh

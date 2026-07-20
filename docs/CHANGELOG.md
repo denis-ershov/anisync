@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-20 (fix: Docker build — zod hoist + profile schema)
+
+**Файлы:** `apps/web/Dockerfile`, `apps/web/src/app/[locale]/settings/profile/page.tsx`, `apps/web/src/lib/config.ts`
+
+**Изменения:**
+- Dockerfile копирует `apps/web/node_modules` (zod@3), а не только корневой hoist (там zod@4 от Serwist) — иначе `next build` падает на typecheck.
+- Убран `z.string({ required_error })` в profile form (несовместимо с zod 4 API, если резолвится неверный пакет).
+- Пустые строки env из Coolify трактуются как unset; в builder — placeholder secrets для import `config.ts`.
+
+**Обоснование:** Coolify падал на `RUN pnpm run build` из‑за type error Zod при резолве zod@4 из root `node_modules`.
+
 ## 2026-07-20 (fix: pnpm-lock для Docker/Coolify build)
 
 **Файлы:** `pnpm-lock.yaml`

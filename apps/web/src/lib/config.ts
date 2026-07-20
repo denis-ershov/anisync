@@ -55,36 +55,43 @@ const envSchema = z.object({
 
 export type AppEnv = z.infer<typeof envSchema>;
 
+/** Coolify/Docker often pass optional env as empty string — treat as unset. */
+function emptyToUndef(value: string | undefined) {
+  if (value == null) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function buildRawEnv(source: EnvSource) {
   return {
-    APP_BASE_URL: source.APP_BASE_URL || source.NEXT_PUBLIC_BASE_URL,
-    NEXT_PUBLIC_BASE_URL: source.NEXT_PUBLIC_BASE_URL || source.APP_BASE_URL,
-    DATABASE_URL: source.DATABASE_URL,
-    JWT_SECRET: source.JWT_SECRET,
-    CRON_SECRET: source.CRON_SECRET,
-    REDIS_URL: source.REDIS_URL,
-    BULLMQ_PREFIX: source.BULLMQ_PREFIX,
-    LOG_LEVEL: source.LOG_LEVEL,
+    APP_BASE_URL: emptyToUndef(source.APP_BASE_URL) || emptyToUndef(source.NEXT_PUBLIC_BASE_URL),
+    NEXT_PUBLIC_BASE_URL: emptyToUndef(source.NEXT_PUBLIC_BASE_URL) || emptyToUndef(source.APP_BASE_URL),
+    DATABASE_URL: emptyToUndef(source.DATABASE_URL),
+    JWT_SECRET: emptyToUndef(source.JWT_SECRET),
+    CRON_SECRET: emptyToUndef(source.CRON_SECRET),
+    REDIS_URL: emptyToUndef(source.REDIS_URL),
+    BULLMQ_PREFIX: emptyToUndef(source.BULLMQ_PREFIX),
+    LOG_LEVEL: emptyToUndef(source.LOG_LEVEL),
     DEBUG: source.DEBUG,
     DEBUG_MODULES: source.DEBUG_MODULES,
     DEBUG_SQL: source.DEBUG_SQL,
     DEBUG_EXTERNAL_API: source.DEBUG_EXTERNAL_API,
-    SENTRY_DSN: source.SENTRY_DSN,
-    SHIKIMORI_BASE_URL: source.SHIKIMORI_BASE_URL || 'https://shikimori.one',
-    SHIKIMORI_CLIENT_ID: source.SHIKIMORI_CLIENT_ID,
-    SHIKIMORI_CLIENT_SECRET: source.SHIKIMORI_CLIENT_SECRET,
-    MYANIMELIST_CLIENT_ID: source.MYANIMELIST_CLIENT_ID,
-    MYANIMELIST_CLIENT_SECRET: source.MYANIMELIST_CLIENT_SECRET,
-    ANILIST_CLIENT_ID: source.ANILIST_CLIENT_ID,
-    ANILIST_CLIENT_SECRET: source.ANILIST_CLIENT_SECRET,
-    TMDB_API_KEY: source.TMDB_API_KEY?.replace(/^["']|["']$/g, ''),
-    PROWLARR_URL: source.PROWLARR_URL,
-    PROWLARR_API_KEY: source.PROWLARR_API_KEY,
-    TELEGRAM_BOT_TOKEN: source.TELEGRAM_BOT_TOKEN,
-    TELEGRAM_CHAT_ID: source.TELEGRAM_CHAT_ID,
+    SENTRY_DSN: emptyToUndef(source.SENTRY_DSN),
+    SHIKIMORI_BASE_URL: emptyToUndef(source.SHIKIMORI_BASE_URL) || 'https://shikimori.one',
+    SHIKIMORI_CLIENT_ID: emptyToUndef(source.SHIKIMORI_CLIENT_ID),
+    SHIKIMORI_CLIENT_SECRET: emptyToUndef(source.SHIKIMORI_CLIENT_SECRET),
+    MYANIMELIST_CLIENT_ID: emptyToUndef(source.MYANIMELIST_CLIENT_ID),
+    MYANIMELIST_CLIENT_SECRET: emptyToUndef(source.MYANIMELIST_CLIENT_SECRET),
+    ANILIST_CLIENT_ID: emptyToUndef(source.ANILIST_CLIENT_ID),
+    ANILIST_CLIENT_SECRET: emptyToUndef(source.ANILIST_CLIENT_SECRET),
+    TMDB_API_KEY: emptyToUndef(source.TMDB_API_KEY)?.replace(/^["']|["']$/g, ''),
+    PROWLARR_URL: emptyToUndef(source.PROWLARR_URL),
+    PROWLARR_API_KEY: emptyToUndef(source.PROWLARR_API_KEY),
+    TELEGRAM_BOT_TOKEN: emptyToUndef(source.TELEGRAM_BOT_TOKEN),
+    TELEGRAM_CHAT_ID: emptyToUndef(source.TELEGRAM_CHAT_ID),
     RELEASES_MODULE_ENABLED: source.RELEASES_MODULE_ENABLED ?? 'true',
     TORRENTS_MODULE_ENABLED: source.TORRENTS_MODULE_ENABLED ?? 'true',
-    INTERNAL_SERVICE_SECRET: source.INTERNAL_SERVICE_SECRET,
+    INTERNAL_SERVICE_SECRET: emptyToUndef(source.INTERNAL_SERVICE_SECRET),
     REGISTRATION_OPEN: source.REGISTRATION_OPEN ?? 'true',
     MAINTENANCE_MODE: source.MAINTENANCE_MODE,
   };
