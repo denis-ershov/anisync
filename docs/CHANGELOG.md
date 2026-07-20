@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-20 (fix: pnpm-lock для Docker/Coolify build)
+
+**Файлы:** `pnpm-lock.yaml`
+
+**Изменения:** синхронизирован lockfile с `apps/web/package.json` (убраны устаревшие записи `firebase`, `jsonwebtoken`, `@types/jsonwebtoken`). `pnpm install --frozen-lockfile` в Dockerfile снова проходит.
+
+**Обоснование:** Coolify build падал на `RUN pnpm install --filter @anisync/web... --frozen-lockfile` с `ERR_PNPM_OUTDATED_LOCKFILE`.
+
 ## 2026-07-20 (Coolify + docker-compose.yml)
 
 ### Деплой через Coolify Docker Compose
