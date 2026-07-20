@@ -20,6 +20,7 @@ services:
       - '3000'
     environment:
       NODE_ENV: production
+      ANISYNC_PROCESS: web
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
       APP_BASE_URL: ${APP_BASE_URL}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
@@ -78,6 +79,7 @@ services:
     command: ['node', '--import', 'tsx', 'scripts/worker.ts']
     environment:
       NODE_ENV: production
+      ANISYNC_PROCESS: worker
       RUN_MIGRATIONS: 'false'
       APP_BASE_URL: ${APP_BASE_URL}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
@@ -120,6 +122,7 @@ services:
     command: ['node', '--import', 'tsx', 'scripts/scheduler.ts']
     environment:
       NODE_ENV: production
+      ANISYNC_PROCESS: scheduler
       RUN_MIGRATIONS: 'false'
       APP_BASE_URL: ${APP_BASE_URL}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}

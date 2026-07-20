@@ -167,7 +167,7 @@ db 3 — feature flags cache (optional)
 
 ### Redis (отдельный Coolify resource)
 
-- Один инстанс `anisync-redis` на Coolify — **не** Upstash / внешний managed
+- Один инстанс Redis на Coolify (отдельный Database resource) — **не** Upstash / внешний managed
 - BullMQ (db 0), TMDB cache (db 1), rate limits (db 2) — разные logical DB index на одном Redis
 - Backup: RDB/AOF по политике Coolify; критичные данные дублировать в PG где возможно (catalog cache)
 
@@ -382,9 +382,9 @@ src/app/api/
 |---------|--------|
 | Репозиторий | Один monorepo `anisync` (pnpm workspace): `apps/web` + `packages/*` |
 | BFF | Next.js в `apps/web` (не отдельный Express) |
-| Деплой приложения | Coolify Docker Compose: `web` + `worker` + `scheduler` + `redis` ([COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md)) |
+| Деплой приложения | Coolify Docker Compose: `web` + `worker` + `scheduler` ([COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md)) |
 | PostgreSQL | **18**, внешний (Coolify Database) — только `DATABASE_URL` |
-| Redis | сервис `redis` в compose (или внешний `REDIS_URL`) |
+| Redis | внешний Coolify Database — только `REDIS_URL` |
 | Очереди | BullMQ поверх `REDIS_URL` |
 | Контракт модулей | [MODULE_CONTRACT.md](MODULE_CONTRACT.md) |
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-07-20 (compose: внешний Redis через REDIS_URL)
+
+**Файлы:** `docker-compose.yml`, `.env.example`, `apps/web/docker/entrypoint.sh`, `docs/COOLIFY_DEPLOY.md`, `docs/PLATFORM_ARCHITECTURE.md`, `docs/ENV_INVENTORY.md`.
+
+**Изменения:** сервис `redis` снова убран из compose. Redis — отдельный Coolify Database; приложение подключается только через `REDIS_URL`. Entrypoint требует непустой `REDIS_URL`.
+
+**Обоснование:** Redis деплоится отдельно в Coolify, не в стеке приложения.
+
+## 2026-07-20 (compose: вернули сервис redis)
+
+**Файлы:** `docker-compose.yml`, `.env.example`, `apps/web/docker/entrypoint.sh`, `docs/COOLIFY_DEPLOY.md`.
+
+**Изменения:** снова поднимается `redis:7-alpine` в стеке; `REDIS_URL` по умолчанию `redis://redis:6379`; web/worker/scheduler ждут healthy redis.
+
+**Обоснование:** без сервиса redis в compose Redis не деплоился вместе с приложением.
+
+## 2026-07-20 (fix: scheduler exit 0 → restart loop)
+
+**Файлы:** `apps/web/src/lib/queue/scheduler.ts`, `apps/web/scripts/scheduler.ts`, `docker-compose.yml`.
+
+**Изменения:** после регистрации repeatable jobs scheduler больше не закрывает все Queue (и добавлен явный keep-alive). Раньше Node сразу делал exit 0 → Docker restart loop. В compose задан `ANISYNC_PROCESS` для логов.
+
+**Обоснование:** логи показали многократный «Scheduler is running» каждые ~1–2 с при живом web/worker.
+
 ## 2026-07-20 (Coolify: внешний Redis через predefined network)
 
 **Файлы:** `docker-compose.yml`, `.env.example`, `apps/web/docker/entrypoint.sh`, `docs/COOLIFY_DEPLOY.md`.

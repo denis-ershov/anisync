@@ -7,6 +7,9 @@ import { JOB_NAMES, QUEUE_NAMES } from '@/lib/queue/names';
 
 const log = createLogger('queue:scheduler');
 
+/** Open queues kept so the Node process does not drain and exit. */
+let keepAliveQueues: Queue[] = [];
+
 export async function registerRepeatableJobs() {
   const connection = getQueueConnectionOptions();
   const prefix = getBullMqPrefix();
@@ -75,15 +78,20 @@ export async function registerRepeatableJobs() {
     }
   );
 
-  await precomputeQueue.close();
-  await watchlistRefreshQueue.close();
-  await torrentWatcherQueue.close();
+  // Не закрываем очереди: иначе нет активных Redis-хендлов и Node сразу exit 0
+  // (Docker restart loop). Repeatable jobs уже в Redis; соединения держат процесс живым.
+  keepAliveQueues = [cleanupQueue, precomputeQueue, watchlistRefreshQueue, torrentWatcherQueue];
 
   log.info('Repeatable scheduler jobs registered');
-  await cleanupQueue.close();
 }
 
 export async function shutdownScheduler() {
+  await Promise.all(
+    keepAliveQueues.map(async (queue) => {
+      await queue.close().catch(() => undefined);
+    })
+  );
+  keepAliveQueues = [];
   await closeQueues();
   log.info('Scheduler stopped');
 }

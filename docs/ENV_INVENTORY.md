@@ -16,7 +16,7 @@
 | `DATABASE_URL` | да | PostgreSQL 18 — полная строка (`postgresql://…`), без отдельных `POSTGRES_*` |
 | `JWT_SECRET` | да | Session signing (min 16 chars) |
 | `CRON_SECRET` | prod | Internal routes + legacy health |
-| `REDIS_URL` | prod | Redis; в Coolify compose default `redis://redis:6379` |
+| `REDIS_URL` | prod | Redis; Coolify Database internal URL (обязателен) |
 | `BULLMQ_PREFIX` | нет | Префикс ключей BullMQ (default: `anisync`) |
 | `LOG_LEVEL` | нет | pino: info/debug/... |
 | `DEBUG` | нет | Глобальный debug |

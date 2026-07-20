@@ -1,13 +1,13 @@
 # Деплой AniSync в Coolify
 
-> **Версия:** 5.0  
+> **Версия:** 7.0  
 > **Дата:** 2026-07-20  
 > **Связанные документы:** [PLATFORM_ARCHITECTURE.md](PLATFORM_ARCHITECTURE.md), [ENV_INVENTORY.md](ENV_INVENTORY.md), [`.env.example`](../.env.example)
 
 Целевой прод-деплой — **Coolify** + ресурс типа **Docker Compose** ([`docker-compose.yml`](../docker-compose.yml)).
 
 Секреты — в **Environment Variables** Coolify.  
-PostgreSQL подключается **только** через `DATABASE_URL` (отдельный Database-ресурс Coolify или любой PG). Переменные `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` **не нужны**.
+PostgreSQL и Redis — **отдельные** Coolify Database resources. В compose только приложение; подключение через `DATABASE_URL` и `REDIS_URL`. Переменные `POSTGRES_*` **не нужны**.
 
 ---
 
@@ -44,7 +44,7 @@ Postgres и Redis **не** входят в compose — Coolify Database + **Conn
 | `APP_BASE_URL` | `https://anisync.ru` |
 | `NEXT_PUBLIC_BASE_URL` | `https://anisync.ru` (**build-time** в Coolify) |
 | `DATABASE_URL` | полная строка `postgresql://…` или `postgres://…` |
-| `REDIS_URL` | полная строка Coolify Redis (internal) — **обязателен** для worker/scheduler |
+| `REDIS_URL` | полная строка Coolify Redis (internal) — **обязателен** |
 | `JWT_SECRET` | ≥ 16 символов |
 | `CRON_SECRET` | ≥ 16 символов |
 | `INTERNAL_SERVICE_SECRET` | ≥ 16 символов |
@@ -54,7 +54,8 @@ Postgres и Redis **не** входят в compose — Coolify Database + **Conn
 1. Создайте Coolify **Database** (PostgreSQL + Redis) или используйте существующие.
 2. В ресурсе Compose включите **Connect To Predefined Network** (общая сеть с Database).
 3. В Environment Variables вставьте **internal** connection strings из карточек Database.
-4. Отдельные `POSTGRES_USER` / `PASSWORD` / `DB` не нужны.
+4. `REDIS_URL` **не оставляйте пустым** — entrypoint упадёт с ошибкой.
+5. `POSTGRES_*` не нужны.
 
 ### Интеграции (по модулям)
 
@@ -126,7 +127,7 @@ node --import tsx scripts/seed-bootstrap-admin.ts
 
 - Приложение: предыдущий commit в Coolify.
 - Данные: бэкапы внешнего Postgres (Coolify Database backups).
-- Redis volume `anisync_redis_data` — очереди/кэш, не источник истины.
+- Redis Coolify Database — очереди/кэш, не источник истины.
 
 ---
 

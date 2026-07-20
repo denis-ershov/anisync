@@ -23,6 +23,11 @@ async function main() {
 
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
+
+  // Явный keep-alive на случай, если BullMQ закроет соединения
+  await new Promise<void>(() => {
+    /* never resolves */
+  });
 }
 
 main().catch((error) => {
