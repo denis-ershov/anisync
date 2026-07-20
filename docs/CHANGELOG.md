@@ -1,0 +1,638 @@
+# Changelog
+
+## 2026-07-20 (финальный parity-аудит и единый runtime)
+
+**Файлы:** `docs/{LEGACY_PARITY_AUDIT,POST_AUDIT_CLOSURE_PLAN,API_MAPPING,SCHEMA_PARITY,SERVICE_CONSOLIDATION_IMPLEMENTATION}.md`.
+Также: `docker-compose.yml`, `apps/web/Dockerfile`, torrent API/store/watcher/UI,
+Releases views, TMDB tests, CI и deployment docs.
+
+**Изменения:** опубликована доказательная матрица NextScene/NightWatcher → AniSync;
+зафиксирован новый P0–P2 план закрытия; remote NightWatcher исключён из целевой API/DB
+архитектуры. Python sidecar и bridge endpoint удалены. Добавлены TMDB metadata on add,
+preferences, bencode magnet, pin/hunting/adopt, Releases list/grid + sort/pagination,
+portable admin bootstrap и clean-Postgres CI migration. DB SSL теперь определяется
+явным `sslmode`, а health checks имеют ограниченный timeout.
+
+**Обоснование:** архив legacy допустим только после классификации каждой runtime-функции.
+
+## 2026-07-20 (TS torrent watcher — unified stack)
+
+### Порт NightWatcher scan-loop на TypeScript внутри AniSync
+
+**Файлы:**
+- `apps/web/src/lib/services/torrent-watcher-service.ts`
+- `apps/web/src/lib/torrents/watcher/{identity,parsers,filters}.ts`
+- `apps/web/src/lib/integrations/prowlarr/client.ts`
+- `apps/web/src/lib/integrations/telegram/bot.ts`
+- `apps/web/src/lib/queue/{names,scheduler,workers,queues}.ts`
+- `apps/web/src/app/api/internal/torrents/watch/route.ts`
+- `apps/web/src/modules/torrents/jobs.ts`
+- `apps/web/tests/torrent-watcher.test.ts`
+- `docs/modules/TORRENTS_ARCHITECTURE.md`, `SERVICE_CONSOLIDATION_IMPLEMENTATION.md`, `GREENFIELD.md`
+
+**Изменения:**
+- Единый watcher на `torrent_*`: Prowlarr → фильтры → DB → Telegram + in-app.
+- BullMQ `torrents.watcher` каждые 30 мин; cron fallback без Redis.
+- Python NW sidecar больше не обязателен для greenfield.
+
+**Обоснование:**
+- Продукт работает как одно целое на TypeScript (фаза 5.3).
+
+## 2026-07-20 (integrations live + NW tables on AniSync PG)
+
+### TMDB Bearer health; Prowlarr health; shared PG for NW sidecar
+
+**Файлы:**
+- `apps/web/src/lib/integrations/tmdb/health.ts`
+- `apps/web/src/lib/integrations/prowlarr/health.ts`
+- `apps/web/src/lib/config.ts`, `torrent-local-store.ts`
+- `scripts/probe-integrations.ts`, `scripts/apply-nw-tables-on-anisync.ts`
+- `services/nightwatcher/.env.example`
+- `docs/GREENFIELD.md`, `docs/modules/TORRENTS_ARCHITECTURE.md`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- TMDB health: Bearer JWT (как client) + fallback `api_key`.
+- Local torrents health зондирует Prowlarr / Telegram env.
+- На AniSync PG добавлены `imdb_watchlist` + `notifications_history` для greenfield sidecar.
+- Probe-скрипт интеграций; NW `.env.example`.
+
+**Обоснование:**
+- Releases готов к live TMDB; Torrents готов к sidecar без отдельной БД.
+
+## 2026-07-20 (greenfield: skip data migration)
+
+### Режим с нуля; миграции/cutover → N/A; registration gate
+
+**Файлы:**
+- `docs/GREENFIELD.md`, `docs/PRODUCT_DEFAULTS.md`
+- `docs/SERVICE_CONSOLIDATION_PLAN.md`, `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+- `apps/web/src/app/api/auth/register/route.ts`, `app/[locale]/register/page.tsx`
+- `apps/web/src/lib/feature-flags.ts`, `settings/layout.tsx`
+- `apps/web/.env.example`, `apps/web/messages/{en,ru}.json`
+
+**Изменения:**
+- Принят greenfield: нет ETL OnTrash/NW, parallel/dual-write/DNS legacy → `[n/a]`.
+- Product defaults закрыты (§11).
+- `REGISTRATION_OPEN` enforced в API и на странице регистрации.
+- Admin OnTrash import скрыт без `LEGACY_ONTRASH_IMPORT_ENABLED`.
+- Defaults модулей Releases/Torrents = on в `.env.example`.
+
+**Обоснование:**
+- Пустые БД; фокус на product-ready AniSync без strangler cutover.
+
+## 2026-07-20 (torrents local store + parity docs)
+
+### Local `torrent_*` facade; закрытие code-complete пунктов
+
+**Файлы:**
+- `apps/web/src/lib/services/torrent-local-store.ts`, `torrent-facade.ts`
+- `apps/web/src/lib/api/torrents-module.ts`, `api/torrents/**`, `user-service.ts`
+- `docs/PRODUCT_DEFAULTS.md`, `docs/RELEASES_PARITY_CHECKLIST.md`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`, `docs/modules/TORRENTS_ARCHITECTURE.md`
+
+**Изменения:**
+- Без NightWatcher: CRUD watchlist/releases/health на AniSync `torrent_*`.
+- С NW URL — прежний remote mode.
+- Product defaults + Releases parity checklist из кода.
+- Трекер: 0.6.3/0.6.4, 1.6, 3.3.2 → `[x]`.
+
+**Обоснование:**
+- Dev/cutover prep без sidecar; модуль Torrents usable на одной AniSync DB.
+
+## 2026-07-20 (torrent_* schema + bootstrap admin + parity docs)
+
+### Целевые torrent-таблицы в AniSync; seed admin; parity без чужих БД
+
+**Файлы:**
+- `apps/web/src/lib/db/schema.ts`, `drizzle/0006_torrent_tables.sql`, `drizzle/meta/_journal.json`
+- `scripts/seed-bootstrap-admin.ts`, `scripts/probe-anisync-db.ts` (migrate)
+- `docs/SCHEMA_PARITY.md`, `docs/DUAL_WRITE_CUTOVER.md`
+- `docs/DB_ARCHITECTURE.md`, `docs/modules/TORRENTS_ARCHITECTURE.md`
+- `apps/web/.env.example`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Additive `torrent_watchlist` / `torrent_releases` / `torrent_notification_log` на prod AniSync (19 tables).
+- Bootstrap admin при пустой `users` (`seed-bootstrap-admin.ts`).
+- Документация parity схем из кода; runbook dual-write.
+- Миграции OnTrash отмечены code-complete без source DB.
+
+**Обоснование:**
+- Prep фазы 4.2/4.3 без доступа к NW/OnTrash Postgres.
+
+## 2026-07-20 (prod DB migrate + Admin OnTrash import)
+
+### Применены Drizzle-миграции на prod AniSync; Admin UI импорта
+
+**Файлы:**
+- `scripts/probe-anisync-db.ts`, `inspect-prod-dbs.ts`, `promote-admin.ts`
+- `docs/schemas/anisync-live.sql`, `docs/schemas/README.md`
+- `apps/web/src/lib/api/auth.ts` (`requireAdminUser`)
+- `apps/web/src/app/api/admin/migrations/ontrash/route.ts`
+- `apps/web/src/app/[locale]/settings/admin/import/page.tsx`, `settings/layout.tsx`
+- `apps/web/messages/en.json`, `ru.json`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Prod БД `anisync` была **пустой** → применено 16 таблиц (foundation + releases).
+- Live schema snapshot `anisync-live.sql`.
+- Admin UI `/settings/admin/import` (dry-run/apply при `ONTRASH_DATABASE_URL`).
+- CLI `promote-admin.ts` для выдачи `role=admin`.
+- NW prod с этой сети: CONNECT_TIMEOUT (миграции NW не применены удалённо).
+
+**Обоснование:**
+- Разблокирует foundation/Releases на целевой Postgres; закрывает 0.2 live и 2.3.3.
+
+## 2026-07-20 (фаза 0.2 / 1.2 / verify / NW check_interval)
+
+### Schema snapshots, session docs, verify-counts, check_interval
+
+**Файлы:**
+- `docs/schemas/{anisync,nightwatcher,ontrash}.sql`, `docs/schemas/README.md`
+- `docs/AUTH_SESSION_MAPPING.md`
+- `scripts/migrate-verify-counts.ts`, `scripts/README.md`
+- `services/nightwatcher/app/watcher.py` — SQL-фильтр по `check_interval`/`last_checked`
+- `services/nightwatcher/tests/test_check_interval_due.py`
+- `apps/web/package.json` — удалены неиспользуемые `firebase`, `jsonwebtoken`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`, `services/nightwatcher/docs/DB_ARCHITECTURE.md`
+
+**Изменения:**
+- Снимки схем из репо (замена blocked live `pg_dump` до доступа к prod).
+- Документация cutover сессий OnTrash/NW → AniSync.
+- Скрипт сверки counts после миграций.
+- Per-item `check_interval` в watcher; unit-тесты правила due.
+- Cleanup мёртвых npm-зависимостей.
+
+**Обоснование:**
+- Закрывает незаблокированные пункты §8.4 / 0.2 / 1.2 и техдолг NW из inventory.
+
+## 2026-07-20 (фаза 0.6.5 / 1.3 UI / 4.2 prep)
+
+### In-app notifications, SKIP LOCKED, NW migrate script
+
+**Файлы:**
+- `apps/web/src/components/notifications-bell.tsx`, `header.tsx`, `platform-shell.tsx`
+- `apps/web/src/app/api/user/notifications/route.ts`
+- `apps/web/src/lib/services/notification-hub-service.ts`, `sync-service.ts`
+- `apps/web/messages/en.json`, `ru.json`
+- `scripts/migrate-nightwatcher-watchlist.ts`, `scripts/README.md`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Колокольчик уведомлений в header / module top bar (touch ≥44px, unread badge, mark all read).
+- Claim sync jobs / entry changes через `FOR UPDATE SKIP LOCKED`.
+- CLI миграция legacy NW `imdb_watchlist` → текущая NW БД (`--dry-run` / `--apply`).
+
+**Обоснование:**
+- Закрывает UX notification hub, безопасный multi-worker claim и prep к фазе 4.2 без prod cutover.
+
+## 2026-07-20 (фаза 0.4 / 2.3 — security + migration scripts)
+
+### Санитизация секретов и скрипты OnTrash
+
+**Файлы:**
+- `VERCEL_SETUP.md`, `VPS_POSTGRES_SETUP.md` — убраны реальные пароль/IP
+- `scripts/migrate-ontrash-users.ts`, `scripts/migrate-ontrash-watchlist.ts`, `scripts/README.md`
+- `services/nightwatcher/tests/test_telegram_per_user.py`
+- `.github/workflows/ci.yml` (pytest)
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Docs больше не содержат live credentials (требуется **ротация** пароля PostgreSQL вне репо).
+- CLI миграция OnTrash users/watchlist с `--dry-run` / `--apply`.
+- NW unit-тесты на telegram per-user surface.
+
+**Обоснование:**
+- Закрывает незаблокированные пункты плана без доступа к prod DNS/Coolify UI.
+
+## 2026-07-20 (фаза 3.1.5 / 3.3.3 — per-user Telegram + in-app)
+
+### Telegram chat_id на пользователя
+
+**Файлы (AniSync):**
+- `apps/web/src/app/[locale]/settings/notifications/page.tsx`
+- `apps/web/src/app/api/user/settings` (merge prefs + sync NW)
+- `apps/web/src/app/api/torrents/watchlist/route.ts`
+- `apps/web/src/app/api/internal/torrents/notify/route.ts`
+- `apps/web/src/lib/integrations/nightwatcher/client.ts`
+- `apps/web/messages/en.json`, `ru.json`
+- `docs/API_MAPPING.md`, `docs/modules/TORRENTS_ARCHITECTURE.md`
+
+**Файлы (NightWatcher):**
+- `migrations/007_add_telegram_chat_id.sql`, `migrations/init.sql`, `app/db.py`
+- `app/notifier.py`, `app/watcher.py`, `app/api.py`, `app/internal_routes.py`
+- `app/anisync_notify.py`, `app/config.py` (`ANISYNC_INTERNAL_URL`)
+
+**Изменения:**
+- Settings → Notifications: `telegramChatId` + каналы.
+- При add watchlist / update settings chat_id пишется в `imdb_watchlist.telegram_chat_id`.
+- Notifier шлёт в per-user chat (fallback `TELEGRAM_CHAT_ID`).
+- Dual-write in-app: NW → `POST /api/internal/torrents/notify`.
+
+**Обоснование:**
+- Закрывает 3.1.5 и 3.3.3 плана консолидации.
+
+## 2026-07-20 (monorepo R0–R5 — единый репозиторий)
+
+### Modular monorepo layout
+
+**Файлы:**
+- `docs/MODULE_CONTRACT.md`
+- `docs/modules/*_ARCHITECTURE.md`
+- `docs/PLATFORM_ARCHITECTURE.md`, `docs/SERVICE_CONSOLIDATION_PLAN.md` (§5.2)
+- `docs/REPO_DECOMMISSION.md`
+- `pnpm-workspace.yaml`, root `package.json`
+- `apps/web/` (бывший корень Next.js)
+- `services/nightwatcher/` (бывший отдельный репозиторий)
+- `packages/README.md`
+
+**Изменения:**
+- Один репозиторий: Next.js BFF в `apps/web`, Python sidecar в `services/nightwatcher`.
+- Контракт модулей (manifest + registry + feature flags).
+- pnpm workspace; Docker/CI обновлены под `apps/web`.
+
+**Обоснование:**
+- Масштабирование модулей без трёх репозиториев и без выноса API в Express.
+
+## 2026-06-16 (фаза 3.1.2 — multi-user NightWatcher)
+
+### User-scoped torrent watchlist
+
+**Файлы (AniSync):**
+- `src/lib/integrations/nightwatcher/client.ts`
+- `src/app/api/torrents/watchlist/route.ts`
+- `src/app/api/torrents/watchlist/[id]/route.ts`
+- `src/app/api/torrents/watchlist/[id]/toggle/route.ts`
+- `src/app/api/torrents/releases/[imdbId]/route.ts`
+- `tests/nightwatcher-client.test.ts`, `tests/setup-env.mjs`
+- `docs/TORRENTS_ARCHITECTURE.md`, `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Файлы (NightWatcher):**
+- `migrations/006_add_user_id.sql`, `migrations/init.sql`
+- `app/db.py`, `app/internal_auth.py`, `app/internal_routes.py`, `app/api.py`
+
+**Изменения:**
+- Колонка `imdb_watchlist.user_id`, unique `(user_id, imdb_id)`.
+- Internal API требует `X-AniSync-User-Id`; CRUD scoped per user.
+- AniSync facade проксирует `users.id` в NightWatcher.
+
+**Обоснование:**
+- Устраняет IDOR: каждый пользователь видит только свой torrent watchlist.
+
+## 2026-06-16 (фаза 3.1.4 — Torrents UI)
+
+### React UI watchlist NightWatcher
+
+**Файлы:**
+- `src/lib/torrents/api.ts`, `hooks.ts`, `query-keys.ts`
+- `src/components/torrents/torrents-watchlist-view.tsx`
+- `src/components/torrents/torrent-watchlist-card.tsx`
+- `src/components/torrents/torrent-add-form.tsx`
+- `src/components/torrents/torrents-health-banner.tsx`
+- `src/app/[locale]/torrents/layout.tsx`, `page.tsx`
+- `messages/en.json`, `messages/ru.json`
+- `docs/TORRENTS_ARCHITECTURE.md`, `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Watchlist: карточки, toggle, удаление, lazy-load релизов по IMDb.
+- Форма добавления по IMDb id, баннер health NW.
+- Адаптивная сетка карточек (без таблиц на mobile), touch targets `min-h-11`.
+- Layout с feature flag `NEXT_PUBLIC_TORRENTS_MODULE_ENABLED`.
+
+**Обоснование:**
+- Закрывает 3.1.4: пользовательский UI поверх готового facade API.
+
+## 2026-06-16 (фаза 3.2.1–3.2.2 — Releases ↔ Torrents)
+
+### IMDb lookup + кнопка «Следить за торрентом»
+
+**Файлы:**
+- `src/lib/integrations/tmdb/client.ts`
+- `src/lib/releases/types.ts`
+- `src/components/releases/release-detail-modal.tsx`
+- `messages/en.json`, `messages/ru.json`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- TMDB detail расширен `imdbId` через `external_ids`, с сохранением в `media_external_ids`.
+- В detail modal добавлена кнопка «Следить за торрентом» (добавляет IMDb id в NightWatcher watchlist).
+
+**Обоснование:**
+- Связывает модуль Releases с Torrents без отдельного ручного ввода IMDb id.
+
+## 2026-06-16 (фаза 3.1.1 / 3.1.3 — Torrents facade)
+
+### HTTP facade к NightWatcher
+
+**Файлы (AniSync):**
+- `src/lib/integrations/nightwatcher/client.ts`, `types.ts`
+- `src/lib/api/torrents-module.ts`
+- `src/app/api/torrents/health/route.ts`
+- `src/app/api/torrents/watchlist/route.ts`
+- `src/app/api/torrents/watchlist/[id]/route.ts`
+- `src/app/api/torrents/watchlist/[id]/toggle/route.ts`
+- `src/app/api/torrents/releases/[imdbId]/route.ts`
+- `src/lib/config.ts`, `.env.example`
+- `tests/nightwatcher-client.test.ts`
+- `docs/TORRENTS_ARCHITECTURE.md`, `docs/RELEASES_BETA_CUTOVER.md`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`, `docs/ENV_INVENTORY.md`
+
+**Файлы (NightWatcher):**
+- `app/internal_auth.py`, `app/internal_routes.py`
+- `app/config.py`, `app/api.py`
+
+**Изменения:**
+- Service token `X-Internal-Service-Token` для `/api/internal/*` в NW.
+- AniSync проксирует watchlist CRUD, toggle, releases, health.
+- Чеклист beta cutover Releases (`RELEASES_BETA_CUTOVER.md`).
+
+**Обоснование:**
+- Strangler Fig: не переписывать watcher, дать единую точку входа из AniSync.
+
+## 2026-06-16 (фаза 1.5.2 — адаптив Releases)
+
+### Mobile-first UI модуля Releases
+
+**Файлы:**
+- `src/components/releases/releases-subnav.tsx`
+- `src/components/releases/releases-discover-view.tsx`
+- `src/components/releases/releases-watchlist-view.tsx`
+- `src/components/releases/release-content-card.tsx`
+- `messages/en.json`, `messages/ru.json`
+- `docs/RELEASES_ARCHITECTURE.md`, `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Discover: bottom sheet с фильтрами на mobile/tablet, inline-фильтры на desktop.
+- Subnav: sticky + горизонтальный scroll табов.
+- Touch targets `min-h-11` на интерактивных элементах.
+- Parity-чеклист фазы 2 обновлён (кроме сверки upcoming с OnTrash prod).
+
+**Обоснование:**
+- Соответствие PLATFORM_ARCHITECTURE: карточки вместо таблиц, удобство на телефонах.
+
+## 2026-06-16 (фаза 1.5.1 / 2.2.4 — PWA Serwist)
+
+### Service worker и иконки платформы
+
+**Файлы:**
+- `@serwist/next`, `serwist`, `src/app/sw.ts`, `next.config.ts`
+- `src/components/providers/serwist-provider.tsx`
+- `src/components/pwa/install-prompt.tsx`
+- `public/offline.html`, `public/icons/icon-192.png`, `public/icons/icon-512.png`
+- `src/app/manifest.ts`, `src/app/[locale]/layout.tsx`, `src/middleware.ts`
+- `tsconfig.json`, `.gitignore`
+- `docs/PLATFORM_ARCHITECTURE.md`, `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Serwist: precache, `defaultCache`, offline fallback на `/offline.html`.
+- SW регистрируется в production (`SerwistProvider`); в dev отключён.
+- PNG-иконки 192/512 в manifest и metadata.
+- Install prompt: `src/components/pwa/install-prompt.tsx` (после 2-й авторизованной сессии).
+
+**Обоснование:**
+- Паритет с OnTrash PWA и единый installable experience для AniSync.
+
+## 2026-06-16 (фаза 2.2.3 + PWA manifest)
+
+### Releases React Query + платформенный manifest
+
+**Файлы:**
+- `@tanstack/react-query`, `src/components/providers/query-provider.tsx`
+- `src/lib/releases/hooks.ts`, `src/lib/releases/query-keys.ts`
+- `src/components/releases/*.tsx` — переход с `useEffect`+fetch на hooks
+- `src/app/manifest.ts`, `src/app/[locale]/layout.tsx`
+- `docs/RELEASES_ARCHITECTURE.md`, `docs/PLATFORM_ARCHITECTURE.md`, `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- React Query: кэш каталога, watchlist, деталей; мутации с автоматической invalidation.
+- Удалён счётчик `watchlistRevision` — синхронизация через query cache.
+- Единый PWA manifest для платформы (service worker — отдельно, фаза 1.5.1).
+
+**Обоснование:**
+- Меньше дублирования запросов, проще синхронизация UI между экранами Releases.
+
+## 2026-06-16 (фаза 2.1.4–2.1.5 — OpenAPI + SLO)
+
+### API observability и спецификация Releases
+
+**Файлы:**
+- `src/lib/observability/slo-metrics.ts`, `src/lib/api/with-slo.ts`
+- `src/app/api/health/slo/route.ts`
+- `src/app/api/releases/**/route.ts`, `src/app/api/auth/login/route.ts`
+- `docs/openapi/releases.yaml`, `docs/API_ARCHITECTURE.md`
+- `tests/slo-metrics.test.ts`
+- `docs/RELEASES_ARCHITECTURE.md`, `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- In-memory SLO (p50/p95/p99, error rate) для ключевых API-маршрутов.
+- `withSloRoute` — обёртка route handlers; медленные запросы (>1.5s) в pino.
+- `GET /api/health/slo` — снимок метрик (с health secret в production).
+- OpenAPI 3.1 для модуля Releases.
+
+**Обоснование:**
+- Паритет с OnTrash observability и контракт API для клиентов/Orval.
+
+## 2026-06-16 (фаза 2.3 — Redis cache + watchlist refresh)
+
+### Releases performance
+
+**Файлы:**
+- `src/lib/cache/redis-client.ts`, `src/lib/cache/store.ts`
+- `src/lib/integrations/tmdb/cache-keys.ts`, `src/lib/integrations/tmdb/client.ts`
+- `src/lib/services/releases-precompute-service.ts`
+- `src/lib/services/release-watchlist-refresh-service.ts`
+- `src/lib/services/release-watchlist-service.ts`
+- `src/lib/queue/names.ts`, `queues.ts`, `workers.ts`, `scheduler.ts`
+- `drizzle/0005_release_watchlist_schedule_updated.sql`, `src/lib/db/schema.ts`
+- `tests/releases-cache.test.ts`, `.env.example`
+- `docs/RELEASES_ARCHITECTURE.md`, `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Redis-кэш TMDB (upcoming, detail, release dates, schedule) с in-memory fallback.
+- Worker: precompute upcoming каждые 30 мин, batch refresh watchlist каждый час.
+- `GET watchlist` без N×TMDB; данные обновляются фоновой очередью.
+- Колонка `schedule_updated_at` в `release_watchlist_entries`.
+
+**Обоснование:**
+- Снижение нагрузки на TMDB и ускорение API при нескольких инстансах app.
+
+## 2026-06-16 (фаза 2.2 — Dashboard + detail modal)
+
+### Releases UI
+
+**Файлы:**
+- `src/app/[locale]/releases/dashboard/page.tsx`
+- `src/components/releases/release-detail-modal.tsx`
+- `src/components/releases/releases-dashboard-view.tsx`
+- `src/components/releases/release-schedule-item.tsx`
+- `src/components/releases/releases-module-context.tsx`
+- `src/lib/releases/utils.ts`, `src/lib/releases/api.ts`, `src/lib/releases/types.ts`
+- `src/components/releases/release-content-card.tsx` — клик по карточке
+- `src/navigation.ts`, `messages/en.json`, `messages/ru.json`
+- `tests/release-schedule-utils.test.ts`
+- `docs/RELEASES_ARCHITECTURE.md`
+
+**Изменения:**
+- Dashboard: блок «Сегодня» + сетка на 7 дней по watchlist (фильмы по `releaseDate`, сериалы по `nextEpisodeDate`).
+- Модалка деталей: overview, cast, trailer, статусы plan/watching, удаление из списка.
+- Общий `ReleasesModuleProvider` в layout; синхронизация watchlist между экранами.
+- `/releases` и platform nav ведут на dashboard.
+
+**Обоснование:**
+- Паритет с OnTrash Dashboard и DetailModal — ключевой UX модуля Releases.
+
+## 2026-06-16 (фаза 2 — Releases MVP, старт)
+
+### Releases backend + UI
+
+**Файлы:**
+- `drizzle/0004_release_watchlist.sql`, `src/lib/db/schema.ts`
+- `src/lib/integrations/tmdb/client.ts` (порт из OnTrash)
+- `src/lib/services/release-watchlist-service.ts`
+- `src/app/api/releases/content/*`, `src/app/api/releases/watchlist/*`
+- `src/app/[locale]/releases/layout.tsx`, `discover/page.tsx`, `watchlist/page.tsx`
+- `src/components/releases/*`, `src/lib/releases/*`
+- `tests/tmdb-pagination.test.ts`
+- `docs/RELEASES_ARCHITECTURE.md`
+- `next.config.ts` — `image.tmdb.org`
+
+**Изменения:**
+- TMDB client с логикой upcoming/digital releases.
+- API content + watchlist под `/api/releases/*`.
+- Таблица `release_watchlist_entries`.
+- UI: Discover (каталог + поиск) и Watchlist (статистика + фильтры).
+
+**Обоснование:**
+- Первый рабочий срез модуля Releases перед cutover OnTrash.
+
+## 2026-06-16 (фаза 1 — Foundation)
+
+### Платформа / UI / Схема БД
+
+**Файлы:**
+- `drizzle/0003_platform_foundation.sql`, `src/lib/db/schema.ts`
+- `src/lib/services/notification-hub-service.ts`, `src/lib/services/media-external-ids-service.ts`
+- `src/lib/maintenance/retention.ts`, `src/lib/queue/workers.ts`
+- `src/components/platform-shell.tsx`, `src/components/platform-nav.tsx`
+- `src/app/[locale]/releases/page.tsx`, `src/app/[locale]/torrents/page.tsx`
+- `src/app/api/releases/health/route.ts`, `src/app/api/user/settings/route.ts` (GET)
+- `messages/en.json`, `messages/ru.json`, `src/navigation.ts`
+- `docs/DB_ARCHITECTURE.md`
+
+**Изменения:**
+- Расширены `users` (role, display_name), `user_settings` (enabled_modules, notification_preferences), `notifications` (module, channel, payload).
+- Таблица `media_external_ids` для кросс-модульного ID mapping.
+- Platform navigation shell: sidebar (desktop) + bottom nav (mobile); заглушки Releases/Torrents.
+- Notification hub v1; retention cleanup подключён к worker.
+- TMDB health endpoint; client-safe feature flags через `NEXT_PUBLIC_*`.
+
+**Обоснование:**
+- Фундамент единой платформы перед портированием OnTrash (Releases) и NightWatcher (Torrents).
+
+## 2026-06-16 (реализация фазы 0.5–0.7)
+
+### Инфраструктура / Очереди / Observability
+
+**Файлы:**
+- `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `docker/entrypoint.sh`
+- `next.config.ts` — `output: 'standalone'`
+- `src/lib/queue/*` — BullMQ scaffold
+- `src/lib/observability/*` — pino + DEBUG flags
+- `src/lib/feature-flags.ts`
+- `src/app/api/health/route.ts`, `src/app/api/health/ready/route.ts`
+- `scripts/worker.ts`, `scripts/scheduler.ts`
+- `docs/COOLIFY_DEPLOY.md`
+- `tests/feature-flags.test.ts`
+- `package.json`, `.env.example`
+
+**Изменения:**
+- Docker multi-stage + compose (web/worker/scheduler/postgres:18/redis) для local dev.
+- BullMQ: очереди `anime.sync.primary`, `anime.sync.entry`, `maintenance.cleanup`.
+- При наличии `REDIS_URL` sync dispatch идёт в очередь; без Redis — HTTP fallback (обратная совместимость).
+- Публичные health endpoints; feature flags; pino logging.
+
+**Обоснование:**
+- Фундамент для Coolify-deploy и масштабирования без рефакторинга при росте нагрузки.
+
+## 2026-06-16 (инфраструктура)
+
+### Документация
+
+**Файлы:**
+- `docs/PLATFORM_ARCHITECTURE.md`
+- `docs/SERVICE_CONSOLIDATION_PLAN.md`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Зафиксировано: **PostgreSQL 18** и **Redis 7** — отдельные Coolify Database resources (`anisync-postgres`, `anisync-redis`), не часть образа приложения.
+- App-сервисы (`web`, `worker`, `scheduler`) подключаются по internal `DATABASE_URL` / `REDIS_URL`.
+- `docker-compose` с PG/Redis — только для локальной разработки.
+
+**Обоснование:**
+- Независимое масштабирование, бэкапы и перезапуск data layer без редеплоя приложения.
+
+## 2026-06-16
+
+### Документация
+
+**Файлы:**
+- `docs/PLATFORM_ARCHITECTURE.md`
+- `docs/SERVICE_CONSOLIDATION_PLAN.md`
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`
+
+**Изменения:**
+- Зафиксирована целевая версия СУБД: **PostgreSQL 18** (образ `postgres:18-alpine`, Coolify/VPS).
+
+**Обоснование:**
+- Единая версия для всех трёх доменов после слияния; избегаем downgrade при миграции существующих данных.
+
+## 2026-06-15 (вечер)
+
+### Документация / Архитектура
+
+**Файлы:**
+- `docs/PLATFORM_ARCHITECTURE.md` (новый)
+- `docs/SERVICE_CONSOLIDATION_PLAN.md` (обновление v1.2)
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md` (обновление)
+
+**Изменения:**
+- Повторный глубокий анализ трёх codebases подтвердил корректность стратегии Strangler Fig и bounded contexts.
+- Зафиксировано расхождение: план изначально ориентирован на Vercel — **целевой деплой переведён на Coolify** (web + worker + scheduler как отдельные процессы).
+- Добавлена целевая продакшен-архитектура: **BullMQ + Redis** (очереди, кэш TMDB, rate limits), pino + DEBUG flags, retention jobs, PWA, отказоустойчивость.
+- В трекер добавлены фазы 0.5 (Docker), 0.6 (очереди), 0.7 (observability).
+
+**Обоснование:**
+- Текущий DB-as-queue + HTTP self-dispatch не выдержит нагрузку и большие библиотеки; TMDB/OnTrash и NightWatcher имеют критические bottlenecks, которые нужно закладывать до переноса UI.
+
+## 2026-06-15
+
+### Документация
+
+**Файлы:**
+- `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md` (новый)
+- `docs/SERVICE_CONSOLIDATION_PLAN.md` (восстановлен)
+- `docs/CHANGELOG.md` (обновление)
+
+**Изменения:**
+- Проведена верификация плана объединения сервисов по фактическому коду трёх репозиториев (`anisync`, `NextScene`, `nightwatcher`): ключевые утверждения подтверждены.
+- Создан трекер реализации `SERVICE_CONSOLIDATION_IMPLEMENTATION.md` с легендой статусов (`[x]`/`[~]`/`[ ]`/`[blocked]`), сводкой верификации, чеклистом по фазам 0–5, критериями готовности и сводным прогрессом.
+- Восстановлен и исправлен план `SERVICE_CONSOLIDATION_PLAN.md` (версия 1.1): `app/watcher.py` ~1745 строк (было ~1280); NightWatcher single-tenant + обязательный `SESSION_SECRET`; OnTrash `lib/integrations` отсутствует (только glob), `app_sessions` вне Drizzle-схемы; AniSync cron — programmatic fetch (нет `vercel.json` schedule); таблица `notifications` AniSync рабочая (не «заготовка»).
+
+**Обоснование:**
+- Восстановить удалённые планы и привести документацию в соответствие с реальным состоянием кода (правило проекта о синхронности кода и документации).
+
+## 2026-05-25
+
+### Документация
+
+**Файлы:**
+- `docs/SERVICE_CONSOLIDATION_PLAN.md` (новый)
+- `docs/CHANGELOG.md` (новый)
+
+**Изменения:**
+- Добавлен подробный план объединения трёх сервисов (AniSync, OnTrash/NextScene, NightWatcher) в единую платформу с AniSync как хостом.
+- Описаны: сравнительный анализ, целевая архитектура (modular monolith + Python worker для торрентов), 6 фаз миграции со стратегией Strangler Fig, схема БД, унификация auth, риски и критерии готовности.
+
+**Обоснование:**
+- Зафиксировать стратегию плавного перехода до начала реализации; избежать big-bang и регрессий в prod AniSync.

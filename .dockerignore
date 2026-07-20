@@ -1,0 +1,16 @@
+# Root dockerignore for monorepo builds (context = repo root)
+node_modules
+**/node_modules
+**/.next
+.git
+**/.env
+**/.env.*
+!**/.env.example
+**/database.sqlite
+services/nightwatcher
+docs
+.claude
+.cursor
+**/*.md
+!apps/web/docker/**
+coverage

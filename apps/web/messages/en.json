@@ -1,0 +1,507 @@
+
+{
+  "Appearance": {
+    "title": "Appearance",
+    "description": "Customize the look and feel of the application.",
+    "Theme": {
+      "title": "Theme",
+      "description": "Select the theme for the application.",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "Language": {
+      "title": "Language",
+      "description": "Select the language for the application."
+    },
+    "Sync": {
+      "title": "Synchronization",
+      "description": "Configure synchronization settings.",
+      "automaticSync": "Automatic Synchronization",
+      "automaticSyncDescription": "Automatically sync when you update an anime's status or progress."
+    },
+    "settingsUpdated": "Settings Updated",
+    "settingsUpdatedDescription": "Your settings have been saved successfully.",
+    "updateError": "Update Failed",
+    "updateErrorDescription": "Failed to update settings. Please try again."
+  },
+  "Header": {
+    "searchPlaceholder": "Search anime...",
+    "filters": "Filters",
+    "filterDescription": "Refine your schedule view.",
+    "genres": "Genres",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Log out",
+    "login": "Login",
+    "notifications": "Notifications",
+    "notificationsAria": "Notifications, unread: {count}",
+    "notificationsEmpty": "No notifications yet",
+    "notificationsLoading": "Loading…",
+    "markAllRead": "Mark all read"
+  },
+  "Auth": {
+    "loginTitle": "Sign In",
+    "loginDescription": "Enter your credentials to access your account",
+    "loginSubtitle": "Sign in to your account",
+    "registerTitle": "Create Account",
+    "registerDescription": "Enter your information to create a new account",
+    "registerSubtitle": "Create your account",
+    "createAccount": "Create Account",
+    "username": "Username",
+    "usernamePlaceholder": "Enter your username",
+    "email": "Email",
+    "emailPlaceholder": "Enter your email",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "confirmPassword": "Confirm Password",
+    "confirmPasswordPlaceholder": "Confirm your password",
+    "bio": "Bio",
+    "bioPlaceholder": "Tell us about yourself (optional)",
+    "loginButton": "Sign In",
+    "registerButton": "Create Account",
+    "loggingIn": "Signing in...",
+    "creatingAccount": "Creating account...",
+    "loginSuccess": "Welcome back!",
+    "welcomeBack": "Welcome back!",
+    "registerSuccess": "Account created!",
+    "accountCreated": "Your account has been created successfully",
+    "loginError": "Login failed",
+    "loginErrorDescription": "Please check your credentials and try again",
+    "registerError": "Registration failed",
+    "registerErrorDescription": "Please check your information and try again",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "signUp": "Sign up",
+    "signIn": "Sign in",
+    "pleaseLogin": "Please log in to continue",
+    "sessionExpired": "Your session has expired. Please log in again.",
+    "unauthorized": "You need to be logged in to access this page.",
+    "registrationClosedTitle": "Registration is closed",
+    "registrationClosedDescription": "New accounts cannot be created right now. If you already have access, please sign in."
+  },
+  "Home": {
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "noReleases": "No releases scheduled for this day.",
+    "catchingUp": "Catching Up",
+    "noCatchingUp": "No anime to catch up on.",
+    "welcomeTitle": "Welcome to AniSync!",
+    "welcomeMessage": "To get started, connect your anime tracking service account. This will allow us to sync your anime list and provide personalized recommendations.",
+    "supportedServices": "Supported Services",
+    "connectService": "Connect Service"
+  },
+  "AnimeCard": {
+    "addToWatchlist": "Add to Watchlist",
+    "markAsFavorite": "Mark as Favorite",
+    "notInterested": "Not Interested",
+    "retrySync": "Retry Sync",
+    "syncPending": "Sync queued",
+    "syncFailed": "Sync failed",
+    "syncLocalOnly": "Stored locally",
+    "syncQueued": "Sync queued",
+    "syncQueuedDescription": "The change was saved locally and queued for provider sync.",
+    "syncRetryError": "Failed to requeue sync",
+    "nextEp": "Next ep. {time}",
+    "watchStatus": {
+      "watching": "Watching",
+      "planned": "Planned",
+      "completed": "Completed",
+      "on_hold": "On Hold",
+      "dropped": "Dropped",
+      "rewatching": "Rewatching",
+      "not_interested": "Not Interested"
+    }
+  },
+  "Genres": {
+    "Action": "Action",
+    "Comedy": "Comedy",
+    "Drama": "Drama",
+    "Fantasy": "Fantasy",
+    "Romance": "Romance",
+    "Sci-Fi": "Sci-Fi"
+  },
+  "Filters": {
+    "genres": "Genres",
+    "releaseYear": "Release Year",
+    "status": {
+      "title": "Status",
+      "placeholder": "Select a status",
+      "Watching": "Watching",
+      "Planned": "Planned",
+      "Completed": "Completed",
+      "On Hold": "On Hold",
+      "Dropped": "Dropped",
+      "Not Added": "Not Added"
+    },
+    "type": {
+      "title": "Type",
+      "TV": "TV",
+      "OVA": "OVA",
+      "Movie": "Movie",
+      "Special": "Special",
+      "ONA": "ONA"
+    },
+    "studio": "Studio",
+    "studioPlaceholder": "Search for a studio...",
+    "rating": "Rating",
+    "episodes": "Episodes",
+    "reset": "Reset Filters",
+    "apply": "Apply"
+  },
+  "AnimeDetailModal": {
+    "synopsis": "Synopsis",
+    "setStatus": "Set status",
+    "rating": "Rating",
+    "status": "Status",
+    "ongoing": "Ongoing",
+    "completed": "Completed",
+    "released": "Released",
+    "anons": "Announced",
+    "currently_airing": "Currently airing",
+    "finished_airing": "Finished airing",
+    "not_yet_aired": "Not yet aired",
+    "cancelled": "Cancelled",
+    "hiatus": "On hiatus",
+    "unknown": "Unknown",
+    "studio": "Studio",
+    "year": "Year",
+    "yourRating": "Your Rating",
+    "episodes": "Episodes",
+    "notes": "Notes",
+    "notesPlaceholder": "Your private notes about this anime..."
+  },
+  "Profile": {
+    "joined": "Joined on {date}",
+    "editProfile": "Edit Profile",
+    "statistics": "Statistics",
+    "animeWatched": "Anime Watched",
+    "animeWatching": "Anime Watching",
+    "animePlanned": "Anime Planned",
+    "meanScore": "Mean Score"
+  },
+  "SettingsLayout": {
+    "title": "Settings",
+    "description": "Manage your account settings and set e-mail preferences.",
+    "nav": {
+      "profile": "Profile",
+      "account": "Account",
+      "appearance": "Appearance",
+      "notifications": "Notifications",
+      "integrations": "Integrations",
+      "adminImport": "OnTrash import"
+    }
+  },
+  "SettingsAdminImport": {
+    "title": "Import from OnTrash",
+    "description": "Migrate users and watchlist. Run dry-run first, then apply. Requires ONTRASH_DATABASE_URL on the server.",
+    "loading": "Loading…",
+    "forbiddenTitle": "Admins only",
+    "forbiddenDescription": "This page is available to users with the admin role.",
+    "totalUsers": "Total users",
+    "migratedUsers": "OnTrash users",
+    "watchlist": "Release watchlist",
+    "sourceConfigured": "ONTRASH_DATABASE_URL is set — migration can run.",
+    "sourceMissing": "ONTRASH_DATABASE_URL is missing. Set it on the server or use CLI scripts.",
+    "dryRun": "Dry-run",
+    "apply": "Apply",
+    "refresh": "Refresh status",
+    "running": "Running…",
+    "dryRunDone": "Dry-run finished",
+    "applyDone": "Apply finished",
+    "doneDescription": "See the log below and status counters.",
+    "errorTitle": "Import failed",
+    "errorDescription": "Could not start migration."
+  },
+  "SettingsNotifications": {
+    "title": "Notifications",
+    "description": "Choose how AniSync notifies you about sync and torrent releases.",
+    "loading": "Loading…",
+    "channelsTitle": "Channels",
+    "channelsDescription": "In-app alerts always work in the platform; Telegram needs your chat id.",
+    "inApp": "In-app",
+    "inAppDescription": "Show notifications inside AniSync.",
+    "telegram": "Telegram",
+    "telegramDescription": "Send torrent finds to your Telegram chat.",
+    "telegramChatId": "Telegram chat ID",
+    "telegramChatIdPlaceholder": "e.g. 123456789",
+    "telegramChatIdHint": "Message @userinfobot to get your numeric chat id, then start the AniSync Telegram bot.",
+    "save": "Save notifications",
+    "saving": "Saving…",
+    "saved": "Notifications updated",
+    "savedDescription": "Your preferences were saved and synced to torrent watchlist.",
+    "saveError": "Save failed",
+    "saveErrorDescription": "Could not update notification settings.",
+    "loadError": "Load failed",
+    "loadErrorDescription": "Could not load notification settings."
+  },
+  "SettingsAccount": {
+    "title": "Account Settings",
+    "description": "Manage your account preferences and settings.",
+    "Password": {
+      "title": "Password",
+      "description": "Change your password here. After saving, you'll be logged out.",
+      "current": "Current Password",
+      "new": "New Password",
+      "confirm": "Confirm New Password",
+      "saveButton": "Save Password"
+    },
+    "DeleteAccount": {
+      "title": "Delete Account",
+      "description": "Permanently delete your account and all of your data. This action cannot be undone.",
+      "deleteButton": "Delete Account"
+    }
+  },
+  "SettingsIntegrations": {
+    "title": "Integrations",
+    "description": "Connect your AniSync account with other services to sync your watchlists.",
+    "SyncOptions": {
+      "title": "Sync Options",
+      "description": "Configure how your watchlists are synchronized across services.",
+      "automaticSync": "Automatic Synchronization",
+      "automaticSyncDescription": "Automatically sync when you update an anime's status or progress.",
+      "manualSyncButton": "Manual Sync",
+      "lastSyncJob": "Latest Sync Job",
+      "importedEntries": "Imported {count} entries"
+    },
+    "AvailableIntegrations": {
+      "title": "Available Integrations",
+      "connectButton": "Connect",
+      "myAnimeListDescription": "Sync your anime and manga lists from MyAnimeList.",
+      "myAnimeListName": "MyAnimeList",
+      "aniListDescription": "Sync your anime and manga lists from AniList.",
+      "aniListName": "AniList",
+      "shikimoriDescription": "Sync your anime and manga lists from Shikimori.",
+      "shikimoriName": "Shikimori"
+    },
+    "disconnect": "Disconnect",
+    "connectionError": "Connection Error",
+    "connectionErrorDescription": "Failed to initiate connection. Please try again.",
+    "disconnected": "Disconnected",
+    "disconnectedDescription": "Integration has been disconnected successfully.",
+    "disconnectError": "Disconnect Error",
+    "disconnectErrorDescription": "Failed to disconnect integration. Please try again.",
+    "syncUpdated": "Sync Settings Updated",
+    "syncUpdatedDescription": "Automatic sync settings have been updated.",
+    "updateError": "Update Failed",
+    "updateErrorDescription": "Failed to update settings. Please try again.",
+    "syncStarted": "Sync Started",
+    "syncStartedDescription": "Manual synchronization has been started.",
+    "syncAlreadyRunning": "A synchronization job is already running.",
+    "PrimaryService": {
+      "title": "Primary Service",
+      "description": "Select the main service from which to load your anime list. Other services will sync automatically or manually.",
+      "isPrimary": "This is your primary service"
+    },
+    "primaryServiceUpdated": "Primary Service Updated",
+    "primaryServiceUpdatedDescription": "Your primary service has been changed successfully."
+  },
+  "SettingsProfile": {
+    "toast": {
+      "title": "You submitted the following values:"
+    },
+    "username": {
+      "label": "Username",
+      "placeholder": "Your username",
+      "description": "This is your public display name. It can be your real name or a pseudonym."
+    },
+    "email": {
+      "label": "Email",
+      "placeholder": "Your email",
+      "description": "You can manage verified email addresses in your email settings."
+    },
+    "bio": {
+      "label": "Bio",
+      "placeholder": "Tell us a little bit about yourself",
+      "description": "You can @mention other users and organizations to link to them."
+    },
+    "submitButton": "Update profile",
+    "updating": "Updating...",
+    "profileUpdated": "Profile Updated",
+    "profileUpdatedDescription": "Your profile has been updated successfully.",
+    "updateError": "Update Failed",
+    "updateErrorDescription": "Failed to update profile. Please try again."
+  },
+  "PlatformNav": {
+    "ariaLabel": "Platform modules",
+    "modules": "Modules",
+    "anime": "Anime",
+    "releases": "Releases",
+    "torrents": "Torrents",
+    "comingSoon": "Coming soon"
+  },
+  "PlatformModules": {
+    "releases": {
+      "title": "Releases",
+      "description": "Movies and series release calendar powered by TMDB.",
+      "betaHint": "The releases module is enabled. Browse upcoming titles and manage your watchlist.",
+      "disabledHint": "This module is not enabled yet. Set NEXT_PUBLIC_RELEASES_MODULE_ENABLED=true when ready."
+    },
+    "torrents": {
+      "title": "Torrents",
+      "description": "Torrent monitoring and notifications with the built-in AniSync watcher.",
+      "betaHint": "The torrents module is enabled. Manage your watchlist and browse releases.",
+      "disabledHint": "This module is not enabled yet. Set NEXT_PUBLIC_TORRENTS_MODULE_ENABLED=true when ready."
+    }
+  },
+  "Releases": {
+    "title": "Releases",
+    "subnavAria": "Releases sections",
+    "tabs": {
+      "dashboard": "Dashboard",
+      "discover": "Discover",
+      "watchlist": "Watchlist"
+    },
+    "searchPlaceholder": "Search movies and shows...",
+    "emptyCatalog": "No titles found for the current filters.",
+    "emptyWatchlist": "Your watchlist is empty. Add titles from Discover.",
+    "type": {
+      "movie": "Movie",
+      "show": "Series"
+    },
+    "status": {
+      "add": "Add",
+      "plan": "Plan",
+      "watching": "Watching"
+    },
+    "filters": {
+      "title": "Filters",
+      "description": "Refine the upcoming catalog.",
+      "open": "Open filters",
+      "apply": "Apply filters",
+      "type": "Type",
+      "sort": "Sort",
+      "genre": "Genre",
+      "status": "Status",
+      "allTypes": "All types",
+      "allGenres": "All genres",
+      "allStatuses": "All statuses",
+      "sortPopularity": "Popularity",
+      "sortReleaseDate": "Release date",
+      "sortRating": "Rating"
+    },
+    "stats": {
+      "total": "Total",
+      "watching": "Watching",
+      "plan": "Plan to watch",
+      "movies": "Movies",
+      "shows": "Series"
+    },
+    "pagination": {
+      "prev": "Previous",
+      "next": "Next",
+      "page": "Page {page}"
+    },
+    "view": {
+      "label": "Catalog view",
+      "grid": "Grid",
+      "list": "List"
+    },
+    "errors": {
+      "loadFailed": "Failed to load releases data.",
+      "watchlistFailed": "Failed to update watchlist.",
+      "torrentsFailed": "Failed to update torrents watchlist."
+    },
+    "dashboard": {
+      "todayTitle": "Today",
+      "weekTitle": "Next 7 days",
+      "today": "Today",
+      "emptyToday": "Nothing scheduled for today.",
+      "emptyDay": "No releases",
+      "episode": "S{season} · E{episode}",
+      "releaseOn": "Release on {date}",
+      "weekdays": {
+        "sun": "Sunday",
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday"
+      }
+    },
+    "detail": {
+      "overview": "Overview",
+      "cast": "Cast",
+      "trailer": "Watch trailer",
+      "remove": "Remove from list",
+      "torrentsWatch": "Watch torrent",
+      "torrentsAlreadyWatching": "Torrent is watched",
+      "torrentsAdded": "Added to torrents watchlist",
+      "loading": "Loading...",
+      "loadFailed": "Failed to load details",
+      "statusUpdated": "Watchlist updated",
+      "removed": "Removed from watchlist",
+      "nextEpisode": "Next episode",
+      "minutes": "{count} min"
+    }
+  },
+  "Torrents": {
+    "title": "Torrent watchlist",
+    "subtitle": "Track releases with the built-in TypeScript watcher. Add titles by IMDb ID.",
+    "health": {
+      "title": "Service status",
+      "unavailable": "The torrent module is unavailable. Check PostgreSQL, Prowlarr and the worker.",
+      "db": "Database",
+      "prowlarr": "Prowlarr",
+      "telegram": "Telegram",
+      "tracking": "{enabled} / {total} active"
+    },
+    "add": {
+      "label": "Add by IMDb ID",
+      "placeholder": "tt0133093",
+      "submit": "Add",
+      "hint": "Use the IMDb title id (starts with tt). AniSync resolves metadata from TMDB.",
+      "invalidImdb": "Enter a valid IMDb id, e.g. tt0133093"
+    },
+    "empty": {
+      "title": "Watchlist is empty",
+      "description": "Add a movie or series using its IMDb id to start monitoring."
+    },
+    "card": {
+      "noPoster": "No poster",
+      "enabled": "Active",
+      "paused": "Paused",
+      "latestRelease": "Latest: {title} ({quality})",
+      "releasesCount": "{count, plural, one {# release} other {# releases}}",
+      "lastChecked": "Checked {date}",
+      "showReleases": "Show releases",
+      "noReleases": "No releases found yet.",
+      "seeders": "{count} seeders",
+      "pause": "Pause",
+      "resume": "Resume",
+      "remove": "Remove",
+      "deleteConfirm": "Remove “{title}” from the watchlist?"
+    },
+    "preferences": {
+      "action": "Settings",
+      "title": "Settings for “{title}”",
+      "description": "Filters and schedule for the built-in watcher.",
+      "quality": "Quality",
+      "audio": "Audio",
+      "season": "Season",
+      "maxReleases": "Maximum releases",
+      "huntingHint": "Set to 1 to hunt and automatically pin the first release.",
+      "interval": "Check interval, minutes",
+      "notifyOnce": "Notify once",
+      "pinTitle": "Pinned release",
+      "notPinned": "Not selected",
+      "pin": "Pin",
+      "unpin": "Unpin",
+      "loading": "Searching releases",
+      "candidatesError": "Could not load releases from Prowlarr.",
+      "save": "Save"
+    },
+    "errors": {
+      "loadFailed": "Failed to load watchlist",
+      "loadReleasesFailed": "Failed to load releases",
+      "actionFailed": "Action failed. Try again."
+    }
+  },
+  "Pwa": {
+    "installTitle": "Install AniSync",
+    "installDescription": "Add the app to your home screen for faster access and offline support.",
+    "installAction": "Install",
+    "installLater": "Not now",
+    "installDismiss": "Dismiss install prompt"
+  }
+}

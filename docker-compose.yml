@@ -1,0 +1,131 @@
+# Local development only. Production: separate Coolify resources for web, worker,
+# scheduler, postgres and redis. Torrents run in the TypeScript worker.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: anisync
+      POSTGRES_PASSWORD: anisync
+      POSTGRES_DB: anisync
+    ports:
+      - '5432:5432'
+    volumes:
+      - anisync_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U anisync -d anisync']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - anisync_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_URL: http://localhost:9002
+        NEXT_PUBLIC_RELEASES_MODULE_ENABLED: 'true'
+        NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: 'true'
+        NEXT_PUBLIC_REGISTRATION_OPEN: 'true'
+    ports:
+      - '9002:3000'
+    environment:
+      APP_BASE_URL: http://localhost:9002
+      NEXT_PUBLIC_BASE_URL: http://localhost:9002
+      DATABASE_URL: postgresql://anisync:anisync@postgres:5432/anisync
+      REDIS_URL: redis://redis:6379
+      BULLMQ_PREFIX: anisync
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-dev-secret-key}
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-dev-cron-secret}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DEBUG: ${DEBUG:-false}
+      RUN_MIGRATIONS: 'true'
+      RELEASES_MODULE_ENABLED: 'true'
+      TORRENTS_MODULE_ENABLED: 'true'
+      REGISTRATION_OPEN: 'true'
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      PROWLARR_URL: ${PROWLARR_URL:-}
+      PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-dev-internal-service-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    command: ['node', '--import', 'tsx', 'scripts/worker.ts']
+    environment:
+      APP_BASE_URL: http://web:3000
+      NEXT_PUBLIC_BASE_URL: http://localhost:9002
+      DATABASE_URL: postgresql://anisync:anisync@postgres:5432/anisync
+      REDIS_URL: redis://redis:6379
+      BULLMQ_PREFIX: anisync
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-dev-secret-key}
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-dev-cron-secret}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DEBUG: ${DEBUG:-false}
+      RUN_MIGRATIONS: 'false'
+      RELEASES_MODULE_ENABLED: 'true'
+      TORRENTS_MODULE_ENABLED: 'true'
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      PROWLARR_URL: ${PROWLARR_URL:-}
+      PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    command: ['node', '--import', 'tsx', 'scripts/scheduler.ts']
+    environment:
+      APP_BASE_URL: http://web:3000
+      NEXT_PUBLIC_BASE_URL: http://localhost:9002
+      DATABASE_URL: postgresql://anisync:anisync@postgres:5432/anisync
+      REDIS_URL: redis://redis:6379
+      BULLMQ_PREFIX: anisync
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-dev-secret-key}
+      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-dev-cron-secret}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DEBUG: ${DEBUG:-false}
+      RUN_MIGRATIONS: 'false'
+      RELEASES_MODULE_ENABLED: 'true'
+      TORRENTS_MODULE_ENABLED: 'true'
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      PROWLARR_URL: ${PROWLARR_URL:-}
+      PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
+
+volumes:
+  anisync_pg_data:
+  anisync_redis_data:

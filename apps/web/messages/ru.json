@@ -1,0 +1,507 @@
+
+{
+  "Appearance": {
+    "title": "Внешний вид",
+    "description": "Настройте внешний вид приложения.",
+    "Theme": {
+      "title": "Тема",
+      "description": "Выберите тему для приложения.",
+      "light": "Светлая",
+      "dark": "Темная"
+    },
+    "Language": {
+      "title": "Язык",
+      "description": "Выберите язык приложения."
+    },
+    "Sync": {
+      "title": "Синхронизация",
+      "description": "Настройте параметры синхронизации.",
+      "automaticSync": "Автоматическая синхронизация",
+      "automaticSyncDescription": "Автоматически синхронизировать при обновлении статуса или прогресса аниме."
+    },
+    "settingsUpdated": "Настройки обновлены",
+    "settingsUpdatedDescription": "Ваши настройки были успешно сохранены.",
+    "updateError": "Ошибка обновления",
+    "updateErrorDescription": "Не удалось обновить настройки. Пожалуйста, попробуйте снова."
+  },
+  "Header": {
+    "searchPlaceholder": "Искать аниме...",
+    "filters": "Фильтры",
+    "filterDescription": "Настройте отображение вашего расписания.",
+    "genres": "Жанры",
+    "profile": "Профиль",
+    "settings": "Настройки",
+    "logout": "Выйти",
+    "login": "Войти",
+    "notifications": "Уведомления",
+    "notificationsAria": "Уведомления, непрочитанных: {count}",
+    "notificationsEmpty": "Пока нет уведомлений",
+    "notificationsLoading": "Загрузка…",
+    "markAllRead": "Прочитать все"
+  },
+  "Auth": {
+    "loginTitle": "Войти",
+    "loginDescription": "Введите свои данные для входа в аккаунт",
+    "loginSubtitle": "Войдите в свой аккаунт",
+    "registerTitle": "Создать аккаунт",
+    "registerDescription": "Введите информацию для создания нового аккаунта",
+    "registerSubtitle": "Создайте свой аккаунт",
+    "createAccount": "Создать аккаунт",
+    "username": "Имя пользователя",
+    "usernamePlaceholder": "Введите имя пользователя",
+    "email": "Электронная почта",
+    "emailPlaceholder": "Введите электронную почту",
+    "password": "Пароль",
+    "passwordPlaceholder": "Введите пароль",
+    "confirmPassword": "Подтвердите пароль",
+    "confirmPasswordPlaceholder": "Подтвердите пароль",
+    "bio": "Биография",
+    "bioPlaceholder": "Расскажите о себе (необязательно)",
+    "loginButton": "Войти",
+    "registerButton": "Создать аккаунт",
+    "loggingIn": "Входим...",
+    "creatingAccount": "Создаем аккаунт...",
+    "loginSuccess": "Добро пожаловать!",
+    "welcomeBack": "Добро пожаловать!",
+    "registerSuccess": "Аккаунт создан!",
+    "accountCreated": "Ваш аккаунт был успешно создан",
+    "loginError": "Ошибка входа",
+    "loginErrorDescription": "Проверьте свои данные и попробуйте снова",
+    "registerError": "Ошибка регистрации",
+    "registerErrorDescription": "Проверьте информацию и попробуйте снова",
+    "noAccount": "Нет аккаунта?",
+    "haveAccount": "Уже есть аккаунт?",
+    "signUp": "Зарегистрироваться",
+    "signIn": "Войти",
+    "pleaseLogin": "Пожалуйста, войдите, чтобы продолжить",
+    "sessionExpired": "Ваша сессия истекла. Пожалуйста, войдите снова.",
+    "unauthorized": "Вам нужно войти, чтобы получить доступ к этой странице.",
+    "registrationClosedTitle": "Регистрация закрыта",
+    "registrationClosedDescription": "Сейчас нельзя создать новый аккаунт. Если у вас уже есть доступ — войдите."
+  },
+  "Home": {
+    "today": "Сегодня",
+    "tomorrow": "Завтра",
+    "noReleases": "На этот день нет запланированных релизов.",
+    "catchingUp": "Продолжаю смотреть",
+    "noCatchingUp": "Нет аниме для догона.",
+    "welcomeTitle": "Добро пожаловать в AniSync!",
+    "welcomeMessage": "Чтобы начать, подключите ваш аккаунт сервиса отслеживания аниме. Это позволит нам синхронизировать ваш список аниме и предоставить персонализированные рекомендации.",
+    "supportedServices": "Поддерживаемые сервисы",
+    "connectService": "Подключить сервис"
+  },
+  "AnimeCard": {
+    "addToWatchlist": "Добавить в список просмотра",
+    "markAsFavorite": "Отметить как избранное",
+    "notInterested": "Не интересует",
+    "retrySync": "Повторить синхронизацию",
+    "syncPending": "Синхронизация в очереди",
+    "syncFailed": "Синхронизация не удалась",
+    "syncLocalOnly": "Сохранено локально",
+    "syncQueued": "Синхронизация поставлена в очередь",
+    "syncQueuedDescription": "Изменение сохранено локально и поставлено в очередь на синхронизацию с сервисом.",
+    "syncRetryError": "Не удалось повторно поставить синхронизацию в очередь",
+    "nextEp": "След. серия {time}",
+    "watchStatus": {
+      "watching": "Смотрю",
+      "planned": "Запланировано",
+      "completed": "Просмотрено",
+      "on_hold": "Отложено",
+      "dropped": "Брошено",
+      "rewatching": "Пересматриваю",
+      "not_interested": "Не интересует"
+    }
+  },
+  "Genres": {
+    "Action": "Экшен",
+    "Comedy": "Комедия",
+    "Drama": "Драма",
+    "Fantasy": "Фэнтези",
+    "Romance": "Романтика",
+    "Sci-Fi": "Научная фантастика"
+  },
+  "Filters": {
+    "genres": "Жанры",
+    "releaseYear": "Год выпуска",
+    "status": {
+      "title": "Статус",
+      "placeholder": "Выберите статус",
+      "Watching": "Смотрю",
+      "Planned": "Запланировано",
+      "Completed": "Просмотрено",
+      "On Hold": "Отложено",
+      "Dropped": "Брошено",
+      "Not Added": "Не добавлено"
+    },
+    "type": {
+      "title": "Тип",
+      "TV": "TV",
+      "OVA": "OVA",
+      "Movie": "Фильм",
+      "Special": "Спешл",
+      "ONA": "ONA"
+    },
+    "studio": "Студия",
+    "studioPlaceholder": "Искать студию...",
+    "rating": "Рейтинг",
+    "episodes": "Эпизоды",
+    "reset": "Сбросить фильтры",
+    "apply": "Применить"
+  },
+  "AnimeDetailModal": {
+    "synopsis": "Описание",
+    "setStatus": "Установить статус",
+    "rating": "Рейтинг",
+    "status": "Статус",
+    "ongoing": "Онгоинг",
+    "completed": "Завершено",
+    "released": "Вышло",
+    "anons": "Анонс",
+    "currently_airing": "Сейчас выходит",
+    "finished_airing": "Показ завершен",
+    "not_yet_aired": "Еще не вышло",
+    "cancelled": "Отменено",
+    "hiatus": "На паузе",
+    "unknown": "Неизвестно",
+    "studio": "Студия",
+    "year": "Год",
+    "yourRating": "Ваш рейтинг",
+    "episodes": "Эпизоды",
+    "notes": "Заметки",
+    "notesPlaceholder": "Ваши личные заметки об этом аниме..."
+  },
+  "Profile": {
+    "joined": "Присоединился {date}",
+    "editProfile": "Редактировать профиль",
+    "statistics": "Статистика",
+    "animeWatched": "Просмотрено",
+    "animeWatching": "Смотрю",
+    "animePlanned": "Запланировано",
+    "meanScore": "Средняя оценка"
+  },
+  "SettingsLayout": {
+    "title": "Настройки",
+    "description": "Управляйте настройками своей учетной записи и предпочтениями.",
+    "nav": {
+      "profile": "Профиль",
+      "account": "Аккаунт",
+      "appearance": "Внешний вид",
+      "notifications": "Уведомления",
+      "integrations": "Интеграции",
+      "adminImport": "Импорт OnTrash"
+    }
+  },
+  "SettingsAdminImport": {
+    "title": "Импорт из OnTrash",
+    "description": "Миграция пользователей и watchlist. Сначала dry-run, затем apply. Нужен ONTRASH_DATABASE_URL на сервере.",
+    "loading": "Загрузка…",
+    "forbiddenTitle": "Только для admin",
+    "forbiddenDescription": "Эта страница доступна пользователям с ролью admin.",
+    "totalUsers": "Всего users",
+    "migratedUsers": "OnTrash users",
+    "watchlist": "Release watchlist",
+    "sourceConfigured": "ONTRASH_DATABASE_URL задан — можно запускать миграцию.",
+    "sourceMissing": "ONTRASH_DATABASE_URL не задан. Добавьте в env сервера или используйте CLI scripts.",
+    "dryRun": "Dry-run",
+    "apply": "Apply",
+    "refresh": "Обновить статус",
+    "running": "Выполняется…",
+    "dryRunDone": "Dry-run завершён",
+    "applyDone": "Apply завершён",
+    "doneDescription": "Смотрите лог ниже и счётчики статуса.",
+    "errorTitle": "Ошибка импорта",
+    "errorDescription": "Не удалось запустить миграцию."
+  },
+  "SettingsNotifications": {
+    "title": "Уведомления",
+    "description": "Как AniSync сообщает о синхронизации и торрент-релизах.",
+    "loading": "Загрузка…",
+    "channelsTitle": "Каналы",
+    "channelsDescription": "In-app работает в платформе; для Telegram нужен ваш chat id.",
+    "inApp": "В приложении",
+    "inAppDescription": "Показывать уведомления внутри AniSync.",
+    "telegram": "Telegram",
+    "telegramDescription": "Отправлять найденные торренты в ваш чат Telegram.",
+    "telegramChatId": "Telegram chat ID",
+    "telegramChatIdPlaceholder": "например 123456789",
+    "telegramChatIdHint": "Узнайте числовой id через @userinfobot и напишите Telegram-боту AniSync /start.",
+    "save": "Сохранить",
+    "saving": "Сохранение…",
+    "saved": "Уведомления обновлены",
+    "savedDescription": "Настройки сохранены и синхронизированы с torrent watchlist.",
+    "saveError": "Ошибка сохранения",
+    "saveErrorDescription": "Не удалось обновить настройки уведомлений.",
+    "loadError": "Ошибка загрузки",
+    "loadErrorDescription": "Не удалось загрузить настройки уведомлений."
+  },
+  "SettingsAccount": {
+    "title": "Настройки аккаунта",
+    "description": "Управляйте настройками своего аккаунта.",
+    "Password": {
+      "title": "Пароль",
+      "description": "Измените свой пароль здесь. После сохранения вы выйдете из системы.",
+      "current": "Текущий пароль",
+      "new": "Новый пароль",
+      "confirm": "Подтвердите новый пароль",
+      "saveButton": "Сохранить пароль"
+    },
+    "DeleteAccount": {
+      "title": "Удалить аккаунт",
+      "description": "Безвозвратно удалить свою учетную запись и все ваши данные. Это действие не может быть отменено.",
+      "deleteButton": "Удалить аккаунт"
+    }
+  },
+  "SettingsIntegrations": {
+    "title": "Интеграции",
+    "description": "Подключите свою учетную запись AniSync к другим сервисам для синхронизации списков просмотра.",
+    "SyncOptions": {
+      "title": "Параметры синхронизации",
+      "description": "Настройте, как синхронизируются ваши списки просмотра между службами.",
+      "automaticSync": "Автоматическая синхронизация",
+      "automaticSyncDescription": "Автоматически синхронизировать при обновлении статуса или прогресса аниме.",
+      "manualSyncButton": "Ручная синхронизация",
+      "lastSyncJob": "Последняя задача синхронизации",
+      "importedEntries": "Импортировано {count} записей"
+    },
+    "AvailableIntegrations": {
+      "title": "Доступные интеграции",
+      "connectButton": "Подключить",
+      "myAnimeListDescription": "Синхронизируйте свои списки аниме и манги с MyAnimeList.",
+      "myAnimeListName": "MyAnimeList",
+      "aniListDescription": "Синхронизируйте свои списки аниме и манги с AniList.",
+      "aniListName": "AniList",
+      "shikimoriDescription": "Синхронизируйте свои списки аниме и манги с Shikimori.",
+      "shikimoriName": "Shikimori"
+    },
+    "disconnect": "Отключить",
+    "connectionError": "Ошибка подключения",
+    "connectionErrorDescription": "Не удалось инициировать подключение. Пожалуйста, попробуйте снова.",
+    "disconnected": "Отключено",
+    "disconnectedDescription": "Интеграция была успешно отключена.",
+    "disconnectError": "Ошибка отключения",
+    "disconnectErrorDescription": "Не удалось отключить интеграцию. Пожалуйста, попробуйте снова.",
+    "syncUpdated": "Настройки синхронизации обновлены",
+    "syncUpdatedDescription": "Настройки автоматической синхронизации были обновлены.",
+    "updateError": "Ошибка обновления",
+    "updateErrorDescription": "Не удалось обновить настройки. Пожалуйста, попробуйте снова.",
+    "syncStarted": "Синхронизация запущена",
+    "syncStartedDescription": "Ручная синхронизация была запущена.",
+    "syncAlreadyRunning": "Задача синхронизации уже выполняется.",
+    "PrimaryService": {
+      "title": "Главный сервис",
+      "description": "Выберите основной сервис для загрузки вашего списка аниме. Остальные сервисы будут синхронизироваться автоматически или вручную.",
+      "isPrimary": "Это ваш главный сервис"
+    },
+    "primaryServiceUpdated": "Главный сервис обновлен",
+    "primaryServiceUpdatedDescription": "Ваш главный сервис был успешно изменен."
+  },
+  "SettingsProfile": {
+    "toast": {
+      "title": "Вы отправили следующие значения:"
+    },
+    "username": {
+      "label": "Имя пользователя",
+      "placeholder": "Ваше имя пользователя",
+      "description": "Это ваше публичное отображаемое имя. Это может быть ваше настоящее имя или псевдоним."
+    },
+    "email": {
+      "label": "Электронная почта",
+      "placeholder": "Ваша электронная почта",
+      "description": "Вы можете управлять проверенными адресами электронной почты в настройках электронной почты."
+    },
+    "bio": {
+      "label": "Биография",
+      "placeholder": "Расскажите немного о себе",
+      "description": "Вы можете @упомянуть других пользователей и организации, чтобы сослаться на них."
+    },
+    "submitButton": "Обновить профиль",
+    "updating": "Обновляем...",
+    "profileUpdated": "Профиль обновлен",
+    "profileUpdatedDescription": "Ваш профиль был успешно обновлен.",
+    "updateError": "Ошибка обновления",
+    "updateErrorDescription": "Не удалось обновить профиль. Пожалуйста, попробуйте снова."
+  },
+  "PlatformNav": {
+    "ariaLabel": "Модули платформы",
+    "modules": "Модули",
+    "anime": "Аниме",
+    "releases": "Релизы",
+    "torrents": "Торренты",
+    "comingSoon": "Скоро"
+  },
+  "PlatformModules": {
+    "releases": {
+      "title": "Релизы",
+      "description": "Календарь релизов фильмов и сериалов на базе TMDB.",
+      "betaHint": "Модуль релизов включён. Просматривайте предстоящие тайтлы и управляйте watchlist.",
+      "disabledHint": "Модуль пока выключен. Включите NEXT_PUBLIC_RELEASES_MODULE_ENABLED=true, когда будете готовы."
+    },
+    "torrents": {
+      "title": "Торренты",
+      "description": "Мониторинг торрентов и уведомления встроенным watcher AniSync.",
+      "betaHint": "Модуль торрентов включён. Управляйте watchlist и просматривайте релизы.",
+      "disabledHint": "Модуль пока выключен. Включите NEXT_PUBLIC_TORRENTS_MODULE_ENABLED=true, когда будете готовы."
+    }
+  },
+  "Releases": {
+    "title": "Релизы",
+    "subnavAria": "Разделы релизов",
+    "tabs": {
+      "dashboard": "Расписание",
+      "discover": "Каталог",
+      "watchlist": "Список"
+    },
+    "searchPlaceholder": "Поиск фильмов и сериалов...",
+    "emptyCatalog": "По текущим фильтрам ничего не найдено.",
+    "emptyWatchlist": "Список пуст. Добавьте тайтлы из каталога.",
+    "type": {
+      "movie": "Фильм",
+      "show": "Сериал"
+    },
+    "status": {
+      "add": "Добавить",
+      "plan": "В планах",
+      "watching": "Смотрю"
+    },
+    "filters": {
+      "title": "Фильтры",
+      "description": "Уточните каталог предстоящих релизов.",
+      "open": "Открыть фильтры",
+      "apply": "Применить",
+      "type": "Тип",
+      "sort": "Сортировка",
+      "genre": "Жанр",
+      "status": "Статус",
+      "allTypes": "Все типы",
+      "allGenres": "Все жанры",
+      "allStatuses": "Все статусы",
+      "sortPopularity": "Популярность",
+      "sortReleaseDate": "Дата релиза",
+      "sortRating": "Рейтинг"
+    },
+    "stats": {
+      "total": "Всего",
+      "watching": "Смотрю",
+      "plan": "В планах",
+      "movies": "Фильмы",
+      "shows": "Сериалы"
+    },
+    "pagination": {
+      "prev": "Назад",
+      "next": "Далее",
+      "page": "Страница {page}"
+    },
+    "view": {
+      "label": "Вид каталога",
+      "grid": "Сетка",
+      "list": "Список"
+    },
+    "errors": {
+      "loadFailed": "Не удалось загрузить данные релизов.",
+      "watchlistFailed": "Не удалось обновить список.",
+      "torrentsFailed": "Не удалось обновить торренты."
+    },
+    "dashboard": {
+      "todayTitle": "Сегодня",
+      "weekTitle": "Ближайшие 7 дней",
+      "today": "Сегодня",
+      "emptyToday": "На сегодня ничего не запланировано.",
+      "emptyDay": "Нет релизов",
+      "episode": "С{season} · E{episode}",
+      "releaseOn": "Релиз {date}",
+      "weekdays": {
+        "sun": "Воскресенье",
+        "mon": "Понедельник",
+        "tue": "Вторник",
+        "wed": "Среда",
+        "thu": "Четверг",
+        "fri": "Пятница",
+        "sat": "Суббота"
+      }
+    },
+    "detail": {
+      "overview": "Описание",
+      "cast": "В ролях",
+      "trailer": "Смотреть трейлер",
+      "remove": "Удалить из списка",
+      "torrentsWatch": "Следить за торрентом",
+      "torrentsAlreadyWatching": "Торрент уже отслеживается",
+      "torrentsAdded": "Добавлено в торренты",
+      "loading": "Загрузка...",
+      "loadFailed": "Не удалось загрузить детали",
+      "statusUpdated": "Список обновлён",
+      "removed": "Удалено из списка",
+      "nextEpisode": "Следующий эпизод",
+      "minutes": "{count} мин"
+    }
+  },
+  "Torrents": {
+    "title": "Торрент watchlist",
+    "subtitle": "Отслеживание релизов встроенным TS watcher. Добавляйте тайтлы по IMDb ID.",
+    "health": {
+      "title": "Статус сервиса",
+      "unavailable": "Модуль торрентов недоступен. Проверьте Postgres, Prowlarr и worker.",
+      "db": "База данных",
+      "prowlarr": "Prowlarr",
+      "telegram": "Telegram",
+      "tracking": "{enabled} / {total} активных"
+    },
+    "add": {
+      "label": "Добавить по IMDb ID",
+      "placeholder": "tt0133093",
+      "submit": "Добавить",
+      "hint": "Укажите IMDb id тайтла (начинается с tt). AniSync подтянет метаданные из TMDB.",
+      "invalidImdb": "Введите корректный IMDb id, например tt0133093"
+    },
+    "empty": {
+      "title": "Watchlist пуст",
+      "description": "Добавьте фильм или сериал по IMDb id, чтобы начать мониторинг."
+    },
+    "card": {
+      "noPoster": "Нет постера",
+      "enabled": "Активен",
+      "paused": "Пауза",
+      "latestRelease": "Последний: {title} ({quality})",
+      "releasesCount": "{count, plural, one {# релиз} few {# релиза} many {# релизов} other {# релизов}}",
+      "lastChecked": "Проверено {date}",
+      "showReleases": "Показать релизы",
+      "noReleases": "Релизов пока нет.",
+      "seeders": "{count} сидов",
+      "pause": "Пауза",
+      "resume": "Возобновить",
+      "remove": "Удалить",
+      "deleteConfirm": "Удалить «{title}» из watchlist?"
+    },
+    "preferences": {
+      "action": "Настройки",
+      "title": "Настройки «{title}»",
+      "description": "Фильтры и периодичность встроенного watcher.",
+      "quality": "Качество",
+      "audio": "Озвучка",
+      "season": "Сезон",
+      "maxReleases": "Максимум релизов",
+      "huntingHint": "Значение 1 включает поиск первой раздачи и автозакрепление.",
+      "interval": "Интервал проверки, минут",
+      "notifyOnce": "Уведомить один раз",
+      "pinTitle": "Закреплённая раздача",
+      "notPinned": "Не выбрана",
+      "pin": "Закрепить",
+      "unpin": "Открепить",
+      "loading": "Поиск раздач",
+      "candidatesError": "Не удалось получить раздачи из Prowlarr.",
+      "save": "Сохранить"
+    },
+    "errors": {
+      "loadFailed": "Не удалось загрузить watchlist",
+      "loadReleasesFailed": "Не удалось загрузить релизы",
+      "actionFailed": "Не удалось выполнить действие. Попробуйте снова."
+    }
+  },
+  "Pwa": {
+    "installTitle": "Установить AniSync",
+    "installDescription": "Добавьте приложение на главный экран для быстрого доступа и офлайн-режима.",
+    "installAction": "Установить",
+    "installLater": "Не сейчас",
+    "installDismiss": "Закрыть подсказку установки"
+  }
+}

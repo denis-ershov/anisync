@@ -1,0 +1,542 @@
+openapi: 3.1.0
+info:
+  title: AniSync Releases API
+  version: 0.1.0
+  description: Releases module — TMDB catalog and personal watchlist (ported from OnTrash / NextScene)
+servers:
+  - url: /api
+    description: Next.js App Router API base path
+tags:
+  - name: health
+    description: Platform and module health
+  - name: releases-content
+    description: Movie and TV show content from TMDB
+  - name: releases-watchlist
+    description: Personal release watchlist (authenticated)
+  - name: auth
+    description: AniSync authentication
+
+paths:
+  /health/slo:
+    get:
+      operationId: getHealthSlo
+      tags: [health]
+      summary: API SLO snapshot (in-memory p50/p95/p99)
+      description: Requires health secret in production (`Authorization: Bearer` or `x-health-secret`).
+      responses:
+        "200":
+          description: Healthy with latency metrics for tracked routes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthSloStatus"
+        "404":
+          description: Unauthorized in production
+
+  /releases/health:
+    get:
+      operationId: getReleasesHealth
+      tags: [health]
+      summary: Releases module health (TMDB key, feature flag)
+      responses:
+        "200":
+          description: Module status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleasesHealthStatus"
+
+  /releases/content/trending:
+    get:
+      operationId: getReleasesTrending
+      tags: [releases-content]
+      summary: Get trending movies and shows
+      parameters:
+        - $ref: "#/components/parameters/lang"
+      responses:
+        "200":
+          description: Trending content list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentItem"
+        "503":
+          description: Releases module disabled
+
+  /releases/content/upcoming:
+    get:
+      operationId: getReleasesUpcoming
+      tags: [releases-content]
+      summary: Digital movie releases and active TV shows (current + next month)
+      parameters:
+        - $ref: "#/components/parameters/lang"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [all, movie, show]
+            default: all
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [popularity, releaseDate, rating]
+            default: popularity
+        - name: genreId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Paginated catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogPage"
+
+  /releases/content/genres:
+    get:
+      operationId: getReleasesGenres
+      tags: [releases-content]
+      summary: TMDB genres for catalog filters
+      parameters:
+        - $ref: "#/components/parameters/lang"
+      responses:
+        "200":
+          description: Merged movie and TV genre list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Genre"
+
+  /releases/content/search:
+    get:
+      operationId: searchReleasesContent
+      tags: [releases-content]
+      summary: Search movies and TV shows
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/lang"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentItem"
+        "400":
+          description: Missing query
+
+  /releases/content/{tmdbId}:
+    get:
+      operationId: getReleasesContentDetail
+      tags: [releases-content]
+      summary: Detailed info about a movie or show
+      parameters:
+        - name: tmdbId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [movie, show]
+        - $ref: "#/components/parameters/lang"
+      responses:
+        "200":
+          description: Detailed content info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentDetail"
+        "400":
+          description: Invalid parameters
+        "502":
+          description: TMDB error
+
+  /releases/watchlist:
+    get:
+      operationId: getReleaseWatchlist
+      tags: [releases-watchlist]
+      summary: Get current user's release watchlist
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/lang"
+      responses:
+        "200":
+          description: Watchlist items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WatchlistItem"
+        "401":
+          description: Not authenticated
+    post:
+      operationId: addToReleaseWatchlist
+      tags: [releases-watchlist]
+      summary: Add item to release watchlist
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddWatchlistItemBody"
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistItem"
+        "409":
+          description: Already in watchlist
+
+  /releases/watchlist/stats:
+    get:
+      operationId: getReleaseWatchlistStats
+      tags: [releases-watchlist]
+      summary: Watchlist statistics
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistStats"
+
+  /releases/watchlist/{id}:
+    patch:
+      operationId: updateReleaseWatchlistItem
+      tags: [releases-watchlist]
+      summary: Update watchlist item status
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWatchlistItemBody"
+      responses:
+        "200":
+          description: Updated item
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteReleaseWatchlistItem
+      tags: [releases-watchlist]
+      summary: Remove from watchlist
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Logged in (sets auth-token cookie)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth-token
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    lang:
+      name: lang
+      in: query
+      schema:
+        type: string
+        default: en
+
+  schemas:
+    HealthSloStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        api:
+          type: array
+          items:
+            $ref: "#/components/schemas/SloMetric"
+        timestamp:
+          type: string
+          format: date-time
+      required: [status, api, timestamp]
+
+    SloMetric:
+      type: object
+      properties:
+        path:
+          type: string
+        sampleSize:
+          type: integer
+        total:
+          type: integer
+        errors:
+          type: integer
+        errorRate:
+          type: number
+        p50:
+          type: integer
+        p95:
+          type: integer
+        p99:
+          type: integer
+      required: [path, sampleSize, total, errors, errorRate, p50, p95, p99]
+
+    ReleasesHealthStatus:
+      type: object
+      properties:
+        module:
+          type: string
+        enabled:
+          type: boolean
+        tmdb:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+    ContentItem:
+      type: object
+      properties:
+        tmdbId:
+          type: integer
+        type:
+          type: string
+          enum: [movie, show]
+        title:
+          type: string
+        titleRu:
+          type: ["string", "null"]
+        rating:
+          type: number
+        posterPath:
+          type: ["string", "null"]
+        releaseDate:
+          type: ["string", "null"]
+        nextEpisode:
+          $ref: "#/components/schemas/NextEpisode"
+          nullable: true
+      required: [tmdbId, type, title, rating]
+
+    Genre:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required: [id, name]
+
+    CatalogPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentItem"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+        totalResults:
+          type: integer
+        hasNextPage:
+          type: boolean
+        hasPreviousPage:
+          type: boolean
+      required: [items, page, pageSize, totalPages, totalResults, hasNextPage, hasPreviousPage]
+
+    ContentDetail:
+      allOf:
+        - $ref: "#/components/schemas/ContentItem"
+        - type: object
+          properties:
+            overview:
+              type: ["string", "null"]
+            cast:
+              type: array
+              items:
+                type: string
+            trailerKey:
+              type: ["string", "null"]
+
+    NextEpisode:
+      type: object
+      properties:
+        season:
+          type: integer
+        episode:
+          type: integer
+        airDate:
+          type: ["string", "null"]
+        title:
+          type: ["string", "null"]
+      required: [season, episode]
+
+    WatchlistItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        tmdbId:
+          type: integer
+        type:
+          type: string
+          enum: [movie, show]
+        title:
+          type: string
+        status:
+          type: string
+          enum: [watching, plan]
+        releaseDate:
+          type: ["string", "null"]
+        nextEpisodeDate:
+          type: ["string", "null"]
+        addedAt:
+          type: string
+      required: [id, tmdbId, type, title, status, addedAt]
+
+    AddWatchlistItemBody:
+      type: object
+      properties:
+        tmdbId:
+          type: integer
+        type:
+          type: string
+          enum: [movie, show]
+        status:
+          type: string
+          enum: [watching, plan]
+        title:
+          type: string
+      required: [tmdbId, type, status, title]
+
+    UpdateWatchlistItemBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [watching, plan]
+      required: [status]
+
+    WatchlistStats:
+      type: object
+      properties:
+        total:
+          type: integer
+        watching:
+          type: integer
+        plan:
+          type: integer
+        movies:
+          type: integer
+        shows:
+          type: integer
+      required: [total, watching, plan, movies, shows]
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+
+    LoginResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user:
+          type: object
+        token:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: anisync
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d anisync"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --filter @anisync/web...
+
+      - name: Migrate clean PostgreSQL
+        run: |
+          pnpm --filter @anisync/web db:migrate
+          psql "$DATABASE_URL" -Atc "SELECT to_regclass('public.torrent_watchlist'), to_regclass('public.torrent_releases'), to_regclass('public.release_watchlist_entries')" | grep -q "torrent_watchlist"
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/anisync
+
+      - run: pnpm --filter @anisync/web test
+        env:
+          APP_BASE_URL: http://localhost:9002
+          NEXT_PUBLIC_BASE_URL: http://localhost:9002
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/anisync
+          JWT_SECRET: ci-secret-key-ci-secret-key
+
+      - run: pnpm --filter @anisync/web typecheck
+        env:
+          APP_BASE_URL: http://localhost:9002
+          NEXT_PUBLIC_BASE_URL: http://localhost:9002
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/anisync
+          JWT_SECRET: ci-secret-key-ci-secret-key
+
+      - run: pnpm --filter @anisync/web build
+        env:
+          APP_BASE_URL: http://localhost:9002
+          NEXT_PUBLIC_BASE_URL: http://localhost:9002
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/anisync
+          JWT_SECRET: ci-secret-key-ci-secret-key
+

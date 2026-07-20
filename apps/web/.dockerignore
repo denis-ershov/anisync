@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+database.sqlite
+*.md
+!docs/COOLIFY_DEPLOY.md
+coverage
+.cursor
+.claude

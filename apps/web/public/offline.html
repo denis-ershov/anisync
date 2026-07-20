@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#09090f" />
+    <title>Offline — AniSync</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #09090f;
+        color: #fff;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      }
+      main {
+        max-width: 28rem;
+        padding: 1.5rem;
+        text-align: center;
+      }
+      p {
+        margin: 0.5rem 0;
+        line-height: 1.5;
+      }
+      .eyebrow {
+        font-size: 0.75rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.6);
+      }
+      .muted {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.95rem;
+      }
+      .muted-en {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.875rem;
+      }
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 2.75rem;
+        margin-top: 1rem;
+        padding: 0.5rem 1.25rem;
+        border-radius: 0.5rem;
+        background: #fff;
+        color: #09090f;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.875rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">AniSync</p>
+      <h1>Нет подключения к сети</h1>
+      <p class="muted">Проверьте интернет и попробуйте снова. Некоторые страницы могут быть доступны из кэша.</p>
+      <p class="muted-en">No network connection. Check your internet and try again.</p>
+      <a href="/">На главную / Home</a>
+    </main>
+  </body>
+</html>

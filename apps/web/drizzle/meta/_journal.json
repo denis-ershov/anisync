@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1765201535764,
+      "tag": "0000_crazy_proteus",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1734780000000,
+      "tag": "0001_add_user_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1765201535765,
+      "tag": "0002_local_library_and_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1765201535766,
+      "tag": "0003_platform_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1765201535767,
+      "tag": "0004_release_watchlist",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1765201535768,
+      "tag": "0005_release_watchlist_schedule_updated",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1765201535769,
+      "tag": "0006_torrent_tables",
+      "breakpoints": true
+    }
+  ]
+}
