@@ -1,27 +1,11 @@
 # AniSync — Docker Compose для Coolify
 #
-# Сервисы приложения: web / worker / scheduler (+ redis для очередей).
-# PostgreSQL — внешний: только DATABASE_URL (Coolify Database или любой PG).
-# POSTGRES_USER / PASSWORD / DB не используются.
+# web / worker / scheduler. Postgres и Redis — внешние Coolify Database
+# (Connect To Predefined Network), только DATABASE_URL и REDIS_URL.
 #
 # Домен вешается на сервис `web` (порт контейнера 3000).
 
 services:
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ['redis-server', '--appendonly', 'yes']
-    volumes:
-      - anisync_redis_data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
-    networks:
-      - anisync
-
   web:
     build:
       context: .
@@ -40,7 +24,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_URL: ${REDIS_URL}
       BULLMQ_PREFIX: ${BULLMQ_PREFIX:-anisync}
       JWT_SECRET: ${JWT_SECRET}
       CRON_SECRET: ${CRON_SECRET}
@@ -70,9 +54,6 @@ services:
       BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-    depends_on:
-      redis:
-        condition: service_healthy
     healthcheck:
       test:
         [
@@ -82,9 +63,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 60s
-    networks:
-      - anisync
+      start_period: 90s
 
   worker:
     build:
@@ -103,7 +82,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_URL: ${REDIS_URL}
       BULLMQ_PREFIX: ${BULLMQ_PREFIX:-anisync}
       JWT_SECRET: ${JWT_SECRET}
       CRON_SECRET: ${CRON_SECRET}
@@ -125,12 +104,8 @@ services:
       ANILIST_CLIENT_ID: ${ANILIST_CLIENT_ID:-}
       ANILIST_CLIENT_SECRET: ${ANILIST_CLIENT_SECRET:-}
     depends_on:
-      redis:
-        condition: service_healthy
       web:
         condition: service_started
-    networks:
-      - anisync
 
   scheduler:
     build:
@@ -149,7 +124,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_URL: ${REDIS_URL}
       BULLMQ_PREFIX: ${BULLMQ_PREFIX:-anisync}
       JWT_SECRET: ${JWT_SECRET}
       CRON_SECRET: ${CRON_SECRET}
@@ -164,16 +139,5 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     depends_on:
-      redis:
-        condition: service_healthy
       worker:
         condition: service_started
-    networks:
-      - anisync
-
-networks:
-  anisync:
-    driver: bridge
-
-volumes:
-  anisync_redis_data:

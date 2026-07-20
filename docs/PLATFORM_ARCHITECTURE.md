@@ -63,9 +63,8 @@ flowchart TB
 | `web` | `node server.js` (+ миграции) | 3000 → Proxy | SSR + API |
 | `worker` | `scripts/worker.ts` | — | BullMQ consumers |
 | `scheduler` | `scripts/scheduler.ts` | — | Repeatable jobs |
-| `redis` | Redis 7 | внутренний | BullMQ + cache |
 
-PostgreSQL — **внешний** ресурс, только `DATABASE_URL` (без `POSTGRES_*`).
+PostgreSQL и Redis — **внешние** Coolify Database + Connect To Predefined Network (`DATABASE_URL`, `REDIS_URL`).
 
 Пошаговый деплой: [COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md).
 

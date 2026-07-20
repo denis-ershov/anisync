@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-20 (Coolify: внешний Redis через predefined network)
+
+**Файлы:** `docker-compose.yml`, `.env.example`, `apps/web/docker/entrypoint.sh`, `docs/COOLIFY_DEPLOY.md`.
+
+**Изменения:** убран встроенный сервис `redis` из compose. `REDIS_URL` снова берётся из Coolify env (internal hostname + Connect To Predefined Network). Стек: только `web` / `worker` / `scheduler`.
+
+**Обоснование:** при Connect To Predefined Network Coolify Redis резолвится; дублирующий redis в compose не нужен.
+
+## 2026-07-20 (fix: restart loop web/worker)
+
+**Файлы:** `apps/web/docker/entrypoint.sh`, `apps/web/src/lib/db/migrate.ts`, `apps/web/src/lib/db/index.ts`, `docker-compose.yml`, `docs/COOLIFY_DEPLOY.md`.
+
+**Изменения:** entrypoint подставляет `REDIS_URL` если пустой и проверяет `DATABASE_URL`/`JWT_SECRET`; миграции с SSL и корректным exit; `REDIS_URL` в compose зафиксирован на `redis://redis:6379`; безопасный разбор sslmode при спецсимволах в пароле.
+
+**Обоснование:** пустой `REDIS_URL` из Coolify UI ронял worker/scheduler (`exit 1` → 10 restarts); падение migrate не давало стартовать web.
+
 ## 2026-07-20 (Coolify: только DATABASE_URL, без POSTGRES_*)
 
 **Файлы:** `docker-compose.yml`, `.env.example`, `docs/COOLIFY_DEPLOY.md`, `docs/PLATFORM_ARCHITECTURE.md`, `docs/ENV_INVENTORY.md`.

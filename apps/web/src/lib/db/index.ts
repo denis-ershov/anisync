@@ -4,18 +4,24 @@ import { env } from '@/lib/config';
 import * as schema from './schema';
 
 const connectionString = env.DATABASE_URL;
-const sslMode = new URL(connectionString).searchParams.get('sslmode');
-const sslConfig = sslMode && ['require', 'verify-ca', 'verify-full'].includes(sslMode)
-  ? {
-      rejectUnauthorized: false,
+
+function sslFromUrl(url: string) {
+  try {
+    const sslMode = new URL(url).searchParams.get('sslmode');
+    if (sslMode && ['require', 'verify-ca', 'verify-full'].includes(sslMode)) {
+      return { rejectUnauthorized: false } as const;
     }
-  : undefined;
+  } catch {
+    // пароль со спецсимволами (#, @, %) может ломать WHATWG URL
+  }
+  return undefined;
+}
 
 const client = postgres(connectionString, {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 30,
-  ssl: sslConfig,
+  ssl: sslFromUrl(connectionString),
   onnotice: () => {},
   transform: {
     undefined: null,

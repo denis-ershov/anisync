@@ -18,11 +18,9 @@ PostgreSQL подключается **только** через `DATABASE_URL` (
 | `web` | Next.js UI + API, миграции при старте |
 | `worker` | BullMQ consumers |
 | `scheduler` | Repeatable jobs |
-| `redis` | Redis 7 для очередей (внутри compose) |
 
-Postgres в этот compose **не входит** — только `DATABASE_URL` на внешнюю БД.
-
-Публичный HTTP — сервис `web`, порт **3000** (Coolify Proxy).
+Postgres и Redis **не** входят в compose — Coolify Database + **Connect To Predefined Network**.  
+В env только полные строки `DATABASE_URL` и `REDIS_URL` (internal hostname из карточки ресурса).
 
 ---
 
@@ -45,15 +43,18 @@ Postgres в этот compose **не входит** — только `DATABASE_UR
 |------|--------|
 | `APP_BASE_URL` | `https://anisync.ru` |
 | `NEXT_PUBLIC_BASE_URL` | `https://anisync.ru` (**build-time** в Coolify) |
-| `DATABASE_URL` | полная строка `postgresql://user:pass@host:5432/anisync` |
+| `DATABASE_URL` | полная строка `postgresql://…` или `postgres://…` |
+| `REDIS_URL` | полная строка Coolify Redis (internal) — **обязателен** для worker/scheduler |
 | `JWT_SECRET` | ≥ 16 символов |
 | `CRON_SECRET` | ≥ 16 символов |
 | `INTERNAL_SERVICE_SECRET` | ≥ 16 символов |
 
-### Redis
+### Redis / Postgres
 
-По умолчанию compose ставит `REDIS_URL=redis://redis:6379` (сервис `redis` в этом же стеке).  
-Отдельный Coolify Redis — задайте свой `REDIS_URL` (internal hostname, одна Docker-сеть с приложением).
+1. Создайте Coolify **Database** (PostgreSQL + Redis) или используйте существующие.
+2. В ресурсе Compose включите **Connect To Predefined Network** (общая сеть с Database).
+3. В Environment Variables вставьте **internal** connection strings из карточек Database.
+4. Отдельные `POSTGRES_USER` / `PASSWORD` / `DB` не нужны.
 
 ### Интеграции (по модулям)
 
@@ -92,6 +93,15 @@ node --import tsx scripts/seed-bootstrap-admin.ts
 ---
 
 ## 6. Частые ошибки
+
+### Restart loop / Exited (10x restarts)
+
+1. В Coolify откройте **Logs** у конкретного сервиса (`web` / `worker` / `scheduler`) — там будет точная ошибка.
+2. Частые причины:
+   - **`REDIS_URL is required`** — не задан или пустой; нужен internal URL Coolify Redis + predefined network.
+   - **`DATABASE_URL` / migration failed** — БД недоступна; проверьте Connect To Predefined Network и internal URL.
+   - **`JWT_SECRET`** короче 16 символов или пустой.
+3. После правок env — Redeploy (для кода с новым entrypoint нужен rebuild образа).
 
 ### Readiness 503 / не подключается к БД
 
