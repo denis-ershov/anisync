@@ -26,12 +26,15 @@ flowchart TB
         CF[Coolify Proxy / TLS]
     end
 
-    subgraph compose [Coolify Docker Compose resource]
+    subgraph compose [Coolify Docker Compose]
         Web[web :3000]
         Worker[worker]
         Scheduler[scheduler]
-        PG[(postgres 18)]
         Redis[(redis 7)]
+    end
+
+    subgraph data [Coolify Database / внешний PG]
+        PG[(PostgreSQL 18)]
     end
 
     subgraph external [External]
@@ -55,20 +58,16 @@ flowchart TB
 
 ### Сервисы
 
-Один Coolify-ресурс типа **Docker Compose** поднимает весь стек из [`docker-compose.yml`](../docker-compose.yml).  
-Секреты — Environment Variables в UI Coolify. Домен — на `web` (порт 3000).
-
 | Сервис | Команда | Порт | Назначение |
 |--------|---------|------|------------|
 | `web` | `node server.js` (+ миграции) | 3000 → Proxy | SSR + API |
 | `worker` | `scripts/worker.ts` | — | BullMQ consumers |
 | `scheduler` | `scripts/scheduler.ts` | — | Repeatable jobs |
-| `postgres` | `postgres:18-alpine` | внутренний | Primary store |
 | `redis` | Redis 7 | внутренний | BullMQ + cache |
 
-Пошаговый деплой: [COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md).
+PostgreSQL — **внешний** ресурс, только `DATABASE_URL` (без `POSTGRES_*`).
 
-**Важно:** web и worker — **разные процессы**, один Docker image, разные `command`.
+Пошаговый деплой: [COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md).
 
 ---
 
@@ -384,9 +383,9 @@ src/app/api/
 |---------|--------|
 | Репозиторий | Один monorepo `anisync` (pnpm workspace): `apps/web` + `packages/*` |
 | BFF | Next.js в `apps/web` (не отдельный Express) |
-| Деплой приложения | Coolify Docker Compose: `web` + `worker` + `scheduler` + `postgres` + `redis` ([COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md)) |
-| PostgreSQL | **18**, сервис `postgres` в compose (или внешний Coolify Database) |
-| Redis | Redis 7, сервис `redis` в compose (или внешний) |
+| Деплой приложения | Coolify Docker Compose: `web` + `worker` + `scheduler` + `redis` ([COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md)) |
+| PostgreSQL | **18**, внешний (Coolify Database) — только `DATABASE_URL` |
+| Redis | сервис `redis` в compose (или внешний `REDIS_URL`) |
 | Очереди | BullMQ поверх `REDIS_URL` |
 | Контракт модулей | [MODULE_CONTRACT.md](MODULE_CONTRACT.md) |
 

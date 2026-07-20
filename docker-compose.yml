@@ -1,29 +1,12 @@
 # AniSync — Docker Compose для Coolify
 #
-# Деплой: Coolify → New Resource → Docker Compose → этот файл.
-# Все секреты и URL задаются в Environment Variables Coolify
-# (Coolify пишет `.env` для подстановки ${VAR} в этот файл).
+# Сервисы приложения: web / worker / scheduler (+ redis для очередей).
+# PostgreSQL — внешний: только DATABASE_URL (Coolify Database или любой PG).
+# POSTGRES_USER / PASSWORD / DB не используются.
 #
 # Домен вешается на сервис `web` (порт контейнера 3000).
 
 services:
-  postgres:
-    image: postgres:18-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-anisync}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-anisync}
-    volumes:
-      - anisync_pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    networks:
-      - anisync
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -35,6 +18,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 5s
     networks:
       - anisync
 
@@ -48,7 +32,6 @@ services:
         NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: ${NEXT_PUBLIC_TORRENTS_MODULE_ENABLED:-true}
         NEXT_PUBLIC_REGISTRATION_OPEN: ${NEXT_PUBLIC_REGISTRATION_OPEN:-true}
     restart: unless-stopped
-    # Coolify Proxy: публикуем только контейнерный порт (без host:port)
     ports:
       - '3000'
     environment:
@@ -57,7 +40,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       BULLMQ_PREFIX: ${BULLMQ_PREFIX:-anisync}
       JWT_SECRET: ${JWT_SECRET}
       CRON_SECRET: ${CRON_SECRET}
@@ -88,8 +71,6 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -122,7 +103,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       BULLMQ_PREFIX: ${BULLMQ_PREFIX:-anisync}
       JWT_SECRET: ${JWT_SECRET}
       CRON_SECRET: ${CRON_SECRET}
@@ -144,8 +125,6 @@ services:
       ANILIST_CLIENT_ID: ${ANILIST_CLIENT_ID:-}
       ANILIST_CLIENT_SECRET: ${ANILIST_CLIENT_SECRET:-}
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       web:
@@ -170,7 +149,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       BULLMQ_PREFIX: ${BULLMQ_PREFIX:-anisync}
       JWT_SECRET: ${JWT_SECRET}
       CRON_SECRET: ${CRON_SECRET}
@@ -197,5 +176,4 @@ networks:
     driver: bridge
 
 volumes:
-  anisync_pg_data:
   anisync_redis_data:

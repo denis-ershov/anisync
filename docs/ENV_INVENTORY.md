@@ -13,11 +13,10 @@
 |------------|:-----------:|------------|
 | `APP_BASE_URL` | да | Server-side base URL (OAuth callbacks) |
 | `NEXT_PUBLIC_BASE_URL` | да | Client-visible base URL |
-| `DATABASE_URL` | да | PostgreSQL 18 (`…@postgres:5432/…` в Coolify compose) |
+| `DATABASE_URL` | да | PostgreSQL 18 — полная строка (`postgresql://…`), без отдельных `POSTGRES_*` |
 | `JWT_SECRET` | да | Session signing (min 16 chars) |
 | `CRON_SECRET` | prod | Internal routes + legacy health |
-| `REDIS_URL` | prod | Redis 7 (`redis://redis:6379` в Coolify compose) |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | compose | Сервис `postgres` в `docker-compose.yml` |
+| `REDIS_URL` | prod | Redis; в Coolify compose default `redis://redis:6379` |
 | `BULLMQ_PREFIX` | нет | Префикс ключей BullMQ (default: `anisync`) |
 | `LOG_LEVEL` | нет | pino: info/debug/... |
 | `DEBUG` | нет | Глобальный debug |

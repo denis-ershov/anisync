@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-20 (Coolify: только DATABASE_URL, без POSTGRES_*)
+
+**Файлы:** `docker-compose.yml`, `.env.example`, `docs/COOLIFY_DEPLOY.md`, `docs/PLATFORM_ARCHITECTURE.md`, `docs/ENV_INVENTORY.md`.
+
+**Изменения:** сервис `postgres` убран из compose. БД — внешняя через единственную переменную `DATABASE_URL`. `POSTGRES_USER` / `PASSWORD` / `DB` больше не используются. В стеке остаются `web` / `worker` / `scheduler` + `redis`.
+
+**Обоснование:** в Coolify уже есть готовый Postgres connection string; дублировать креды в отдельных env не нужно.
+
+## 2026-07-20 (fix: Coolify postgres unhealthy)
+
+**Файлы:** `docker-compose.yml`, `docs/COOLIFY_DEPLOY.md`
+
+**Изменения:** дефолт для `POSTGRES_PASSWORD`, более терпимый healthcheck (`start_period`, shell-дефолты пользователя/БД), в гайде — диагностика `postgres unhealthy`.
+
+**Обоснование:** официальный образ Postgres без пароля сразу выходит; Coolify-деплой останавливался на `depends_on`.
+
 ## 2026-07-20 (fix: Docker build — zod hoist + profile schema)
 
 **Файлы:** `apps/web/Dockerfile`, `apps/web/src/app/[locale]/settings/profile/page.tsx`, `apps/web/src/lib/config.ts`
