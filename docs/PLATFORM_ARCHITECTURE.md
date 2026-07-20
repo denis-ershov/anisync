@@ -2,14 +2,14 @@
 
 > **Версия:** 2.0  
 > **Дата:** 2026-07-20  
-> **Связанные документы:** [SERVICE_CONSOLIDATION_PLAN.md](SERVICE_CONSOLIDATION_PLAN.md), [SERVICE_CONSOLIDATION_IMPLEMENTATION.md](SERVICE_CONSOLIDATION_IMPLEMENTATION.md), [GREENFIELD.md](GREENFIELD.md)
+> **Связанные документы:** [MODULE_CONTRACT.md](MODULE_CONTRACT.md), [GREENFIELD.md](GREENFIELD.md)
 
 ---
 
 ## 1. Принципы
 
 1. **Modular monolith** в одном репозитории `anisync` — три bounded context (Anime, Releases, Torrents), общая платформа (Auth, Notifications, Jobs).
-2. **Coolify-first** — приложение и data layer как **отдельные сервисы** в Coolify (не один «монолитный» compose в prod).
+2. **Coolify + Docker Compose** — один ресурс Compose на [`docker-compose.yml`](../docker-compose.yml); env из Coolify UI; домен на сервис `web` (см. [COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md)).
 3. **Очереди с первого дня** — тяжёлая работа только через workers, не в HTTP request.
 4. **Горизонтальное масштабирование web**, **вертикальное/реплицируемое** для workers и БД.
 5. **Feature flags + debug flags** — включение модулей и отладки без деплоя.
@@ -18,23 +18,20 @@
 
 ---
 
-## 2. Целевая топология (Coolify)
+## 2. Целевая топология (Coolify + Docker Compose)
 
 ```mermaid
 flowchart TB
     subgraph edge [Edge]
-        CF[Cloudflare / Reverse Proxy]
+        CF[Coolify Proxy / TLS]
     end
 
-    subgraph coolify_app [Coolify — Application]
-        Web[anisync-web\nNext.js standalone]
-        Worker[anisync-worker\nBullMQ consumers]
-        Scheduler[anisync-scheduler\nrepeatable jobs]
-    end
-
-    subgraph coolify_data [Coolify — Data (отдельные ресурсы)]
-        PG[(PostgreSQL 18)]
-        Redis[(Redis 7)]
+    subgraph compose [Coolify Docker Compose resource]
+        Web[web :3000]
+        Worker[worker]
+        Scheduler[scheduler]
+        PG[(postgres 18)]
+        Redis[(redis 7)]
     end
 
     subgraph external [External]
@@ -56,23 +53,22 @@ flowchart TB
     Scheduler --> Redis
 ```
 
-### Сервисы Coolify
+### Сервисы
 
-**Модель деплоя:** в Coolify создаются **независимые ресурсы**. Приложение (`anisync-*`) не включает Postgres/Redis в свой Dockerfile — только подключается по `DATABASE_URL` / `REDIS_URL`.
+Один Coolify-ресурс типа **Docker Compose** поднимает весь стек из [`docker-compose.yml`](../docker-compose.yml).  
+Секреты — Environment Variables в UI Coolify. Домен — на `web` (порт 3000).
 
-| Группа | Сервис | Тип в Coolify | Образ / команда | Порт | Реплики | Назначение |
-|--------|--------|---------------|-----------------|------|---------|------------|
-| **App** | `anisync-web` | Application | Dockerfile → `node server.js` | 3000 | 1–N | SSR + API routes (лёгкие) |
-| **App** | `anisync-worker` | Application | тот же образ, `node worker.js` | — | 1–3 | BullMQ consumers |
-| **App** | `anisync-scheduler` | Application | тот же образ, `node scheduler.js` | — | 1 | Repeatable jobs (singleton) |
-| **Data** | `anisync-postgres` | **Database** (отдельный ресурс) | `postgres:18-alpine` | 5432 | 1 (+ backup) | Primary store, единая БД платформы |
-| **Data** | `anisync-redis` | **Database** (отдельный ресурс) | Redis 7 (Coolify Redis template) | 6379 | 1 | BullMQ + TMDB cache + rate limits |
+| Сервис | Команда | Порт | Назначение |
+|--------|---------|------|------------|
+| `web` | `node server.js` (+ миграции) | 3000 → Proxy | SSR + API |
+| `worker` | `scripts/worker.ts` | — | BullMQ consumers |
+| `scheduler` | `scripts/scheduler.ts` | — | Repeatable jobs |
+| `postgres` | `postgres:18-alpine` | внутренний | Primary store |
+| `redis` | Redis 7 | внутренний | BullMQ + cache |
 
-**Связь в Coolify:** для `anisync-web` / `worker` / `scheduler` в env прописать internal URL от `anisync-postgres` и `anisync-redis` (Coolify service discovery / linked resources). Prowlarr и Telegram доступны worker напрямую.
+Пошаговый деплой: [COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md).
 
-**Локальная разработка:** `docker-compose.yml` поднимает postgres:18 + redis рядом с app **только для dev** — parity по версиям, не по топологии (в prod они всегда отдельные Coolify-сервисы).
-
-**Важно:** web и worker — **разные процессы**, один Docker image, разные `CMD`. Это устраняет timeout на sync/import и позволяет масштабировать независимо.
+**Важно:** web и worker — **разные процессы**, один Docker image, разные `command`.
 
 ---
 
@@ -388,18 +384,18 @@ src/app/api/
 |---------|--------|
 | Репозиторий | Один monorepo `anisync` (pnpm workspace): `apps/web` + `packages/*` |
 | BFF | Next.js в `apps/web` (не отдельный Express) |
-| Деплой приложения | Coolify (Docker): `anisync-web`, `worker`, `scheduler` |
-| PostgreSQL | **18**, **отдельный** Coolify Database resource (`anisync-postgres`) |
-| Redis | **отдельный** Coolify Database resource (`anisync-redis`), Redis 7 |
-| Очереди | BullMQ поверх `anisync-redis` |
+| Деплой приложения | Coolify Docker Compose: `web` + `worker` + `scheduler` + `postgres` + `redis` ([COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md)) |
+| PostgreSQL | **18**, сервис `postgres` в compose (или внешний Coolify Database) |
+| Redis | Redis 7, сервис `redis` в compose (или внешний) |
+| Очереди | BullMQ поверх `REDIS_URL` |
 | Контракт модулей | [MODULE_CONTRACT.md](MODULE_CONTRACT.md) |
 
 ## 14. Решения, требующие подтверждения
 
 1. **Bull Board:** включать admin UI для очередей?
 2. **Мониторинг:** достаточно Coolify logs или сразу Grafana/Loki?
-3. **PgBouncer:** добавлять отдельным Coolify-сервисом при первом scale-out или сразу?
+3. **PgBouncer:** добавлять отдельным сервисом при первом scale-out или сразу?
 
 ---
 
-*Документ отражает текущую целевую архитектуру; статус deployment — в SERVICE_CONSOLIDATION_IMPLEMENTATION.md.*
+*Документ отражает текущую целевую архитектуру; статус деплоя — в [GREENFIELD.md](GREENFIELD.md) и [docs/CHANGELOG.md](CHANGELOG.md).*

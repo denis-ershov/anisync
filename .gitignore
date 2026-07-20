@@ -137,12 +137,6 @@ nul
 apps/web/.env
 apps/web/.next/
 apps/*/node_modules/
-services/**/.env
-services/**/__pycache__/
-services/**/.venv/
-
-# Migration artifacts
-scripts/.ontrash-user-map.json
 
 # Env & local DB
 .env

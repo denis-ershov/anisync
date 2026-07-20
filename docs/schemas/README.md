@@ -2,12 +2,17 @@
 
 | Файл | Источник |
 |------|----------|
-| `anisync.sql` | Конкатенация `apps/web/drizzle/0000`…`0005` |
-| `anisync-live.sql` | Live introspect prod `anisync` (2026-07-20, после `drizzle migrate`) |
-| `nightwatcher.sql` | `services/nightwatcher/migrations/init.sql` |
-| `nightwatcher-live.sql` | — (host NW с этой машины timeout; повторить при доступе) |
-| `ontrash.sql` | NextScene bootstrap + Drizzle |
+| `anisync.sql` | Конкатенация Drizzle-миграций `apps/web/drizzle/0000`…текущая |
+| `anisync-live.sql` | Live introspect прод-БД `anisync` (снимок после `drizzle migrate`) |
 
-Live dump: `pnpm exec tsx scripts/inspect-prod-dbs.ts`  
-Миграции AniSync: `pnpm exec tsx scripts/probe-anisync-db.ts --migrate`  
-Сверка данных: `pnpm exec tsx scripts/migrate-verify-counts.ts`
+Обновить снимки:
+
+```bash
+# live dump прод-схемы
+pnpm exec tsx scripts/inspect-prod-dbs.ts
+
+# применить миграции AniSync
+pnpm exec tsx scripts/probe-anisync-db.ts --migrate
+```
+
+Ops-скрипты: [scripts/README.md](../../scripts/README.md).

@@ -42,7 +42,7 @@
 1. ~~`TMDB_API_KEY`~~ — задан; health Bearer JWT.
 2. ~~TS torrent watcher~~ — `TorrentWatcherService` + очередь / cron.
 3. Deploy: `worker` + `scheduler` с `PROWLARR_*` / `TELEGRAM_*` / `REDIS_URL` на VPS.
-4. Coolify: PG/Redis в одной сети ([COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md)).
+4. Coolify: Docker Compose + env в UI ([COOLIFY_DEPLOY.md](COOLIFY_DEPLOY.md)).
 5. После smoke владелец архивирует внешние GitHub repositories.
 
-Трекер: [SERVICE_CONSOLIDATION_IMPLEMENTATION.md](SERVICE_CONSOLIDATION_IMPLEMENTATION.md).
+Трекер: [CHANGELOG.md](CHANGELOG.md).

@@ -1,26 +1,33 @@
-# Local development only. Production: separate Coolify resources for web, worker,
-# scheduler, postgres and redis. Torrents run in the TypeScript worker.
+# AniSync — Docker Compose для Coolify
+#
+# Деплой: Coolify → New Resource → Docker Compose → этот файл.
+# Все секреты и URL задаются в Environment Variables Coolify
+# (Coolify пишет `.env` для подстановки ${VAR} в этот файл).
+#
+# Домен вешается на сервис `web` (порт контейнера 3000).
+
 services:
   postgres:
     image: postgres:18-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: anisync
-      POSTGRES_PASSWORD: anisync
-      POSTGRES_DB: anisync
-    ports:
-      - '5432:5432'
+      POSTGRES_USER: ${POSTGRES_USER:-anisync}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-anisync}
     volumes:
       - anisync_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U anisync -d anisync']
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - anisync
 
   redis:
     image: redis:7-alpine
-    ports:
-      - '6379:6379'
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
     volumes:
       - anisync_redis_data:/data
     healthcheck:
@@ -28,67 +35,114 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - anisync
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_BASE_URL: http://localhost:9002
-        NEXT_PUBLIC_RELEASES_MODULE_ENABLED: 'true'
-        NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: 'true'
-        NEXT_PUBLIC_REGISTRATION_OPEN: 'true'
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+        NEXT_PUBLIC_RELEASES_MODULE_ENABLED: ${NEXT_PUBLIC_RELEASES_MODULE_ENABLED:-true}
+        NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: ${NEXT_PUBLIC_TORRENTS_MODULE_ENABLED:-true}
+        NEXT_PUBLIC_REGISTRATION_OPEN: ${NEXT_PUBLIC_REGISTRATION_OPEN:-true}
+    restart: unless-stopped
+    # Coolify Proxy: публикуем только контейнерный порт (без host:port)
     ports:
-      - '9002:3000'
+      - '3000'
     environment:
-      APP_BASE_URL: http://localhost:9002
-      NEXT_PUBLIC_BASE_URL: http://localhost:9002
-      DATABASE_URL: postgresql://anisync:anisync@postgres:5432/anisync
-      REDIS_URL: redis://redis:6379
-      BULLMQ_PREFIX: anisync
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-dev-secret-key}
-      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-dev-cron-secret}
+      NODE_ENV: production
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      APP_BASE_URL: ${APP_BASE_URL}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      BULLMQ_PREFIX: ${BULLMQ_PREFIX:-anisync}
+      JWT_SECRET: ${JWT_SECRET}
+      CRON_SECRET: ${CRON_SECRET}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DEBUG: ${DEBUG:-false}
-      RUN_MIGRATIONS: 'true'
-      RELEASES_MODULE_ENABLED: 'true'
-      TORRENTS_MODULE_ENABLED: 'true'
-      REGISTRATION_OPEN: 'true'
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      RELEASES_MODULE_ENABLED: ${RELEASES_MODULE_ENABLED:-true}
+      TORRENTS_MODULE_ENABLED: ${TORRENTS_MODULE_ENABLED:-true}
+      NEXT_PUBLIC_RELEASES_MODULE_ENABLED: ${NEXT_PUBLIC_RELEASES_MODULE_ENABLED:-true}
+      NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: ${NEXT_PUBLIC_TORRENTS_MODULE_ENABLED:-true}
+      NEXT_PUBLIC_REGISTRATION_OPEN: ${NEXT_PUBLIC_REGISTRATION_OPEN:-true}
+      REGISTRATION_OPEN: ${REGISTRATION_OPEN:-true}
+      MAINTENANCE_MODE: ${MAINTENANCE_MODE:-false}
       TMDB_API_KEY: ${TMDB_API_KEY:-}
       PROWLARR_URL: ${PROWLARR_URL:-}
       PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
-      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-dev-internal-service-secret}
+      SHIKIMORI_BASE_URL: ${SHIKIMORI_BASE_URL:-https://shikimori.one}
+      SHIKIMORI_CLIENT_ID: ${SHIKIMORI_CLIENT_ID:-}
+      SHIKIMORI_CLIENT_SECRET: ${SHIKIMORI_CLIENT_SECRET:-}
+      MYANIMELIST_CLIENT_ID: ${MYANIMELIST_CLIENT_ID:-}
+      MYANIMELIST_CLIENT_SECRET: ${MYANIMELIST_CLIENT_SECRET:-}
+      ANILIST_CLIENT_ID: ${ANILIST_CLIENT_ID:-}
+      ANILIST_CLIENT_SECRET: ${ANILIST_CLIENT_SECRET:-}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(\"http://127.0.0.1:3000/api/health\").then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - anisync
 
   worker:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+        NEXT_PUBLIC_RELEASES_MODULE_ENABLED: ${NEXT_PUBLIC_RELEASES_MODULE_ENABLED:-true}
+        NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: ${NEXT_PUBLIC_TORRENTS_MODULE_ENABLED:-true}
+        NEXT_PUBLIC_REGISTRATION_OPEN: ${NEXT_PUBLIC_REGISTRATION_OPEN:-true}
+    restart: unless-stopped
     command: ['node', '--import', 'tsx', 'scripts/worker.ts']
     environment:
-      APP_BASE_URL: http://web:3000
-      NEXT_PUBLIC_BASE_URL: http://localhost:9002
-      DATABASE_URL: postgresql://anisync:anisync@postgres:5432/anisync
-      REDIS_URL: redis://redis:6379
-      BULLMQ_PREFIX: anisync
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-dev-secret-key}
-      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-dev-cron-secret}
+      NODE_ENV: production
+      RUN_MIGRATIONS: 'false'
+      APP_BASE_URL: ${APP_BASE_URL}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      BULLMQ_PREFIX: ${BULLMQ_PREFIX:-anisync}
+      JWT_SECRET: ${JWT_SECRET}
+      CRON_SECRET: ${CRON_SECRET}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DEBUG: ${DEBUG:-false}
-      RUN_MIGRATIONS: 'false'
-      RELEASES_MODULE_ENABLED: 'true'
-      TORRENTS_MODULE_ENABLED: 'true'
+      RELEASES_MODULE_ENABLED: ${RELEASES_MODULE_ENABLED:-true}
+      TORRENTS_MODULE_ENABLED: ${TORRENTS_MODULE_ENABLED:-true}
       TMDB_API_KEY: ${TMDB_API_KEY:-}
       PROWLARR_URL: ${PROWLARR_URL:-}
       PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      SHIKIMORI_BASE_URL: ${SHIKIMORI_BASE_URL:-https://shikimori.one}
+      SHIKIMORI_CLIENT_ID: ${SHIKIMORI_CLIENT_ID:-}
+      SHIKIMORI_CLIENT_SECRET: ${SHIKIMORI_CLIENT_SECRET:-}
+      MYANIMELIST_CLIENT_ID: ${MYANIMELIST_CLIENT_ID:-}
+      MYANIMELIST_CLIENT_SECRET: ${MYANIMELIST_CLIENT_SECRET:-}
+      ANILIST_CLIENT_ID: ${ANILIST_CLIENT_ID:-}
+      ANILIST_CLIENT_SECRET: ${ANILIST_CLIENT_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,25 +150,35 @@ services:
         condition: service_healthy
       web:
         condition: service_started
+    networks:
+      - anisync
 
   scheduler:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+        NEXT_PUBLIC_RELEASES_MODULE_ENABLED: ${NEXT_PUBLIC_RELEASES_MODULE_ENABLED:-true}
+        NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: ${NEXT_PUBLIC_TORRENTS_MODULE_ENABLED:-true}
+        NEXT_PUBLIC_REGISTRATION_OPEN: ${NEXT_PUBLIC_REGISTRATION_OPEN:-true}
+    restart: unless-stopped
     command: ['node', '--import', 'tsx', 'scripts/scheduler.ts']
     environment:
-      APP_BASE_URL: http://web:3000
-      NEXT_PUBLIC_BASE_URL: http://localhost:9002
-      DATABASE_URL: postgresql://anisync:anisync@postgres:5432/anisync
-      REDIS_URL: redis://redis:6379
-      BULLMQ_PREFIX: anisync
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-dev-secret-key}
-      CRON_SECRET: ${CRON_SECRET:-dev-cron-secret-dev-cron-secret}
+      NODE_ENV: production
+      RUN_MIGRATIONS: 'false'
+      APP_BASE_URL: ${APP_BASE_URL}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      BULLMQ_PREFIX: ${BULLMQ_PREFIX:-anisync}
+      JWT_SECRET: ${JWT_SECRET}
+      CRON_SECRET: ${CRON_SECRET}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DEBUG: ${DEBUG:-false}
-      RUN_MIGRATIONS: 'false'
-      RELEASES_MODULE_ENABLED: 'true'
-      TORRENTS_MODULE_ENABLED: 'true'
+      RELEASES_MODULE_ENABLED: ${RELEASES_MODULE_ENABLED:-true}
+      TORRENTS_MODULE_ENABLED: ${TORRENTS_MODULE_ENABLED:-true}
       TMDB_API_KEY: ${TMDB_API_KEY:-}
       PROWLARR_URL: ${PROWLARR_URL:-}
       PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
@@ -125,6 +189,12 @@ services:
         condition: service_healthy
       worker:
         condition: service_started
+    networks:
+      - anisync
+
+networks:
+  anisync:
+    driver: bridge
 
 volumes:
   anisync_pg_data:

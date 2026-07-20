@@ -2,7 +2,7 @@
 
 > **Версия:** 1.0  
 > **Дата:** 2026-07-20  
-> **Связанные документы:** [PLATFORM_ARCHITECTURE.md](PLATFORM_ARCHITECTURE.md), [SERVICE_CONSOLIDATION_PLAN.md](SERVICE_CONSOLIDATION_PLAN.md)
+> **Связанные документы:** [PLATFORM_ARCHITECTURE.md](PLATFORM_ARCHITECTURE.md), [GREENFIELD.md](GREENFIELD.md)
 
 ---
 

@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-07-20 (Coolify + docker-compose.yml)
+
+### Деплой через Coolify Docker Compose
+
+**Файлы:** `docker-compose.yml`, `docs/COOLIFY_DEPLOY.md`, `.env.example`, `docs/PLATFORM_ARCHITECTURE.md`.
+
+**Изменения:**
+- `docker-compose.yml` адаптирован под Coolify: полный стек `postgres` + `redis` + `web` + `worker` + `scheduler`; порт `web` = `3000` для Proxy; env через явный `environment:` + `${VAR}` (без `env_file`); убран profile `bundled-data`.
+- `docs/COOLIFY_DEPLOY.md` снова про Coolify UI (создание Compose-ресурса, env, домен, rebuild, admin).
+- `.env.example` — шаблон ключей для Coolify Environment Variables с URL на хосты `postgres`/`redis`.
+
+**Обоснование:** прод на сервере идёт через Coolify Compose, а не ручной `docker compose` на хосте.
+
+## 2026-07-20 (README — продуктовое описание)
+
+**Файлы:** `README.md`
+
+**Изменения:** README сведён к описанию продукта (модули, функционал, стек, ссылка на anisync.ru). Убраны быстрый старт, env, команды, деплой, troubleshooting и прочие инструкции по локальному запуску — продукт позиционируется как веб-сервис с регистрацией на сайте.
+
+**Обоснование:** пользователи настраивают AniSync через UI, а не через клон репозитория.
+
+## 2026-07-20 (деплой: Docker Compose + корневой `.env`)
+
+### Серверный деплой через compose; гайд переписан
+
+**Файлы:** `docker-compose.yml`, `.env.example`, `docs/COOLIFY_DEPLOY.md`, `README.md`, `docs/GREENFIELD.md`, `docs/ENV_INVENTORY.md`, `docs/PLATFORM_ARCHITECTURE.md`.
+
+**Изменения:**
+- `docker-compose.yml` — runtime из корневого `.env` (`env_file` + `${VAR}`); по умолчанию только `web`/`worker`/`scheduler`; Postgres/Redis — профиль `bundled-data`; healthcheck web через Node `fetch`; `restart: unless-stopped`; порт `WEB_PORT`.
+- Корневой `.env.example` восстановлен как канон для compose-деплоя.
+- `docs/COOLIFY_DEPLOY.md` переписан под Docker Compose на сервере (больше не Coolify UI resources).
+- README / ENV_INVENTORY / GREENFIELD синхронизированы.
+
+**Обоснование:** единый путь «клонировал → заполнил `.env` → `docker compose up`» без отдельных Coolify application resources.
+
+## 2026-07-20 (репозиторий: cleanup + переписан README)
+
+### Очистка исторических planning/parity-документов и обновление верхнеуровневой документации
+
+**Удалены файлы:**
+- Планы объединения сервисов: `docs/SERVICE_CONSOLIDATION_PLAN.md`, `docs/SERVICE_CONSOLIDATION_IMPLEMENTATION.md`, `docs/REPO_DECOMMISSION.md`.
+- Legacy parity/cutover-аудиты: `docs/LEGACY_PARITY_AUDIT.md`, `docs/POST_AUDIT_CLOSURE_PLAN.md`, `docs/SCHEMA_PARITY.md`, `docs/DUAL_WRITE_CUTOVER.md`, `docs/RELEASES_BETA_CUTOVER.md`, `docs/RELEASES_PARITY_CHECKLIST.md`, `docs/AUTH_SESSION_MAPPING.md`, `docs/SECURITY_NOTES.md`.
+- Legacy миграционные скрипты (OnTrash/NightWatcher): `scripts/migrate-ontrash-users.ts`, `scripts/migrate-ontrash-watchlist.ts`, `scripts/migrate-nightwatcher-watchlist.ts`, `scripts/migrate-verify-counts.ts`, `scripts/apply-nw-tables-on-anisync.ts`.
+- Устаревшие схема-снимки: `docs/schemas/nightwatcher.sql`, `docs/schemas/ontrash.sql`.
+- Разовые setup/миграционные заметки в корне: `DATABASE_SETUP.md`, `MIGRATION_GUIDE.md`, `MIGRATION_SUMMARY.md`, `MIGRATION_USER_SESSIONS.md`, `VERCEL_SETUP.md`, `VPS_POSTGRES_SETUP.md`, корневой `.env.example` (канон — `apps/web/.env.example`), `apps/web/apphosting.yaml`.
+
+**Обновлены файлы:**
+- `README.md` — полностью переписан на русском по структуре readme-skill: обзор, стек, быстрый старт (Windows/PowerShell + bash), архитектура (дерево каталогов, жизненный цикл запроса, поток данных Torrents watcher, модули, очереди BullMQ), переменные окружения (обязательные/опциональные из `apps/web/.env.example`), доступные команды, тестирование, деплой (Coolify), диагностика проблем, карта документации, лицензия.
+- `scripts/README.md` — сокращён до актуальных ops-скриптов (`probe-anisync-db`, `probe-integrations`, `inspect-prod-dbs`, `seed-bootstrap-admin`, `promote-admin`); убраны разделы миграции OnTrash/NightWatcher.
+- `docs/schemas/README.md` — оставлены только `anisync.sql` и `anisync-live.sql`.
+- `.gitignore` — убраны игноры `services/**/.env`, `services/**/__pycache__/`, `services/**/.venv/` (Python-сайдкар удалён) и `scripts/.ontrash-user-map.json` (артефакт удалённого миграционного скрипта).
+- `docs/MODULE_CONTRACT.md`, `docs/PLATFORM_ARCHITECTURE.md` — ссылки на удалённые `SERVICE_CONSOLIDATION_PLAN.md`/`SERVICE_CONSOLIDATION_IMPLEMENTATION.md` в заголовках заменены на `GREENFIELD.md`/`MODULE_CONTRACT.md`/`PLATFORM_ARCHITECTURE.md`.
+- `docs/GREENFIELD.md`, `docs/API_MAPPING.md`, `docs/DB_ARCHITECTURE.md`, `docs/modules/TORRENTS_ARCHITECTURE.md`, `docs/modules/RELEASES_ARCHITECTURE.md` — мёртвые ссылки на `SERVICE_CONSOLIDATION_*` заменены на `PLATFORM_ARCHITECTURE.md` / `MODULE_CONTRACT.md` / `GREENFIELD.md` / `CHANGELOG.md`; в `modules/RELEASES_ARCHITECTURE.md` исправлены относительные пути (`../`).
+- `.dockerignore` — удалена строка `services/nightwatcher` (сайдкар снят).
+
+**Обоснование:**
+AniSync — однопродуктовый greenfield-репозиторий: временные планы консолидации сервисов, parity-аудиты legacy-систем (OnTrash/NextScene, NightWatcher) и разовые миграционные скрипты выполнили свою роль и больше не отражают актуальную архитектуру. Их сохранение вводит в заблуждение новых читателей и создаёт риск устаревших ссылок. Оставшаяся документация консолидирована вокруг единого runtime (`apps/web`) и текущего набора скриптов.
+
 ## 2026-07-20 (финальный parity-аудит и единый runtime)
 
 **Файлы:** `docs/{LEGACY_PARITY_AUDIT,POST_AUDIT_CLOSURE_PLAN,API_MAPPING,SCHEMA_PARITY,SERVICE_CONSOLIDATION_IMPLEMENTATION}.md`.
