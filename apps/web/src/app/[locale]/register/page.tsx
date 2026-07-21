@@ -1,6 +1,6 @@
 import { RegisterForm } from "@/components/auth/register-form";
 import { Link } from "@/navigation";
-import { isFeatureEnabled } from "@/lib/feature-flags";
+import { isFeatureEnabled } from "@/lib/feature-flags.server";
 import { getTranslations } from "next-intl/server";
 
 export default async function RegisterPage() {

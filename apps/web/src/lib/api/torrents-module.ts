@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { isFeatureEnabled } from '@/lib/feature-flags';
+import { isFeatureEnabled } from '@/lib/feature-flags.server';
 
 export function isTorrentsModuleEnabled() {
   return isFeatureEnabled('torrents');

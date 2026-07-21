@@ -1,23 +1,8 @@
-import { env, type AppEnv } from '@/lib/config';
-
 export type FeatureFlag =
   | 'releases'
   | 'torrents'
   | 'registration'
   | 'maintenance';
-
-export function getFeatureFlags(source: AppEnv = env) {
-  return {
-    releases: source.RELEASES_MODULE_ENABLED ?? false,
-    torrents: source.TORRENTS_MODULE_ENABLED ?? false,
-    registration: source.REGISTRATION_OPEN ?? true,
-    maintenance: source.MAINTENANCE_MODE ?? false,
-  } as const;
-}
-
-export function isFeatureEnabled(flag: FeatureFlag, source: AppEnv = env) {
-  return getFeatureFlags(source)[flag];
-}
 
 function readPublicBoolean(value: string | undefined) {
   if (!value) {

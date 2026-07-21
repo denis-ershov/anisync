@@ -110,24 +110,56 @@ export function parseEnv(source: EnvSource = process.env) {
   return parsedEnv.data;
 }
 
-export const env = parseEnv();
+let cachedEnv: AppEnv | undefined;
+
+export function getEnv(): AppEnv {
+  if (typeof window !== 'undefined') {
+    throw new Error('getEnv() must only be called on the server');
+  }
+
+  cachedEnv ??= parseEnv();
+  return cachedEnv;
+}
+
+/** Server-only env; lazy — safe if the module is bundled for the client but not accessed. */
+export const env: AppEnv = new Proxy({} as AppEnv, {
+  get(_target, prop) {
+    return getEnv()[prop as keyof AppEnv];
+  },
+});
 
 export function isQueuesEnabled(source: AppEnv = env) {
   return Boolean(source.REDIS_URL);
 }
 
 export const providerBaseUrls = {
-  shikimori: new URL(env.SHIKIMORI_BASE_URL),
-  myanimelist: new URL('https://myanimelist.net'),
-  myanimelistApi: new URL('https://api.myanimelist.net'),
-  anilist: new URL('https://anilist.co'),
-  anilistGraphql: new URL('https://graphql.anilist.co'),
+  get shikimori() {
+    return new URL(getEnv().SHIKIMORI_BASE_URL);
+  },
+  get myanimelist() {
+    return new URL('https://myanimelist.net');
+  },
+  get myanimelistApi() {
+    return new URL('https://api.myanimelist.net');
+  },
+  get anilist() {
+    return new URL('https://anilist.co');
+  },
+  get anilistGraphql() {
+    return new URL('https://graphql.anilist.co');
+  },
 } as const;
 
 export const appConfig = {
-  appBaseUrl: env.APP_BASE_URL.replace(/\/+$/, ''),
-  publicBaseUrl: env.NEXT_PUBLIC_BASE_URL.replace(/\/+$/, ''),
-  bullmqPrefix: env.BULLMQ_PREFIX,
+  get appBaseUrl() {
+    return getEnv().APP_BASE_URL.replace(/\/+$/, '');
+  },
+  get publicBaseUrl() {
+    return getEnv().NEXT_PUBLIC_BASE_URL.replace(/\/+$/, '');
+  },
+  get bullmqPrefix() {
+    return getEnv().BULLMQ_PREFIX;
+  },
 } as const;
 
 export function getProviderCallbackUrl(service: 'shikimori' | 'myanimelist' | 'anilist') {

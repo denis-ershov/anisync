@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isFeatureEnabled } from '@/lib/feature-flags';
+import { isFeatureEnabled } from '@/lib/feature-flags.shared';
 import { isQueuesEnabled, parseEnv } from '@/lib/config';
 
 const baseEnv = {

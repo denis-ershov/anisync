@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { env } from '@/lib/config';
-import { isFeatureEnabled } from '@/lib/feature-flags';
+import { isFeatureEnabled } from '@/lib/feature-flags.server';
 import { checkTmdbHealth } from '@/lib/integrations/tmdb/health';
 
 export async function GET() {

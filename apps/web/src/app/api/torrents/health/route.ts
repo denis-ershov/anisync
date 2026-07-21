@@ -5,7 +5,7 @@ import {
   torrentServiceErrorResponse,
 } from '@/lib/api/torrents-module';
 import { getTorrentHealth } from '@/lib/services/torrent-facade';
-import { isFeatureEnabled } from '@/lib/feature-flags';
+import { isFeatureEnabled } from '@/lib/feature-flags.server';
 
 export async function GET() {
   const moduleEnabled = isTorrentsModuleEnabled();

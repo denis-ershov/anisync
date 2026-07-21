@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isFeatureEnabled } from '@/lib/feature-flags';
+import { isFeatureEnabled } from '@/lib/feature-flags.server';
 import { UserService } from '@/lib/services/user-service';
 import { CreateUserData } from '@/lib/types';
 

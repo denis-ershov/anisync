@@ -145,6 +145,9 @@ importers:
       recharts:
         specifier: ^3.3.0
         version: 3.9.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@19.2.7)(react@19.2.7)(redux@5.0.1)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.6.0
@@ -2604,6 +2607,9 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
+  server-only@0.0.1:
+    resolution: {integrity: sha512-qepMx2JxAa5jjfzxG79yPPq+8BuFToHd1hm7kI+Z4zAq1ftQiP7HcxMhDDItrbtwVeLg/cY2JnKnrcFkmiswNA==}
+
   serwist@9.5.11:
     resolution: {integrity: sha512-Bq6uwJFd4ET60BWI77v3VbazKHv6k7lECOiiCFwKyBu/slaCn0GHJ5L5RfsuJUKrnbD9lYUCDo6sqaKRM5M2vA==}
     peerDependencies:
@@ -4925,6 +4931,8 @@ snapshots:
   semver@7.7.4: {}
 
   semver@7.8.5: {}
+
+  server-only@0.0.1: {}
 
   serwist@9.5.11(browserslist@4.28.2)(typescript@5.9.3):
     dependencies:

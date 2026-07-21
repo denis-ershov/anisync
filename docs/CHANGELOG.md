@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-21 (fix: client crash — env validation in browser)
+
+**Файлы:** `apps/web/src/lib/config.ts`, `apps/web/src/lib/feature-flags.ts`, `apps/web/src/lib/feature-flags.server.ts`, `apps/web/package.json`.
+
+**Изменения:** серверная валидация env (`DATABASE_URL`, `JWT_SECRET` и т.д.) больше не выполняется в клиентском бандле. `feature-flags` разделён на client/server; `env` загружается лениво только на сервере.
+
+**Обоснование:** на anisync.ru падал клиент с `Invalid environment configuration: APP_BASE_URL: Required; …`.
+
 ## 2026-07-20 (compose: внешний Redis через REDIS_URL)
 
 **Файлы:** `docker-compose.yml`, `.env.example`, `apps/web/docker/entrypoint.sh`, `docs/COOLIFY_DEPLOY.md`, `docs/PLATFORM_ARCHITECTURE.md`, `docs/ENV_INVENTORY.md`.
