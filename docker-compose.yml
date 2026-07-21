@@ -5,18 +5,27 @@
 #
 # Домен вешается на сервис `web` (порт контейнера 3000).
 # Health checks — в compose (Coolify / Traefik читают Docker health status).
+# Без tsx: Docker HEALTHCHECK CMD часто не резолвит --import tsx → unhealthy → compose up падает.
 
 x-healthcheck-web: &healthcheck-web
-  test: ['CMD', 'node', '--import', 'tsx', 'scripts/healthcheck-web.ts']
+  test:
+    [
+      'CMD-SHELL',
+      'node -e "fetch(\"http://127.0.0.1:\"+(process.env.PORT||3000)+\"/api/health\").then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+    ]
   interval: 15s
-  timeout: 10s
-  retries: 5
-  start_period: 120s
+  timeout: 5s
+  retries: 10
+  start_period: 180s
 
 x-healthcheck-queue: &healthcheck-queue
-  test: ['CMD', 'node', '--import', 'tsx', 'scripts/healthcheck-queue.ts']
+  test:
+    [
+      'CMD-SHELL',
+      'node -e "const u=new URL(process.env.REDIS_URL||\"\");const n=require(\"net\");const s=n.connect({host:u.hostname,port:Number(u.port||6379)},()=>{s.end();process.exit(0)});s.on(\"error\",()=>process.exit(1));setTimeout(()=>process.exit(1),5000)"',
+    ]
   interval: 30s
-  timeout: 15s
+  timeout: 10s
   retries: 5
   start_period: 45s
 
@@ -114,7 +123,7 @@ services:
     healthcheck: *healthcheck-queue
     depends_on:
       web:
-        condition: service_healthy
+        condition: service_started
 
   scheduler:
     build:
@@ -151,4 +160,4 @@ services:
     healthcheck: *healthcheck-queue
     depends_on:
       worker:
-        condition: service_healthy
+        condition: service_started

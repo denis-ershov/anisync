@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-21 (fix: web unhealthy → deploy fail)
+
+**Файлы:** `docker-compose.yml`.
+
+**Изменения:** healthcheck web/worker/scheduler на чистом `node -e` (без `tsx`); `depends_on` снова `service_started`.
+
+**Обоснование:** Coolify — build OK, но `web is unhealthy` блокировал `compose up` (worker/scheduler ждут healthy).
+
 ## 2026-07-21 (Releases: статус «Просмотрено» в watchlist)
 
 **Файлы:** `apps/web/src/lib/db/schema.ts`, `apps/web/src/lib/services/release-watchlist-service.ts`, `apps/web/src/app/api/releases/watchlist/route.ts`, `apps/web/src/app/api/releases/watchlist/[id]/route.ts`, `apps/web/src/modules/releases/types.ts`, `apps/web/src/modules/releases/api.ts`, `apps/web/src/modules/releases/hooks.ts`, `apps/web/src/modules/releases/utils.ts`, `apps/web/src/components/releases/release-detail-modal.tsx`, `apps/web/src/components/releases/release-content-card.tsx`, `apps/web/src/components/releases/releases-watchlist-view.tsx`, `apps/web/src/components/releases/releases-discover-view.tsx`, `apps/web/src/components/releases/release-schedule-item.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `docs/openapi/releases.yaml`, `docs/modules/RELEASES_ARCHITECTURE.md`.
