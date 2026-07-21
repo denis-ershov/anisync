@@ -13,8 +13,9 @@ import {
   updateTorrentWatchlistItem,
   pinTorrentReleaseCandidate,
   unpinTorrentReleaseCandidate,
+  notifyTorrentReleaseCandidate,
 } from '@/lib/torrents/api';
-import type { TorrentWatchlistUpdateInput } from '@/lib/torrents/types';
+import type { TorrentReleaseCandidate, TorrentWatchlistUpdateInput } from '@/lib/torrents/types';
 import { torrentQueryKeys } from '@/lib/torrents/query-keys';
 
 const defaultQueryOptions = {
@@ -138,5 +139,17 @@ export function useUnpinTorrentRelease() {
         queryKey: [...torrentQueryKeys.watchlist.root, id, 'candidates'],
       });
     },
+  });
+}
+
+export function useNotifyTorrentRelease() {
+  return useMutation({
+    mutationFn: ({
+      id,
+      candidate,
+    }: {
+      id: number;
+      candidate: TorrentReleaseCandidate;
+    }) => notifyTorrentReleaseCandidate(id, candidate),
   });
 }

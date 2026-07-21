@@ -1,7 +1,7 @@
 # Архитектура модуля Torrents
 
-> **Версия:** 2.0  
-> **Дата:** 2026-07-20  
+> **Версия:** 2.1  
+> **Дата:** 2026-07-21  
 > **Режим:** greenfield — только **TypeScript watcher в AniSync**
 
 ---
@@ -49,17 +49,20 @@ flowchart LR
 
 1. Due-фильтр: `enabled` + `check_interval` / `last_checked` (как NW).
 2. Prowlarr IMDb → fallback text queries.
-3. Фильтры: IMDb/title, season, quality/audio, bad-audio markers.
+3. Фильтры: IMDb/title, season, quality/audio, junk-маркеры (CAM / TS / HDTS / Telesync / Screener / плохой звук).
 4. Dedup `(imdb_id, info_hash)` + `content_hash`.
 5. Telegram (per-item `telegram_chat_id` или env) + `torrent_notification_log` + in-app.
+   Формат как NightWatcher: постер + HTML (title/year/IMDb/genre, релиз, размер, magnet / Prowlarr / страница раздачи).
 6. `notify_once` для movie → disable.
 7. Concurrency 5.
 8. Torrent bencode → magnet/info hash.
-9. Pin-only и hunting auto-pin.
+9. Pin-only и hunting auto-pin; UI-поиск кандидатов для pin — только по кнопке (открепить / заменить pin).
+10. Ручная отправка: `POST /api/torrents/watchlist/[id]/notify` из UI кандидатов.
 
 Trigger:
 - Scheduler: `*/30 * * * *` → queue `torrents.watcher`
 - Manual: `POST /api/internal/torrents/watch` + `Authorization: Bearer $CRON_SECRET`
+- Manual notify: UI → `POST /api/torrents/watchlist/[id]/notify`
 
 ---
 
@@ -75,6 +78,7 @@ Trigger:
 |------------|------------|
 | `TORRENTS_MODULE_ENABLED` / `NEXT_PUBLIC_*` | Feature flags |
 | `PROWLARR_URL` / `PROWLARR_API_KEY` | Search + health |
+| `PROWLARR_PUBLIC_URL` | Опционально: публичный base для download-ссылок в Telegram (если `PROWLARR_URL` — Docker-internal) |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Notify |
 | `REDIS_URL` | BullMQ (иначе cron inline) |
 | `INTERNAL_SERVICE_SECRET` / `CRON_SECRET` | Internal routes |

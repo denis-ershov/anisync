@@ -22,6 +22,7 @@ import {
   type ProwlarrRelease,
 } from '@/lib/torrents/watcher/identity';
 import { extractEpisodeInfo } from '@/lib/torrents/watcher/parsers';
+import { resolveReleaseLinks } from '@/lib/torrents/watcher/release-links';
 import { torrentBytesToMagnet } from '@/lib/torrents/watcher/torrent-file';
 import type { TorrentReleaseCandidate } from '@/lib/torrents/types';
 
@@ -165,12 +166,16 @@ function releaseMatchesPinned(release: ProwlarrRelease, pinned: Set<string>) {
 async function notifyChannels(input: {
   userId: number;
   item: WatchlistRow;
+  release: ProwlarrRelease;
   releaseTitle: string;
   quality: string | null;
   size: number | null;
   seeders: number | null;
   changeType: 'new' | 'update' | 'new_episode';
+  /** Для ручной отправки: не писать in-app, если Telegram не сконфигурирован — всё равно логируем. */
+  manual?: boolean;
 }) {
+  const links = resolveReleaseLinks(input.release);
   const text = formatTorrentNotification({
     title: input.item.title || input.item.imdbId,
     releaseTitle: input.releaseTitle,
@@ -178,7 +183,12 @@ async function notifyChannels(input: {
     size: input.size,
     seeders: input.seeders,
     imdbId: input.item.imdbId,
+    year: input.item.year,
+    genre: input.item.genre,
+    rating: input.item.rating,
+    itemType: input.item.type,
     changeType: input.changeType,
+    links,
   });
 
   const telegramOk = await sendTelegramMessage({
@@ -206,10 +216,15 @@ async function notifyChannels(input: {
       imdbId: input.item.imdbId,
       releaseTitle: input.releaseTitle,
       changeType: input.changeType,
+      manual: Boolean(input.manual),
     },
   });
 
-  // Reaching this point means the in-app channel was persisted successfully.
+  if (input.manual) {
+    return telegramOk;
+  }
+
+  // Авто-watcher: in-app уже записан — считаем доставку успешной для счётчика.
   return true;
 }
 
@@ -316,6 +331,7 @@ async function processItem(client: ProwlarrClient, item: WatchlistRow): Promise<
           const delivered = await notifyChannels({
             userId: item.userId,
             item,
+            release,
             releaseTitle: title,
             quality,
             size,
@@ -359,6 +375,7 @@ async function processItem(client: ProwlarrClient, item: WatchlistRow): Promise<
     const delivered = await notifyChannels({
       userId: item.userId,
       item,
+      release,
       releaseTitle: title,
       quality,
       size,
@@ -435,6 +452,7 @@ export class TorrentWatcherService {
     return releases.slice(0, 30).flatMap((release) => {
       const identity = computeReleaseIdentity(release);
       if (!identity.primary) return [];
+      const links = resolveReleaseLinks(release);
       return [
         {
           releaseKey: identity.primary,
@@ -445,9 +463,82 @@ export class TorrentWatcherService {
           seeders: release.seeders ?? null,
           tracker: release.indexer || release.tracker || null,
           pinned: releaseMatchesPinned(release, pinned),
+          magnetUrl: links.magnet,
+          downloadUrl: links.downloadUrl,
+          infoUrl: links.infoUrl,
         },
       ];
     });
+  }
+
+  static async notifyRelease(
+    userId: number,
+    itemId: number,
+    input: {
+      releaseKey: string;
+      aliases?: string[];
+      title?: string;
+    }
+  ): Promise<{ ok: boolean; telegramOk: boolean }> {
+    const [item] = await db
+      .select()
+      .from(torrentWatchlist)
+      .where(and(eq(torrentWatchlist.id, itemId), eq(torrentWatchlist.userId, userId)))
+      .limit(1);
+    if (!item) throw new Error('Watchlist item not found');
+
+    const client = ProwlarrClient.fromEnv();
+    if (!client) throw new Error('Prowlarr is not configured');
+
+    const wanted = new Set(
+      [input.releaseKey, ...(input.aliases ?? [])]
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+    );
+    if (!wanted.size) {
+      throw new Error('Invalid release candidate');
+    }
+
+    const releases = await searchForItem(client, item);
+    const release =
+      releases.find((candidate) =>
+        computeReleaseIdentity(candidate).aliases.some((alias) => wanted.has(alias))
+      ) ?? null;
+    if (!release) {
+      throw new Error('Release not found in Prowlarr results');
+    }
+
+    // По возможности дотягиваем magnet через Prowlarr download (как в NW).
+    if (!resolveReleaseLinks(release).magnet && release.indexerId && release.guid) {
+      try {
+        const artifact = await client.getDownloadArtifact(release.indexerId, release.guid);
+        if (artifact.magnet) {
+          release.magnetUrl = artifact.magnet;
+        } else if (artifact.torrentBytes) {
+          const magnet = torrentBytesToMagnet(artifact.torrentBytes);
+          if (magnet) {
+            release.magnetUrl = magnet;
+          }
+        }
+      } catch (error) {
+        log.warn({ err: error, guid: release.guid }, 'Manual notify: magnet resolve failed');
+      }
+    }
+
+    const title = input.title?.trim() || release.title || input.releaseKey;
+    const telegramOk = await notifyChannels({
+      userId,
+      item,
+      release,
+      releaseTitle: title,
+      quality: qualityLabel(release),
+      size: mapSize(release.size),
+      seeders: release.seeders ?? null,
+      changeType: 'new',
+      manual: true,
+    });
+
+    return { ok: telegramOk, telegramOk };
   }
 
   static async scanDueItems(): Promise<{

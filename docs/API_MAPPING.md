@@ -50,6 +50,7 @@
 | POST | `/api/torrents/watchlist/[id]/toggle` | session | Pause/resume |
 | GET | `/api/torrents/watchlist/[id]/candidates` | session | Prowlarr pin candidates |
 | POST/DELETE | `/api/torrents/watchlist/[id]/pin` | session | Pin/unpin |
+| POST | `/api/torrents/watchlist/[id]/notify` | session | Manual Telegram notify for a release |
 | GET | `/api/torrents/releases/[imdbId]` | session | Найденные релизы |
 | GET | `/api/torrents/health` | session | Local DB/Prowlarr/Telegram health |
 | POST | `/api/internal/torrents/watch` | CRON secret | Queue/inline TS watcher scan |

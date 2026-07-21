@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, Loader2, Pin, PinOff, Settings2 } from 'lucide-react';
+import { ChevronDown, Loader2, Pin, PinOff, Send, Settings2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
@@ -29,12 +29,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  useNotifyTorrentRelease,
   usePinTorrentRelease,
   useTorrentReleaseCandidates,
   useUnpinTorrentRelease,
   useUpdateTorrentWatchlistItem,
 } from '@/lib/torrents/hooks';
-import type { TorrentWatchlistItem } from '@/lib/torrents/types';
+import type { TorrentReleaseCandidate, TorrentWatchlistItem } from '@/lib/torrents/types';
 
 const QUALITY_PRESETS = ['1080p', '2160p HDR', '2160p SDR', '720p', '480p'] as const;
 const AUDIO_PRESETS = ['russian', 'original', 'any'] as const;
@@ -158,11 +159,18 @@ export function TorrentPreferencesDialog({ item }: { item: TorrentWatchlistItem 
   const update = useUpdateTorrentWatchlistItem();
   const pin = usePinTorrentRelease();
   const unpin = useUnpinTorrentRelease();
-  const candidates = useTorrentReleaseCandidates(item.id, open);
-  const busy = update.isPending || pin.isPending || unpin.isPending;
+  const notify = useNotifyTorrentRelease();
+  const [candidatesEnabled, setCandidatesEnabled] = useState(false);
+  const candidates = useTorrentReleaseCandidates(item.id, open && candidatesEnabled);
+  const busy = update.isPending || pin.isPending || unpin.isPending || notify.isPending;
+  const [notifyKey, setNotifyKey] = useState<string | null>(null);
+  const [notifyFeedback, setNotifyFeedback] = useState<'ok' | 'error' | null>(null);
 
   useEffect(() => {
     if (!open) {
+      setCandidatesEnabled(false);
+      setNotifyFeedback(null);
+      setNotifyKey(null);
       return;
     }
 
@@ -179,7 +187,30 @@ export function TorrentPreferencesDialog({ item }: { item: TorrentWatchlistItem 
     setGenre(next.genre);
     setPosterUrl(next.posterUrl);
     setMetadataOpen(false);
+    setNotifyFeedback(null);
+    setNotifyKey(null);
   }, [open, item]);
+
+  const searchCandidates = () => {
+    if (candidatesEnabled) {
+      void candidates.refetch();
+      return;
+    }
+    setCandidatesEnabled(true);
+  };
+
+  const sendNotify = async (candidate: TorrentReleaseCandidate) => {
+    setNotifyFeedback(null);
+    setNotifyKey(candidate.releaseKey);
+    try {
+      await notify.mutateAsync({ id: item.id, candidate });
+      setNotifyFeedback('ok');
+    } catch {
+      setNotifyFeedback('error');
+    } finally {
+      setNotifyKey(null);
+    }
+  };
 
   const qualityPresetLabel = (preset: string) => {
     switch (preset) {
@@ -373,55 +404,118 @@ export function TorrentPreferencesDialog({ item }: { item: TorrentWatchlistItem 
         </Collapsible>
 
         <div className="space-y-2 border-t pt-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
               <p className="text-sm font-medium">{t('pinTitle')}</p>
               <p className="text-xs text-muted-foreground">
                 {item.pinnedReleaseTitle ?? t('notPinned')}
               </p>
             </div>
-            {item.pinnedReleaseKey ? (
+            <div className="flex shrink-0 flex-wrap gap-2">
               <Button
+                type="button"
                 variant="outline"
                 size="sm"
-                disabled={busy}
-                onClick={() => unpin.mutate(item.id)}
+                disabled={busy || candidates.isFetching}
+                onClick={searchCandidates}
               >
-                <PinOff className="mr-2 size-4" /> {t('unpin')}
+                {candidates.isFetching ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : null}
+                {candidatesEnabled ? t('refreshReleases') : t('searchReleases')}
               </Button>
-            ) : null}
+              {item.pinnedReleaseKey ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => unpin.mutate(item.id)}
+                >
+                  <PinOff className="mr-2 size-4" /> {t('unpin')}
+                </Button>
+              ) : null}
+            </div>
           </div>
-          {candidates.isLoading ? (
+          <p className="text-xs text-muted-foreground">{t('pinHint')}</p>
+          {!candidatesEnabled ? (
+            <p className="text-sm text-muted-foreground">{t('searchPrompt')}</p>
+          ) : candidates.isLoading ? (
             <Loader2 className="size-5 animate-spin" aria-label={t('loading')} />
           ) : candidates.error ? (
             <p className="text-sm text-destructive">{t('candidatesError')}</p>
           ) : (
-            <ul className="max-h-48 space-y-2 overflow-y-auto">
-              {candidates.data?.map((candidate) => (
-                <li
-                  key={candidate.releaseKey}
-                  className="flex items-start justify-between gap-2 rounded-md border p-2"
-                >
-                  <div className="min-w-0">
-                    <p className="line-clamp-2 text-sm font-medium">{candidate.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {[candidate.quality, candidate.tracker, candidate.seeders != null ? `${candidate.seeders} seeds` : null]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant={candidate.pinned ? 'default' : 'outline'}
-                    disabled={busy || candidate.pinned}
-                    onClick={() => pin.mutate({ id: item.id, candidate })}
-                  >
-                    <Pin className="size-4" />
-                    <span className="sr-only">{t('pin')}</span>
-                  </Button>
-                </li>
-              ))}
-            </ul>
+            <>
+              {notifyFeedback === 'ok' ? (
+                <p className="text-xs text-muted-foreground">{t('notifySuccess')}</p>
+              ) : null}
+              {notifyFeedback === 'error' ? (
+                <p className="text-sm text-destructive">{t('notifyError')}</p>
+              ) : null}
+              {!candidates.data?.length ? (
+                <p className="text-sm text-muted-foreground">{t('noCandidates')}</p>
+              ) : (
+                <ul className="max-h-48 space-y-2 overflow-y-auto">
+                  {candidates.data.map((candidate) => (
+                    <li
+                      key={candidate.releaseKey}
+                      className="flex items-start justify-between gap-2 rounded-md border p-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="line-clamp-2 text-sm font-medium">{candidate.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            candidate.quality,
+                            candidate.tracker,
+                            candidate.seeders != null ? `${candidate.seeders} seeds` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => void sendNotify(candidate)}
+                          title={t('notify')}
+                        >
+                          {notifyKey === candidate.releaseKey ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Send className="size-4" />
+                          )}
+                          <span className="sr-only">{t('notify')}</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={candidate.pinned ? 'default' : 'outline'}
+                          disabled={busy || candidate.pinned}
+                          onClick={() => pin.mutate({ id: item.id, candidate })}
+                          title={
+                            candidate.pinned
+                              ? t('pinned')
+                              : item.pinnedReleaseKey
+                                ? t('replacePin')
+                                : t('pin')
+                          }
+                        >
+                          <Pin className="size-4" />
+                          <span className="sr-only">
+                            {candidate.pinned
+                              ? t('pinned')
+                              : item.pinnedReleaseKey
+                                ? t('replacePin')
+                                : t('pin')}
+                          </span>
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </div>
 

@@ -5,6 +5,7 @@ import type {
   TorrentWatchlistUpdateInput,
 } from '@/lib/torrents/types';
 import { TorrentLocalStore } from '@/lib/services/torrent-local-store';
+import { TorrentWatcherService } from '@/lib/services/torrent-watcher-service';
 
 export async function listTorrentWatchlist(userId: number): Promise<TorrentWatchlistItem[]> {
   return TorrentLocalStore.list(userId);
@@ -68,4 +69,16 @@ export async function pinTorrentRelease(
 
 export async function unpinTorrentRelease(userId: number, itemId: number) {
   return TorrentLocalStore.unpinRelease(userId, itemId);
+}
+
+export async function notifyTorrentRelease(
+  userId: number,
+  itemId: number,
+  input: {
+    releaseKey: string;
+    aliases?: string[];
+    title?: string;
+  }
+) {
+  return TorrentWatcherService.notifyRelease(userId, itemId, input);
 }

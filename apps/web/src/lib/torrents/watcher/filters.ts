@@ -1,6 +1,7 @@
 import { extractSeasonFromTitle } from '@/lib/torrents/watcher/parsers';
 import type { ProwlarrRelease } from '@/lib/torrents/watcher/identity';
 
+/** Маркеры плохого звука / источника (substring, как в NightWatcher). */
 export const BAD_AUDIO_MARKERS = [
   '[звук с ts]',
   '[звук с ts ]',
@@ -30,6 +31,35 @@ export const BAD_AUDIO_MARKERS = [
   'dvdscr',
   ' workprint',
 ] as const;
+
+/**
+ * Низкокачественные источники (CAM / TS / HDTS / TC / Screener и т.п.).
+ * Word-boundary / separator-aware, чтобы не резать WEB-DL, DTS, HDTV.
+ */
+export const BAD_SOURCE_PATTERNS: RegExp[] = [
+  /\bhd[\s.\-_]?ts\b/i,
+  /\bhd[\s.\-_]?cam\b/i,
+  /\bcam[\s.\-_]?rip\b/i,
+  /\bts[\s.\-_]?rip\b/i,
+  /\btc[\s.\-_]?rip\b/i,
+  /\btelesync\b/i,
+  /\btele[\s.\-_]?sync\b/i,
+  /\btelecine\b/i,
+  /\btele[\s.\-_]?cine\b/i,
+  /\bdvd[\s.\-_]?scr(?:eener)?\b/i,
+  /\bscreener\b/i,
+  /\bwork[\s.\-_]?print\b/i,
+  /\bvhs[\s.\-_]?rip\b/i,
+  /\bppv[\s.\-_]?rip\b/i,
+  /\bweb[\s.\-_]?cam\b/i,
+  /\br[56]\b/i,
+  /\bcam\b/i,
+  /(?:^|[^a-zа-яё0-9])ts(?:$|[^a-zа-яё0-9])/i,
+  /(?:^|[^a-zа-яё0-9])тс(?:$|[^a-zа-яё0-9])/i,
+  /(?:^|[^a-zа-яё0-9])tc(?:$|[^a-zа-яё0-9])/i,
+  /\bэкранк/i,
+  /\bкамерн/i,
+];
 
 const COMMON_WORDS = new Set([
   'the',
@@ -150,13 +180,26 @@ function containsExactSegment(value: string, sequence: string[]): boolean {
   return false;
 }
 
-export function hasBadAudioMarkers(release: ProwlarrRelease): boolean {
-  const title = String(release.title || '').toLowerCase();
+function releaseJunkText(release: ProwlarrRelease): string {
+  const title = String(release.title || '');
   const description = String(
     release.description || release.overview || release.summary || ''
-  ).toLowerCase();
-  const text = `${title}\n${description}`;
-  return BAD_AUDIO_MARKERS.some((marker) => text.includes(marker));
+  );
+  return `${title}\n${description}`.toLowerCase();
+}
+
+/** Плохой звук или низкокачественный источник (CAM / TS / HDTS / Screener…). */
+export function hasJunkReleaseMarkers(release: ProwlarrRelease): boolean {
+  const text = releaseJunkText(release);
+  if (BAD_AUDIO_MARKERS.some((marker) => text.includes(marker))) {
+    return true;
+  }
+  return BAD_SOURCE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/** @deprecated используйте hasJunkReleaseMarkers */
+export function hasBadAudioMarkers(release: ProwlarrRelease): boolean {
+  return hasJunkReleaseMarkers(release);
 }
 
 export function filterResultsBySeason(
@@ -308,7 +351,7 @@ export function filterReleasesByPreferences(
   };
 
   return results.filter((release) => {
-    if (hasBadAudioMarkers(release)) {
+    if (hasJunkReleaseMarkers(release)) {
       return false;
     }
 

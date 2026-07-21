@@ -10,6 +10,7 @@ import {
   buildSearchQueries,
   filterResultsBySeason,
   hasBadAudioMarkers,
+  hasJunkReleaseMarkers,
 } from '@/lib/torrents/watcher/filters';
 import { extractEpisodeInfo, extractSeasonFromTitle } from '@/lib/torrents/watcher/parsers';
 import { torrentBytesToMagnet } from '@/lib/torrents/watcher/torrent-file';
@@ -56,6 +57,18 @@ test('filterResultsBySeason keeps matching season', () => {
   );
   assert.equal(filtered.length, 1);
   assert.equal(filtered[0].title, 'Show S02E01');
+});
+
+test('hasJunkReleaseMarkers filters cam/ts/hdts and keeps clean releases', () => {
+  assert.equal(hasJunkReleaseMarkers({ title: 'Movie CAM audio' }), true);
+  assert.equal(hasJunkReleaseMarkers({ title: 'Movie 2025 HDTS 1080p' }), true);
+  assert.equal(hasJunkReleaseMarkers({ title: 'Movie 2025.TS.720p' }), true);
+  assert.equal(hasJunkReleaseMarkers({ title: 'Movie [TS] 1080p' }), true);
+  assert.equal(hasJunkReleaseMarkers({ title: 'Movie CAMRip' }), true);
+  assert.equal(hasJunkReleaseMarkers({ title: 'Movie TELESYNC' }), true);
+  assert.equal(hasJunkReleaseMarkers({ title: 'Movie WEB-DL 1080p' }), false);
+  assert.equal(hasJunkReleaseMarkers({ title: 'Movie BluRay Remux DTS-HD' }), false);
+  assert.equal(hasJunkReleaseMarkers({ title: 'Movie HDTV 720p' }), false);
 });
 
 test('hasBadAudioMarkers detects cam/ts', () => {

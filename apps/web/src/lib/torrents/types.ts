@@ -63,6 +63,9 @@ export type TorrentReleaseCandidate = {
   seeders: number | null;
   tracker: string | null;
   pinned: boolean;
+  magnetUrl?: string | null;
+  downloadUrl?: string | null;
+  infoUrl?: string | null;
 };
 
 export type TorrentHealthSnapshot = {

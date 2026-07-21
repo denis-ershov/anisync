@@ -116,6 +116,23 @@ export async function unpinTorrentReleaseCandidate(id: number) {
   return parseJson<TorrentWatchlistItem>(response);
 }
 
+export async function notifyTorrentReleaseCandidate(
+  id: number,
+  candidate: TorrentReleaseCandidate
+) {
+  const response = await fetch(`/api/torrents/watchlist/${id}/notify`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      releaseKey: candidate.releaseKey,
+      aliases: candidate.aliases,
+      title: candidate.title,
+    }),
+  });
+  return parseJson<{ ok: boolean; telegramOk: boolean }>(response);
+}
+
 export async function fetchTorrentReleases(imdbId: string) {
   const response = await fetch(`/api/torrents/releases/${encodeURIComponent(imdbId)}`, {
     credentials: 'include',

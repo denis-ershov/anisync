@@ -30,6 +30,7 @@
 | `NEXT_PUBLIC_REGISTRATION_OPEN` | нет | Client hint; server `REGISTRATION_OPEN` — источник истины |
 | `TMDB_API_KEY` | для Releases | TMDB v4 Bearer JWT или v3 api_key |
 | `PROWLARR_URL` / `PROWLARR_API_KEY` | для Torrents | Prowlarr search в TS worker |
+| `PROWLARR_PUBLIC_URL` | опционально | Публичный base для download-ссылок в Telegram |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | для Torrents | Telegram notify |
 | `INTERNAL_SERVICE_SECRET` | optional | совместимые internal routes; не для sidecar |
 | `REGISTRATION_OPEN` | нет | default true; API 403 если false |
@@ -68,6 +69,7 @@
 | `ADMIN_PASSWORD` | Admin login |
 | `SESSION_SECRET` | **Обязателен** — session signing |
 | `PROWLARR_URL` | Prowlarr API |
+| `PROWLARR_PUBLIC_URL` | Публичный URL Prowlarr (ссылки в TG) |
 | `PROWLARR_API_KEY` | Prowlarr |
 | `TMDB_API_KEY` | Metadata |
 | `TELEGRAM_BOT_TOKEN` | Notifications |

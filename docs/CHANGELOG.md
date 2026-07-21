@@ -1,6 +1,24 @@
 # Changelog
 
+## 2026-07-21 (torrents: junk-фильтр + pin search по клику)
+
+**Файлы:** `apps/web/src/lib/torrents/watcher/filters.ts`, `apps/web/src/components/torrents/torrent-preferences-dialog.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `apps/web/tests/torrent-watcher.test.ts`, `docs/modules/TORRENTS_ARCHITECTURE.md`.
+
+**Изменения:** расширен фильтр низкокачественных раздач (HDTS / TS / CAM / Telesync / Screener и др.); поиск кандидатов для закрепления только по кнопке (без автозапроса при открытии диалога); открепление и замена закреплённой раздачи.
+
+**Обоснование:** не показывать/не уведомлять о CAM/TS; не дёргать Prowlarr при каждом открытии настроек.
+
+## 2026-07-21 (torrents: формат TG NightWatcher + ручная отправка)
+
+
+**Файлы:** `apps/web/src/lib/integrations/telegram/bot.ts`, `apps/web/src/lib/torrents/watcher/release-links.ts`, `apps/web/src/lib/services/torrent-watcher-service.ts`, `apps/web/src/lib/services/torrent-facade.ts`, `apps/web/src/app/api/torrents/watchlist/[id]/notify/route.ts`, `apps/web/src/lib/torrents/types.ts`, `apps/web/src/modules/torrents/api.ts`, `apps/web/src/modules/torrents/hooks.ts`, `apps/web/src/components/torrents/torrent-preferences-dialog.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `apps/web/src/lib/config.ts`, `docker-compose.yml`, `.env.example`, `apps/web/.env.example`, `docs/modules/TORRENTS_ARCHITECTURE.md`, `docs/API_MAPPING.md`, `docs/ENV_INVENTORY.md`.
+
+**Изменения:** уведомления о торрентах в формате NightWatcher (постер + HTML: title/year/IMDb/genre, релиз, размер, magnet / Prowlarr / страница раздачи); кнопка ручной отправки в Telegram у кандидатов; `POST /api/torrents/watchlist/[id]/notify`; опциональный `PROWLARR_PUBLIC_URL` для кликабельных download-ссылок вне Docker-сети.
+
+**Обоснование:** нужен привычный формат NW и возможность вручную продублировать уведомление без ожидания watcher.
+
 ## 2026-07-21 (fix: web unhealthy → deploy fail)
+
 
 **Файлы:** `docker-compose.yml`.
 
