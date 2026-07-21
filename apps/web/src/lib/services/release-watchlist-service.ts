@@ -1,6 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm';
 
-import { db, releaseWatchlistEntries, type ReleaseContentType, type ReleaseWatchlistEntry } from '@/lib/db';
+import { db, releaseWatchlistEntries, type ReleaseContentType, type ReleaseWatchlistEntry, type ReleaseWatchlistStatus } from '@/lib/db';
 import { isQueuesEnabled } from '@/lib/config';
 import { enqueueReleaseWatchlistRefresh } from '@/lib/queue/queues';
 import { ReleaseWatchlistRefreshService } from '@/lib/services/release-watchlist-refresh-service';
@@ -11,7 +11,7 @@ export type ReleaseWatchlistItemDto = {
   type: ReleaseContentType;
   title: string;
   titleRu: string | null;
-  status: 'watching' | 'plan';
+  status: ReleaseWatchlistStatus;
   rating: number | null;
   popularity: number | null;
   posterPath: string | null;
@@ -28,7 +28,7 @@ export type ReleaseWatchlistItemDto = {
 export type AddReleaseWatchlistInput = {
   tmdbId: number;
   type: ReleaseContentType;
-  status: 'watching' | 'plan';
+  status: ReleaseWatchlistStatus;
   title: string;
   titleRu?: string | null;
   rating?: number | null;
@@ -101,6 +101,7 @@ export class ReleaseWatchlistService {
       total: items.length,
       watching: items.filter((item) => item.status === 'watching').length,
       plan: items.filter((item) => item.status === 'plan').length,
+      watched: items.filter((item) => item.status === 'watched').length,
       movies: items.filter((item) => item.type === 'movie').length,
       shows: items.filter((item) => item.type === 'show').length,
     };
@@ -152,7 +153,7 @@ export class ReleaseWatchlistService {
     return { conflict: false as const, item: inserted ? toDto(inserted) : null };
   }
 
-  static async updateStatus(userId: number, id: number, status: 'watching' | 'plan') {
+  static async updateStatus(userId: number, id: number, status: ReleaseWatchlistStatus) {
     const [updated] = await db
       .update(releaseWatchlistEntries)
       .set({ status })

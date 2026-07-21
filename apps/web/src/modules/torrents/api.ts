@@ -3,7 +3,7 @@ import type {
   TorrentReleaseCandidate,
   TorrentReleaseItem,
   TorrentWatchlistItem,
-  TorrentWatchlistPreferences,
+  TorrentWatchlistUpdateInput,
 } from '@/lib/torrents/types';
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -80,7 +80,7 @@ export async function deleteTorrentWatchlistItem(id: number) {
 
 export async function updateTorrentWatchlistItem(
   id: number,
-  input: Partial<Omit<TorrentWatchlistPreferences, 'pinnedReleaseKey' | 'pinnedReleaseTitle'>>
+  input: TorrentWatchlistUpdateInput
 ) {
   const response = await fetch(`/api/torrents/watchlist/${id}`, {
     method: 'PATCH',

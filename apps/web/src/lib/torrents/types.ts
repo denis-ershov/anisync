@@ -9,6 +9,19 @@ export type TorrentWatchlistPreferences = {
   pinnedReleaseTitle: string | null;
 };
 
+export type TorrentWatchlistMetadata = {
+  title: string;
+  originalTitle: string | null;
+  year: string | null;
+  genre: string | null;
+  posterUrl: string | null;
+};
+
+export type TorrentWatchlistUpdateInput = Partial<
+  Omit<TorrentWatchlistPreferences, 'pinnedReleaseKey' | 'pinnedReleaseTitle'>
+> &
+  Partial<TorrentWatchlistMetadata>;
+
 export type TorrentWatchlistItem = TorrentWatchlistPreferences & {
   id: number;
   imdbId: string;

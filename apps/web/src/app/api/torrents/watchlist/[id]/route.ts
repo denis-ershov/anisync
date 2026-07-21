@@ -58,9 +58,23 @@ async function patchHandler(request: NextRequest, context: SloRouteContext) {
 
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const text = (value: unknown) =>
-      value === null || value === '' ? null : String(value).trim().slice(0, 100);
+    const text = (value: unknown, max = 100) =>
+      value === null || value === '' ? null : String(value).trim().slice(0, max);
+    const requiredText = (value: unknown, max = 200) => {
+      const trimmed = String(value ?? '').trim().slice(0, max);
+      if (!trimmed) {
+        throw new Error('Title is required');
+      }
+      return trimmed;
+    };
     const item = await updateTorrentPreferences(userId, itemId, {
+      ...(Object.hasOwn(body, 'title') ? { title: requiredText(body.title) } : {}),
+      ...(Object.hasOwn(body, 'originalTitle')
+        ? { originalTitle: text(body.originalTitle, 200) }
+        : {}),
+      ...(Object.hasOwn(body, 'year') ? { year: text(body.year, 4) } : {}),
+      ...(Object.hasOwn(body, 'genre') ? { genre: text(body.genre, 100) } : {}),
+      ...(Object.hasOwn(body, 'posterUrl') ? { posterUrl: text(body.posterUrl, 500) } : {}),
       ...(Object.hasOwn(body, 'targetSeason')
         ? { targetSeason: nullableInteger(body.targetSeason, 1, 99) }
         : {}),
@@ -83,6 +97,9 @@ async function patchHandler(request: NextRequest, context: SloRouteContext) {
     return NextResponse.json(item);
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('Value must')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof Error && error.message === 'Title is required') {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
     return torrentServiceErrorResponse(error);

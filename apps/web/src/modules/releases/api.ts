@@ -5,6 +5,7 @@ import type {
   ReleaseGenre,
   ReleaseWatchlistItem,
   ReleaseWatchlistStats,
+  ReleaseWatchlistStatus,
 } from '@/lib/releases/types';
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -83,7 +84,7 @@ export async function addToReleaseWatchlist(payload: Record<string, unknown>) {
   return parseJson<ReleaseWatchlistItem>(response);
 }
 
-export async function updateReleaseWatchlistItem(id: number, status: 'watching' | 'plan') {
+export async function updateReleaseWatchlistItem(id: number, status: ReleaseWatchlistStatus) {
   const response = await fetch(`/api/releases/watchlist/${id}`, {
     method: 'PATCH',
     credentials: 'include',

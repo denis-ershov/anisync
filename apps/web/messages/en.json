@@ -361,7 +361,8 @@
     "status": {
       "add": "Add",
       "plan": "Plan",
-      "watching": "Watching"
+      "watching": "Watching",
+      "watched": "Watched"
     },
     "filters": {
       "title": "Filters",
@@ -383,6 +384,7 @@
       "total": "Total",
       "watching": "Watching",
       "plan": "Plan to watch",
+      "watched": "Watched",
       "movies": "Movies",
       "shows": "Series"
     },
@@ -477,7 +479,9 @@
       "title": "Settings for “{title}”",
       "description": "Filters and schedule for the built-in watcher.",
       "quality": "Quality",
+      "qualityPlaceholder": "1080p or 1080p, 720p",
       "audio": "Audio",
+      "audioPlaceholder": "LostFilm or russian",
       "season": "Season",
       "maxReleases": "Maximum releases",
       "huntingHint": "Set to 1 to hunt and automatically pin the first release.",
@@ -489,7 +493,24 @@
       "unpin": "Unpin",
       "loading": "Searching releases",
       "candidatesError": "Could not load releases from Prowlarr.",
-      "save": "Save"
+      "save": "Save",
+      "audioRussian": "Russian / dub",
+      "audioOriginal": "Original / English",
+      "audioAny": "Any audio track",
+      "audioCustom": "Custom studio or tag",
+      "qualityPreset1080p": "1080p Full HD",
+      "qualityPreset2160pHdr": "2160p HDR (4K)",
+      "qualityPreset2160pSdr": "2160p SDR (4K)",
+      "qualityPreset720p": "720p HD",
+      "qualityPreset480p": "480p SD",
+      "metadata": {
+        "editMetadata": "Edit metadata",
+        "title": "Title",
+        "originalTitle": "Original title",
+        "year": "Year",
+        "genre": "Genre",
+        "posterUrl": "Poster URL"
+      }
     },
     "errors": {
       "loadFailed": "Failed to load watchlist",

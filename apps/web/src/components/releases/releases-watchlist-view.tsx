@@ -15,11 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useReleaseWatchlist, useReleaseWatchlistStats } from '@/lib/releases/hooks';
+import { useReleaseWatchlist, useReleaseWatchlistStats, useUpdateReleaseWatchlistItem } from '@/lib/releases/hooks';
+import type { ReleaseCatalogItem, ReleaseWatchlistStatus } from '@/lib/releases/types';
 import { watchlistItemToCatalogItem } from '@/lib/releases/utils';
 import { cn } from '@/lib/utils';
 
-type StatusFilter = 'all' | 'watching' | 'plan';
+type StatusFilter = 'all' | ReleaseWatchlistStatus;
 type TypeFilter = 'all' | 'movie' | 'show';
 type SortMode = 'releaseDate' | 'popularity' | 'rating';
 const PAGE_SIZE = 24;
@@ -41,8 +42,10 @@ export function ReleasesWatchlistView() {
     isLoading: watchlistLoading,
     error: watchlistError,
   } = useReleaseWatchlist(lang);
+  const updateMutation = useUpdateReleaseWatchlistItem();
+
   const {
-    data: stats = { total: 0, watching: 0, plan: 0, movies: 0, shows: 0 },
+    data: stats = { total: 0, watching: 0, plan: 0, watched: 0, movies: 0, shows: 0 },
     isLoading: statsLoading,
     error: statsError,
   } = useReleaseWatchlistStats();
@@ -70,13 +73,29 @@ export function ReleasesWatchlistView() {
   useEffect(() => setPage(1), [statusFilter, typeFilter, sort]);
   useEffect(() => setPage((value) => Math.min(value, totalPages)), [totalPages]);
 
+  const handleStatusChange = async (catalogItem: ReleaseCatalogItem, status: ReleaseWatchlistStatus) => {
+    const watchlistItem = items.find(
+      (entry) => entry.tmdbId === catalogItem.tmdbId && entry.type === catalogItem.type
+    );
+    if (!watchlistItem || watchlistItem.status === status) {
+      return;
+    }
+
+    try {
+      await updateMutation.mutateAsync({ id: watchlistItem.id, status });
+    } catch {
+      // invalidation handled by mutation; errors surface on next fetch if needed
+    }
+  };
+
   return (
     <div className="container space-y-4 px-4 py-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {[
           { label: t('stats.total'), value: stats.total },
           { label: t('stats.watching'), value: stats.watching },
           { label: t('stats.plan'), value: stats.plan },
+          { label: t('stats.watched'), value: stats.watched },
           { label: t('stats.movies'), value: stats.movies },
           { label: t('stats.shows'), value: stats.shows },
         ].map((stat) => (
@@ -96,6 +115,7 @@ export function ReleasesWatchlistView() {
             <SelectItem value="all">{t('filters.allStatuses')}</SelectItem>
             <SelectItem value="watching">{t('status.watching')}</SelectItem>
             <SelectItem value="plan">{t('status.plan')}</SelectItem>
+            <SelectItem value="watched">{t('status.watched')}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sort} onValueChange={(value) => setSort(value as SortMode)}>
@@ -145,6 +165,7 @@ export function ReleasesWatchlistView() {
               key={item.id}
               item={watchlistItemToCatalogItem(item)}
               watchlistStatus={item.status}
+              onStatusChange={handleStatusChange}
               onOpen={openDetail}
               layout={layout}
             />

@@ -14,6 +14,7 @@ import {
   updateReleaseWatchlistItem,
 } from '@/lib/releases/api';
 import { releaseQueryKeys, type UpcomingCatalogParams } from '@/lib/releases/query-keys';
+import type { ReleaseWatchlistStatus } from '@/lib/releases/types';
 
 const defaultQueryOptions = {
   retry: false,
@@ -97,7 +98,7 @@ export function useUpdateReleaseWatchlistItem() {
   const invalidateWatchlist = useInvalidateReleaseWatchlist();
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: number; status: 'watching' | 'plan' }) =>
+    mutationFn: ({ id, status }: { id: number; status: ReleaseWatchlistStatus }) =>
       updateReleaseWatchlistItem(id, status),
     onSuccess: invalidateWatchlist,
   });

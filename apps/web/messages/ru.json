@@ -361,7 +361,8 @@
     "status": {
       "add": "Добавить",
       "plan": "В планах",
-      "watching": "Смотрю"
+      "watching": "Смотрю",
+      "watched": "Просмотрено"
     },
     "filters": {
       "title": "Фильтры",
@@ -383,6 +384,7 @@
       "total": "Всего",
       "watching": "Смотрю",
       "plan": "В планах",
+      "watched": "Просмотрено",
       "movies": "Фильмы",
       "shows": "Сериалы"
     },
@@ -477,7 +479,9 @@
       "title": "Настройки «{title}»",
       "description": "Фильтры и периодичность встроенного watcher.",
       "quality": "Качество",
+      "qualityPlaceholder": "1080p или 1080p, 720p",
       "audio": "Озвучка",
+      "audioPlaceholder": "LostFilm или russian",
       "season": "Сезон",
       "maxReleases": "Максимум релизов",
       "huntingHint": "Значение 1 включает поиск первой раздачи и автозакрепление.",
@@ -489,7 +493,24 @@
       "unpin": "Открепить",
       "loading": "Поиск раздач",
       "candidatesError": "Не удалось получить раздачи из Prowlarr.",
-      "save": "Сохранить"
+      "save": "Сохранить",
+      "audioRussian": "Русский / дубляж",
+      "audioOriginal": "Оригинал / English",
+      "audioAny": "Любая озвучка",
+      "audioCustom": "Своё значение или студия",
+      "qualityPreset1080p": "1080p Full HD",
+      "qualityPreset2160pHdr": "2160p HDR (4K)",
+      "qualityPreset2160pSdr": "2160p SDR (4K)",
+      "qualityPreset720p": "720p HD",
+      "qualityPreset480p": "480p SD",
+      "metadata": {
+        "editMetadata": "Редактировать метаданные",
+        "title": "Название",
+        "originalTitle": "Оригинальное название",
+        "year": "Год",
+        "genre": "Жанр",
+        "posterUrl": "URL постера"
+      }
     },
     "errors": {
       "loadFailed": "Не удалось загрузить watchlist",

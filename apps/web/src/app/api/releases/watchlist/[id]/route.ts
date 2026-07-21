@@ -23,7 +23,7 @@ async function patchHandler(request: NextRequest, context: SloRouteContext) {
 
   try {
     const body = await request.json();
-    if (!body || (body.status !== 'watching' && body.status !== 'plan')) {
+    if (!body || (body.status !== 'watching' && body.status !== 'plan' && body.status !== 'watched')) {
       return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
     }
 

@@ -467,7 +467,7 @@ components:
           type: string
         status:
           type: string
-          enum: [watching, plan]
+          enum: [watching, plan, watched]
         releaseDate:
           type: ["string", "null"]
         nextEpisodeDate:
@@ -486,7 +486,7 @@ components:
           enum: [movie, show]
         status:
           type: string
-          enum: [watching, plan]
+          enum: [watching, plan, watched]
         title:
           type: string
       required: [tmdbId, type, status, title]
@@ -496,7 +496,7 @@ components:
       properties:
         status:
           type: string
-          enum: [watching, plan]
+          enum: [watching, plan, watched]
       required: [status]
 
     WatchlistStats:
@@ -508,11 +508,13 @@ components:
           type: integer
         plan:
           type: integer
+        watched:
+          type: integer
         movies:
           type: integer
         shows:
           type: integer
-      required: [total, watching, plan, movies, shows]
+      required: [total, watching, plan, watched, movies, shows]
 
     LoginBody:
       type: object

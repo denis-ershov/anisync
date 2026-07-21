@@ -43,7 +43,7 @@ async function postHandler(request: NextRequest) {
       !body ||
       typeof body.tmdbId !== 'number' ||
       (body.type !== 'movie' && body.type !== 'show') ||
-      (body.status !== 'watching' && body.status !== 'plan') ||
+      (body.status !== 'watching' && body.status !== 'plan' && body.status !== 'watched') ||
       typeof body.title !== 'string'
     ) {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });

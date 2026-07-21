@@ -1,21 +1,30 @@
 'use client';
 
 import Image from 'next/image';
-import { Clock, Eye, Film, Plus, Star, Tv } from 'lucide-react';
+import { CheckCircle2, Clock, Eye, Film, Plus, Star, Tv } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import type { ReleaseCatalogItem } from '@/lib/releases/types';
+import type { ReleaseCatalogItem, ReleaseWatchlistStatus } from '@/lib/releases/types';
 import { cn } from '@/lib/utils';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342';
 
+const STATUS_OPTIONS: ReleaseWatchlistStatus[] = ['plan', 'watching', 'watched'];
+
+const STATUS_ICONS = {
+  plan: Clock,
+  watching: Eye,
+  watched: CheckCircle2,
+} as const;
+
 type ReleaseContentCardProps = {
   item: ReleaseCatalogItem;
-  watchlistStatus?: 'watching' | 'plan' | null;
+  watchlistStatus?: ReleaseWatchlistStatus | null;
   onStatusClick?: (item: ReleaseCatalogItem) => void;
+  onStatusChange?: (item: ReleaseCatalogItem, status: ReleaseWatchlistStatus) => void;
   onOpen?: (item: ReleaseCatalogItem) => void;
   className?: string;
   layout?: 'grid' | 'list';
@@ -25,6 +34,7 @@ export function ReleaseContentCard({
   item,
   watchlistStatus = null,
   onStatusClick,
+  onStatusChange,
   onOpen,
   className,
   layout = 'grid',
@@ -36,14 +46,8 @@ export function ReleaseContentCard({
   const genre = locale === 'ru' && item.genreRu ? item.genreRu : item.genre;
   const posterUrl = item.posterPath ? `${TMDB_IMAGE_BASE}${item.posterPath}` : null;
 
-  const statusLabel =
-    watchlistStatus === 'watching'
-      ? t('status.watching')
-      : watchlistStatus === 'plan'
-        ? t('status.plan')
-        : t('status.add');
-
-  const StatusIcon = watchlistStatus === 'watching' ? Eye : watchlistStatus === 'plan' ? Clock : Plus;
+  const statusLabel = watchlistStatus ? t(`status.${watchlistStatus}`) : t('status.add');
+  const StatusIcon = watchlistStatus ? STATUS_ICONS[watchlistStatus] : Plus;
 
   return (
     <Card
@@ -96,7 +100,36 @@ export function ReleaseContentCard({
           </div>
         </CardContent>
       </button>
-      {onStatusClick ? (
+      {onStatusChange ? (
+        <div className={cn('px-3 pb-3', layout === 'list' && 'flex shrink-0 items-center py-3 pl-0')}>
+          <div className="flex w-full gap-1" role="group" aria-label={t('filters.status')}>
+            {STATUS_OPTIONS.map((status) => {
+              const Icon = STATUS_ICONS[status];
+              const active = watchlistStatus === status;
+
+              return (
+                <Button
+                  key={status}
+                  type="button"
+                  variant={active ? 'default' : 'outline'}
+                  size="sm"
+                  className="min-h-11 flex-1 px-2"
+                  aria-label={t(`status.${status}`)}
+                  aria-pressed={active}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!active) {
+                      onStatusChange(item, status);
+                    }
+                  }}
+                >
+                  <Icon className="h-4 w-4" />
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      ) : onStatusClick ? (
         <div className={cn('px-3 pb-3', layout === 'list' && 'flex shrink-0 items-center py-3 pl-0')}>
           <Button
             type="button"

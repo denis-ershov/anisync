@@ -33,6 +33,7 @@ import {
   useUpdateReleaseWatchlistItem,
 } from '@/lib/releases/hooks';
 import type { ReleaseCatalogItem, ReleaseWatchlistItem } from '@/lib/releases/types';
+import { getNextWatchlistStatus } from '@/lib/releases/utils';
 import { cn } from '@/lib/utils';
 
 type CatalogType = 'all' | 'movie' | 'show';
@@ -180,7 +181,7 @@ export function ReleasesDiscoverView() {
   const handleStatusClick = async (item: ReleaseCatalogItem) => {
     const key = `${item.tmdbId}:${item.type}`;
     const existing = watchlistMap.get(key);
-    const nextStatus = !existing ? 'plan' : existing.status === 'plan' ? 'watching' : null;
+    const nextStatus = getNextWatchlistStatus(existing?.status ?? null);
 
     if (!nextStatus) {
       return;

@@ -2,7 +2,7 @@ import type {
   TorrentHealthSnapshot,
   TorrentReleaseItem,
   TorrentWatchlistItem,
-  TorrentWatchlistPreferences,
+  TorrentWatchlistUpdateInput,
 } from '@/lib/torrents/types';
 import { TorrentLocalStore } from '@/lib/services/torrent-local-store';
 
@@ -51,7 +51,7 @@ export async function syncTorrentTelegram(userId: number, telegramChatId: string
 export async function updateTorrentPreferences(
   userId: number,
   itemId: number,
-  input: Partial<Omit<TorrentWatchlistPreferences, 'pinnedReleaseKey' | 'pinnedReleaseTitle'>>
+  input: TorrentWatchlistUpdateInput
 ) {
   return TorrentLocalStore.updatePreferences(userId, itemId, input);
 }

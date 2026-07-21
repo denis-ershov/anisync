@@ -32,7 +32,7 @@ const userRoles = ['user', 'admin'] as const;
 const platformModules = ['anime', 'releases', 'torrents'] as const;
 const mediaTypes = ['anime', 'movie', 'show'] as const;
 const releaseTypes = ['movie', 'show'] as const;
-const releaseWatchlistStatuses = ['watching', 'plan'] as const;
+const releaseWatchlistStatuses = ['watching', 'plan', 'watched'] as const;
 const userListTypes = ['favorite', 'not_interested'] as const;
 const torrentMediaTypes = ['movie', 'tv'] as const;
 

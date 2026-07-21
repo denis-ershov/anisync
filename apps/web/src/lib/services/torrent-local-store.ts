@@ -6,7 +6,7 @@ import type {
   TorrentHealthSnapshot,
   TorrentReleaseItem,
   TorrentWatchlistItem,
-  TorrentWatchlistPreferences,
+  TorrentWatchlistUpdateInput,
 } from '@/lib/torrents/types';
 
 function mapRow(
@@ -111,6 +111,8 @@ export class TorrentLocalStore {
         totalEpisodes: metadata?.totalEpisodes,
         tmdbId: metadata?.tmdbId,
         targetSeason: options?.targetSeason ?? null,
+        preferredQuality: '1080p',
+        preferredAudio: 'russian',
         maxReleasesCount: 1,
         enabled: true,
         telegramChatId: options?.telegramChatId ?? null,
@@ -125,11 +127,16 @@ export class TorrentLocalStore {
   static async updatePreferences(
     userId: number,
     itemId: number,
-    input: Partial<Omit<TorrentWatchlistPreferences, 'pinnedReleaseKey' | 'pinnedReleaseTitle'>>
+    input: TorrentWatchlistUpdateInput
   ): Promise<TorrentWatchlistItem> {
     const [row] = await db
       .update(torrentWatchlist)
       .set({
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.originalTitle !== undefined ? { originalTitle: input.originalTitle } : {}),
+        ...(input.year !== undefined ? { year: input.year } : {}),
+        ...(input.genre !== undefined ? { genre: input.genre } : {}),
+        ...(input.posterUrl !== undefined ? { posterUrl: input.posterUrl } : {}),
         ...(input.targetSeason !== undefined ? { targetSeason: input.targetSeason } : {}),
         ...(input.preferredQuality !== undefined
           ? { preferredQuality: input.preferredQuality }

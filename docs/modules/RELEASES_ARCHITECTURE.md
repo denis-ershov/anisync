@@ -77,7 +77,7 @@ flowchart LR
 2. **Redis cache + in-memory fallback** — `src/lib/cache/store.ts` для detail, release dates, upcoming catalog и show schedule; при `REDIS_URL` кэш общий между инстансами.
 3. **Worker precompute** — очередь `releases.precompute`, cron `*/30 * * * *`, прогрев популярных комбинаций upcoming.
 4. **Batch watchlist refresh** — очередь `releases.watchlist.refresh`, cron hourly; `GET watchlist` читает только БД, без N×TMDB.
-5. **Таблица `release_watchlist_entries`** — отдельно от anime library; `schedule_updated_at` для staleness.
+5. **Таблица `release_watchlist_entries`** — отдельно от anime library; `schedule_updated_at` для staleness. Статусы watchlist: `plan`, `watching`, `watched` (просмотренные не попадают в 7-дневное расписание).
 6. **IMDb lookup** — `TMDB external_ids` кэшируется в `media_external_ids` и используется для кнопки Torrents в `ReleaseDetailModal`.
 
 ---

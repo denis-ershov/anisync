@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-21 (Releases: статус «Просмотрено» в watchlist)
+
+**Файлы:** `apps/web/src/lib/db/schema.ts`, `apps/web/src/lib/services/release-watchlist-service.ts`, `apps/web/src/app/api/releases/watchlist/route.ts`, `apps/web/src/app/api/releases/watchlist/[id]/route.ts`, `apps/web/src/modules/releases/types.ts`, `apps/web/src/modules/releases/api.ts`, `apps/web/src/modules/releases/hooks.ts`, `apps/web/src/modules/releases/utils.ts`, `apps/web/src/components/releases/release-detail-modal.tsx`, `apps/web/src/components/releases/release-content-card.tsx`, `apps/web/src/components/releases/releases-watchlist-view.tsx`, `apps/web/src/components/releases/releases-discover-view.tsx`, `apps/web/src/components/releases/release-schedule-item.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `docs/openapi/releases.yaml`, `docs/modules/RELEASES_ARCHITECTURE.md`.
+
+**Изменения:** добавлен статус watchlist `watched` («Просмотрено»); быстрая смена статуса через сегментированные кнопки на карточках списка; фильтр и счётчик по просмотренным; цикл статусов в каталоге расширен до `plan → watching → watched`.
+
+**Обоснование:** пользователям нужно отмечать просмотренные релизы и быстро переключать статус без открытия модалки.
+
+## 2026-07-21 (torrents: настройки quality/audio и редактирование метаданных)
+
+**Файлы:** `apps/web/src/components/torrents/torrent-preferences-dialog.tsx`, `apps/web/src/lib/torrents/types.ts`, `apps/web/src/lib/services/torrent-local-store.ts`, `apps/web/src/app/api/torrents/watchlist/[id]/route.ts`, `apps/web/src/modules/torrents/api.ts`, `apps/web/src/modules/torrents/hooks.ts`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`.
+
+**Изменения:** в диалоге настроек торрента поля Quality и Audio заменены на combobox с пресетами и свободным вводом; добавлена секция редактирования метаданных карточки (title, originalTitle, year, genre, posterUrl). PATCH API и local store принимают новые поля.
+
+**Обоснование:** пользователю нужны пресеты фильтров из watcher и возможность править метаданные без повторного добавления из TMDB.
+
 ## 2026-07-21 (compose: health checks для web/worker/scheduler)
 
 **Файлы:** `docker-compose.yml`, `apps/web/scripts/healthcheck-web.ts`, `apps/web/scripts/healthcheck-queue.ts`, `docs/COOLIFY_DEPLOY.md`.

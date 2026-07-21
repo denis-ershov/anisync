@@ -1,4 +1,4 @@
-import type { ReleaseCatalogItem, ReleaseWatchlistItem } from '@/lib/releases/types';
+import type { ReleaseCatalogItem, ReleaseWatchlistItem, ReleaseWatchlistStatus } from '@/lib/releases/types';
 
 export function localDateKey(date: Date): string {
   const year = date.getFullYear();
@@ -33,6 +33,19 @@ export function scheduleDateOf(item: ReleaseWatchlistItem): string | null {
   }
 
   return item.releaseDate ?? null;
+}
+
+export function getNextWatchlistStatus(current: ReleaseWatchlistStatus | null): ReleaseWatchlistStatus | null {
+  if (!current) {
+    return 'plan';
+  }
+  if (current === 'plan') {
+    return 'watching';
+  }
+  if (current === 'watching') {
+    return 'watched';
+  }
+  return null;
 }
 
 export function isScheduleSource(item: ReleaseWatchlistItem) {

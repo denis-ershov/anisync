@@ -14,7 +14,7 @@ import {
   pinTorrentReleaseCandidate,
   unpinTorrentReleaseCandidate,
 } from '@/lib/torrents/api';
-import type { TorrentWatchlistPreferences } from '@/lib/torrents/types';
+import type { TorrentWatchlistUpdateInput } from '@/lib/torrents/types';
 import { torrentQueryKeys } from '@/lib/torrents/query-keys';
 
 const defaultQueryOptions = {
@@ -93,9 +93,7 @@ export function useUpdateTorrentWatchlistItem() {
       input,
     }: {
       id: number;
-      input: Partial<
-        Omit<TorrentWatchlistPreferences, 'pinnedReleaseKey' | 'pinnedReleaseTitle'>
-      >;
+      input: TorrentWatchlistUpdateInput;
     }) => updateTorrentWatchlistItem(id, input),
     onSuccess: invalidateWatchlist,
   });

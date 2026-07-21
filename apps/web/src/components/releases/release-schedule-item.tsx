@@ -52,7 +52,7 @@ export function ReleaseScheduleItem({ item, dateKey, className }: ReleaseSchedul
         <div className="flex flex-wrap items-center gap-2">
           <p className="line-clamp-2 text-sm font-medium leading-tight">{title}</p>
           <Badge variant="outline" className="shrink-0 text-[10px]">
-            {item.status === 'watching' ? t('status.watching') : t('status.plan')}
+            {t(`status.${item.status}`)}
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground">

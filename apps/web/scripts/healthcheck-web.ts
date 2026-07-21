@@ -1,3 +1,5 @@
+export {};
+
 const port = process.env.PORT ?? '3000';
 const url = `http://127.0.0.1:${port}/api/health`;
 

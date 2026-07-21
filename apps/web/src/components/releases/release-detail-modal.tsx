@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { Clock, ExternalLink, Eye, Film, Loader2, Star, Trash2, Tv, Waves } from 'lucide-react';
+import { Clock, CheckCircle2, ExternalLink, Eye, Film, Loader2, Star, Trash2, Tv, Waves } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { useReleasesModule } from '@/components/releases/releases-module-context';
@@ -25,6 +25,7 @@ import {
   useReleaseWatchlist,
   useUpdateReleaseWatchlistItem,
 } from '@/lib/releases/hooks';
+import type { ReleaseWatchlistStatus } from '@/lib/releases/types';
 import { useAddTorrentWatchlistItem, useTorrentWatchlist } from '@/lib/torrents/hooks';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
@@ -127,7 +128,7 @@ export function ReleaseDetailModal() {
   const posterUrl = display?.posterPath ? `${TMDB_IMAGE_BASE}${display.posterPath}` : null;
   const durationLabel = formatDuration(detail?.duration, t);
 
-  const handleStatus = async (status: 'watching' | 'plan') => {
+  const handleStatus = async (status: ReleaseWatchlistStatus) => {
     if (!display) {
       return;
     }
@@ -219,9 +220,7 @@ export function ReleaseDetailModal() {
                     {display.type === 'movie' ? t('type.movie') : t('type.show')}
                   </Badge>
                   {watchlistItem ? (
-                    <Badge variant="outline">
-                      {watchlistItem.status === 'watching' ? t('status.watching') : t('status.plan')}
-                    </Badge>
+                    <Badge variant="outline">{t(`status.${watchlistItem.status}`)}</Badge>
                   ) : null}
                 </div>
                 <DialogTitle className="text-xl sm:text-2xl">{title}</DialogTitle>
@@ -323,6 +322,16 @@ export function ReleaseDetailModal() {
                 >
                   <Eye className="mr-2 h-4 w-4" />
                   {t('status.watching')}
+                </Button>
+                <Button
+                  type="button"
+                  variant={watchlistItem?.status === 'watched' ? 'default' : 'outline'}
+                  disabled={actionLoading || detailLoading}
+                  onClick={() => void handleStatus('watched')}
+                  className="min-h-11"
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  {t('status.watched')}
                 </Button>
                 {!watchlistItem ? null : (
                   <Button

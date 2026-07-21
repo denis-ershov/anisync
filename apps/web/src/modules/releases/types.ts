@@ -1,4 +1,5 @@
 export type ReleaseContentType = 'movie' | 'show';
+export type ReleaseWatchlistStatus = 'watching' | 'plan' | 'watched';
 
 export type ReleaseCatalogItem = {
   tmdbId: number;
@@ -43,7 +44,7 @@ export type ReleaseWatchlistItem = {
   type: ReleaseContentType;
   title: string;
   titleRu: string | null;
-  status: 'watching' | 'plan';
+  status: ReleaseWatchlistStatus;
   rating: number | null;
   popularity: number | null;
   posterPath: string | null;
@@ -61,6 +62,7 @@ export type ReleaseWatchlistStats = {
   total: number;
   watching: number;
   plan: number;
+  watched: number;
   movies: number;
   shows: number;
 };
