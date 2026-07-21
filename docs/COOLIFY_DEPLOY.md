@@ -86,10 +86,27 @@ node --import tsx scripts/seed-bootstrap-admin.ts
 
 ## 5. Первый деплой
 
-1. Заполните env (§3), особенно `DATABASE_URL`.
-2. **Deploy**.
+1. Заполните env (§3), особенно `DATABASE_URL` и `REDIS_URL`.
+2. **Deploy** (rebuild образа).
 3. Проверьте `https://<domain>/api/health` и `/api/health/ready`.
 4. Bootstrap admin (§3).
+
+### Health checks (Coolify / Traefik)
+
+В `docker-compose.yml` заданы Docker health checks для всех сервисов:
+
+| Сервис | Проверка | Назначение |
+|--------|----------|------------|
+| `web` | `GET /api/health` (liveness) | Traefik маршрутизирует трафик только на healthy `web` |
+| `worker` | ping Redis | фоновый процесс + доступность очередей |
+| `scheduler` | ping Redis | repeatable jobs + Redis |
+
+**В Coolify UI** для Compose-ресурса **не дублируйте** health check в настройках сервиса — достаточно блока `healthcheck` в compose (при конфликте приоритет у Dockerfile/compose).
+
+- Liveness (`/api/health`) — быстрый, без БД; используется в health check контейнера `web`.
+- Readiness (`/api/health/ready`) — DB + Redis; для ручной диагностики, не для Docker health check (иначе Traefik снимет маршрут при кратковременных сбоях БД).
+
+Если статус **Running (unknown)** — redeploy после обновления compose; если **unhealthy** — смотрите логи сервиса и `docker inspect` → `Health`.
 
 ---
 

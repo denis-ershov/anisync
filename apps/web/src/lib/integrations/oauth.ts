@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { appConfig } from '@/lib/config';
 import { getCanonicalCallbackUrl, getProvider } from '@/lib/integrations/providers';
 import type { IntegrationServiceName } from '@/lib/integrations/provider-types';
 import { IntegrationService } from '@/lib/services/integration-service';
@@ -69,7 +70,7 @@ export async function handleOAuthCallback(request: NextRequest, serviceName: Int
   const code = searchParams.get('code');
   const state = searchParams.get('state');
   const error = searchParams.get('error');
-  const baseUrl = new URL('/', request.url).origin;
+  const baseUrl = appConfig.appBaseUrl;
   const cookieStore = await cookies();
   const locale = cookieStore.get('NEXT_LOCALE')?.value || cookieStore.get('oauth-locale')?.value || 'en';
 

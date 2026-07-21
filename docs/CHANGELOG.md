@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-21 (compose: health checks для web/worker/scheduler)
+
+**Файлы:** `docker-compose.yml`, `apps/web/scripts/healthcheck-web.ts`, `apps/web/scripts/healthcheck-queue.ts`, `docs/COOLIFY_DEPLOY.md`.
+
+**Изменения:** единые health checks в compose — `web` проверяет `/api/health`, `worker`/`scheduler` — ping Redis; `depends_on` с `service_healthy`.
+
+**Обоснование:** Coolify показывал Running (unknown); Traefik нужен корректный Docker health status.
+
+## 2026-07-21 (fix: OAuth redirect на 0.0.0.0:3000)
+
+**Файлы:** `apps/web/src/lib/integrations/oauth.ts`.
+
+**Изменения:** после callback интеграции редирект идёт на `APP_BASE_URL`, а не на `request.url` (в Docker за прокси это `http://0.0.0.0:3000`).
+
+**Обоснование:** после OAuth пользователь попадал на неверный URL.
+
 ## 2026-07-21 (fix: client crash — env validation in browser)
 
 **Файлы:** `apps/web/src/lib/config.ts`, `apps/web/src/lib/feature-flags.ts`, `apps/web/src/lib/feature-flags.server.ts`, `apps/web/package.json`.

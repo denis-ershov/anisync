@@ -4,6 +4,21 @@
 # (Connect To Predefined Network), только DATABASE_URL и REDIS_URL.
 #
 # Домен вешается на сервис `web` (порт контейнера 3000).
+# Health checks — в compose (Coolify / Traefik читают Docker health status).
+
+x-healthcheck-web: &healthcheck-web
+  test: ['CMD', 'node', '--import', 'tsx', 'scripts/healthcheck-web.ts']
+  interval: 15s
+  timeout: 10s
+  retries: 5
+  start_period: 120s
+
+x-healthcheck-queue: &healthcheck-queue
+  test: ['CMD', 'node', '--import', 'tsx', 'scripts/healthcheck-queue.ts']
+  interval: 30s
+  timeout: 15s
+  retries: 5
+  start_period: 45s
 
 services:
   web:
@@ -55,16 +70,7 @@ services:
       BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-    healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'node -e "fetch(\"http://127.0.0.1:3000/api/health\").then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 90s
+    healthcheck: *healthcheck-web
 
   worker:
     build:
@@ -105,9 +111,10 @@ services:
       MYANIMELIST_CLIENT_SECRET: ${MYANIMELIST_CLIENT_SECRET:-}
       ANILIST_CLIENT_ID: ${ANILIST_CLIENT_ID:-}
       ANILIST_CLIENT_SECRET: ${ANILIST_CLIENT_SECRET:-}
+    healthcheck: *healthcheck-queue
     depends_on:
       web:
-        condition: service_started
+        condition: service_healthy
 
   scheduler:
     build:
@@ -141,6 +148,7 @@ services:
       PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    healthcheck: *healthcheck-queue
     depends_on:
       worker:
-        condition: service_started
+        condition: service_healthy
