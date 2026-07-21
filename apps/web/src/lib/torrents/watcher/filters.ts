@@ -266,6 +266,129 @@ export function filterResultsBySeason(
   });
 }
 
+function normalizeYear(year: string | null | undefined): string | null {
+  if (year == null || String(year).trim() === '') {
+    return null;
+  }
+  const match = String(year).trim().match(/\b((?:19|20)\d{2})\b/);
+  return match?.[1] ?? null;
+}
+
+function extractReleaseYears(title: string): Set<string> {
+  return new Set(title.match(/\b(?:19|20)\d{2}\b/g) ?? []);
+}
+
+function yearMatchesRelease(
+  itemYear: string | null | undefined,
+  releaseTitle: string,
+  options?: { requireYearInTitle?: boolean }
+): boolean {
+  const year = normalizeYear(itemYear);
+  if (!year) {
+    return true;
+  }
+  const releaseYears = extractReleaseYears(releaseTitle);
+  if (releaseYears.size > 0) {
+    return releaseYears.has(year);
+  }
+  // Для фильмов без года в названии title-match ненадёжен.
+  return options?.requireYearInTitle ? false : true;
+}
+
+const SUBTITLE_ONLY_PATTERNS: RegExp[] = [
+  /(?:^|[^a-zа-яё0-9])ст(?:$|[^a-zа-яё0-9])/i,
+  /(?:^|[^a-zа-яё0-9])стр(?:$|[^a-zа-яё0-9])/i,
+  /(?:^|[^a-zа-яё0-9])subs?(?:$|[^a-zа-яё0-9])/i,
+  /субтит/i,
+  /soft[\s.\-_]?sub/i,
+  /hard[\s.\-_]?sub/i,
+  /sub[\s.\-_]?only/i,
+  /только\s+субтитр/i,
+];
+
+const RUSSIAN_VOICE_PATTERNS: RegExp[] = [
+  /(?:^|[^a-zа-яё0-9])(?:avo|dvo|mvo|hvdvo|3vo)(?:$|[^a-zа-яё0-9])/i,
+  /дубляж/i,
+  /озвуч/i,
+  /закадр/i,
+  /многоголосый/i,
+  /проф\.?\s*перевод/i,
+  /русск(?:ая|ий|ое|ие|ую)?\s*(?:озвуч|дорож|дуб)/i,
+  /(?:^|[^a-zа-яё0-9])(?:rus|рус)(?:$|[^a-zа-яё0-9])/i,
+];
+
+function isSubtitleOnlyRelease(text: string): boolean {
+  return SUBTITLE_ONLY_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function hasRussianVoiceTrack(text: string): boolean {
+  return RUSSIAN_VOICE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function matchesPreferredAudio(
+  release: ProwlarrRelease,
+  preferredAudio: string | null | undefined
+): boolean {
+  if (!preferredAudio) {
+    return true;
+  }
+
+  const audioLower = preferredAudio.trim().toLowerCase();
+  if (!audioLower || audioLower === 'any' || audioLower === '*') {
+    return true;
+  }
+
+  const title = String(release.title || '');
+  const description = String(
+    release.description || release.overview || release.summary || ''
+  );
+  const audioText = `${title}\n${description}`;
+
+  if (audioLower === 'russian' || audioLower === 'rus' || audioLower === 'ru') {
+    if (hasRussianVoiceTrack(audioText)) {
+      // «RUS Sub» / «СТ» без реальной дорожки — не считаем русской озвучкой.
+      if (isSubtitleOnlyRelease(audioText)) {
+        const strongVoice =
+          /(?:^|[^a-zа-яё0-9])(?:avo|dvo|mvo|hvdvo|3vo)(?:$|[^a-zа-яё0-9])/i.test(
+            audioText
+          ) ||
+          /дубляж|озвуч|закадр|многоголосый|проф\.?\s*перевод/i.test(audioText);
+        return strongVoice;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  if (
+    audioLower === 'original_sub' ||
+    audioLower === 'original-with-sub' ||
+    audioLower === 'orig_sub' ||
+    audioLower === 'original' ||
+    audioLower === 'eng'
+  ) {
+    const originalSubMarkers = [
+      'eng',
+      'english',
+      'original',
+      'оригинал',
+      ' sub',
+      'sub]',
+      'субтитр',
+      ' ст ',
+      '/ст/',
+      '/ст ',
+      ' ст/',
+    ];
+    return (
+      originalSubMarkers.some((marker) => audioText.toLowerCase().includes(marker)) ||
+      isSubtitleOnlyRelease(audioText)
+    );
+  }
+
+  return audioText.toLowerCase().includes(audioLower);
+}
+
 export function filterResultsByImdbOrTitle(
   results: ProwlarrRelease[],
   imdbId: string,
@@ -290,10 +413,13 @@ export function filterResultsByImdbOrTitle(
     return results;
   }
 
+  const normalizedYear = normalizeYear(year);
+
   return results.filter((release) => {
     const releaseTitle = (release.title || '').toLowerCase();
     const releaseImdb = release.imdbId || release.imdb_id || '';
 
+    let imdbMatched = false;
     if (releaseImdb && imdbId) {
       const releaseImdbStr = String(releaseImdb).trim();
       const imdbIdStr = String(imdbId).trim();
@@ -302,13 +428,23 @@ export function filterResultsByImdbOrTitle(
         releaseImdbStr !== '0' &&
         releaseImdbStr.toLowerCase() === imdbIdStr.toLowerCase()
       ) {
-        return true;
+        imdbMatched = true;
       }
     }
 
-    const releaseTokens = titleTokens(releaseTitle);
-    const releaseYears = new Set(releaseTitle.match(/\b(?:19|20)\d{2}\b/g) ?? []);
+    if (imdbMatched) {
+      // Даже при совпадении IMDb отсекаем явный чужой год в названии (ремейки/одноимённые).
+      if (
+        itemType === 'movie' &&
+        normalizedYear &&
+        !yearMatchesRelease(normalizedYear, releaseTitle)
+      ) {
+        return false;
+      }
+      return true;
+    }
 
+    const releaseTokens = titleTokens(releaseTitle);
     const hasTitleMatch = aliases.some((alias) =>
       alias.length === 1
         ? containsExactSegment(releaseTitle, alias)
@@ -318,11 +454,11 @@ export function filterResultsByImdbOrTitle(
       return false;
     }
 
-    if (itemType === 'movie' && year) {
-      return releaseYears.has(year);
+    if (itemType === 'movie' && normalizedYear) {
+      return yearMatchesRelease(normalizedYear, releaseTitle, { requireYearInTitle: true });
     }
-    if (year && releaseYears.size > 0) {
-      return releaseYears.has(year);
+    if (normalizedYear) {
+      return yearMatchesRelease(normalizedYear, releaseTitle);
     }
     return true;
   });
@@ -381,7 +517,10 @@ export function filterReleasesByPreferences(
           }
         }
         if (!qualityMatch) {
-          qualityMatch = qualityPref.includes(qualityStr) || title.includes(qualityPref) || qualityStr.includes(qualityPref);
+          qualityMatch =
+            qualityPref.includes(qualityStr) ||
+            title.includes(qualityPref) ||
+            qualityStr.includes(qualityPref);
         }
         if (qualityMatch) {
           break;
@@ -389,29 +528,7 @@ export function filterReleasesByPreferences(
       }
     }
 
-    let audioMatch = true;
-    if (preferredAudio) {
-      const audioLower = preferredAudio.trim().toLowerCase();
-      const description = String(
-        release.description || release.overview || release.summary || ''
-      ).toLowerCase();
-      const audioText = `${title}\n${description}`;
-
-      const russianMarkers = ['rus', 'рус', 'дуб', 'dub', 'дубляж', 'многоголосый', 'проф. перевод', 'проф.перевод'];
-      const originalSubMarkers = ['eng', 'english', 'original', 'оригинал', 'sub', 'subs', 'субтит'];
-
-      if (audioLower === 'russian' || audioLower === 'rus') {
-        audioMatch = russianMarkers.some((marker) => audioText.includes(marker));
-      } else if (audioLower === 'original_sub' || audioLower === 'original' || audioLower === 'eng') {
-        audioMatch = originalSubMarkers.some((marker) => audioText.includes(marker));
-      } else if (audioLower === 'any' || audioLower === '*') {
-        audioMatch = true;
-      } else {
-        audioMatch = audioText.includes(audioLower);
-      }
-    }
-
-    return qualityMatch && audioMatch;
+    return qualityMatch && matchesPreferredAudio(release, preferredAudio);
   });
 }
 
@@ -437,6 +554,7 @@ export function buildSearchQueries(input: {
     return [];
   }
 
+  const year = normalizeYear(input.year);
   let seasonNum = input.targetSeason ?? null;
   if (input.itemType === 'tv' && !seasonNum) {
     seasonNum =
@@ -446,18 +564,29 @@ export function buildSearchQueries(input: {
   const queries: string[] = [];
   for (const baseTitle of titles) {
     if (input.itemType === 'tv' && seasonNum) {
-      const seasonVariants = [`сезон ${seasonNum}`, `s${String(seasonNum).padStart(2, '0')}`, `season ${seasonNum}`];
+      const seasonVariants = [
+        `сезон ${seasonNum}`,
+        `s${String(seasonNum).padStart(2, '0')}`,
+        `season ${seasonNum}`,
+      ];
       for (const sv of seasonVariants) {
-        if (input.year) {
-          queries.push(`${baseTitle} ${input.year} ${sv}`);
+        if (year) {
+          queries.push(`${baseTitle} ${year} ${sv}`);
         }
-        queries.push(`${baseTitle} ${sv}`);
+        // Без года — только если год неизвестен (иначе ловим соседние сезоны/ремейки).
+        if (!year) {
+          queries.push(`${baseTitle} ${sv}`);
+        }
       }
-      queries.push(baseTitle);
+      if (!year) {
+        queries.push(baseTitle);
+      } else {
+        queries.push(`${baseTitle} ${year}`);
+      }
+    } else if (year) {
+      // Фильмы/прочее с годом: только запросы с годом.
+      queries.push(`${baseTitle} ${year}`);
     } else {
-      if (input.year) {
-        queries.push(`${baseTitle} ${input.year}`);
-      }
       queries.push(baseTitle);
     }
   }

@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { db, torrentReleases, torrentWatchlist } from '@/lib/db';
 import { findContentByImdb } from '@/lib/integrations/tmdb/client';
@@ -9,6 +9,42 @@ import type {
   TorrentWatchlistUpdateInput,
 } from '@/lib/torrents/types';
 
+function parsePinnedAliases(raw: string | null | undefined): string[] {
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function deletePinnedReleases(imdbId: string, releaseKey: string | null, aliasesRaw?: string | null) {
+  if (!releaseKey?.trim()) {
+    return;
+  }
+  const keys = Array.from(
+    new Set(
+      [releaseKey, ...parsePinnedAliases(aliasesRaw)]
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+  if (!keys.length) {
+    return;
+  }
+  await db
+    .delete(torrentReleases)
+    .where(and(eq(torrentReleases.imdbId, imdbId), inArray(torrentReleases.infoHash, keys)));
+}
 function mapRow(
   row: typeof torrentWatchlist.$inferSelect,
   releasesCount = 0,
@@ -165,11 +201,34 @@ export class TorrentLocalStore {
     aliases: string[],
     title: string
   ): Promise<TorrentWatchlistItem> {
+    const [current] = await db
+      .select()
+      .from(torrentWatchlist)
+      .where(and(eq(torrentWatchlist.id, itemId), eq(torrentWatchlist.userId, userId)))
+      .limit(1);
+    if (!current) {
+      throw new Error('Watchlist item not found');
+    }
+
+    const previousKey = current.pinnedReleaseKey?.trim().toLowerCase() || null;
+    const nextKey = releaseKey.trim().toLowerCase();
+
+    // Смена pin = отвязка предыдущей раздачи → удаляем её из torrent_releases.
+    if (previousKey && previousKey !== nextKey) {
+      await deletePinnedReleases(
+        current.imdbId,
+        current.pinnedReleaseKey,
+        current.pinnedReleaseAliases
+      );
+    }
+
     const [row] = await db
       .update(torrentWatchlist)
       .set({
-        pinnedReleaseKey: releaseKey,
-        pinnedReleaseAliases: JSON.stringify(aliases),
+        pinnedReleaseKey: nextKey,
+        pinnedReleaseAliases: JSON.stringify(
+          Array.from(new Set([nextKey, ...aliases.map((a) => a.trim().toLowerCase()).filter(Boolean)]))
+        ),
         pinnedReleaseTitle: title,
         updatedAt: new Date(),
       })
@@ -183,13 +242,28 @@ export class TorrentLocalStore {
       .values({
         imdbId: row.imdbId,
         title,
-        infoHash: releaseKey,
+        infoHash: nextKey,
       })
       .onConflictDoNothing();
     return mapRow(row);
   }
 
   static async unpinRelease(userId: number, itemId: number): Promise<TorrentWatchlistItem> {
+    const [current] = await db
+      .select()
+      .from(torrentWatchlist)
+      .where(and(eq(torrentWatchlist.id, itemId), eq(torrentWatchlist.userId, userId)))
+      .limit(1);
+    if (!current) {
+      throw new Error('Watchlist item not found');
+    }
+
+    await deletePinnedReleases(
+      current.imdbId,
+      current.pinnedReleaseKey,
+      current.pinnedReleaseAliases
+    );
+
     const [row] = await db
       .update(torrentWatchlist)
       .set({

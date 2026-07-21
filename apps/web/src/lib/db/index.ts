@@ -21,6 +21,8 @@ const client = postgres(connectionString, {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 30,
+  // Coolify / PgBouncer (часто :6432) в transaction mode не любят prepared statements.
+  prepare: false,
   ssl: sslFromUrl(connectionString),
   onnotice: () => {},
   transform: {

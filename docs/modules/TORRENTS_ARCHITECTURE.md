@@ -49,7 +49,8 @@ flowchart LR
 
 1. Due-фильтр: `enabled` + `check_interval` / `last_checked` (как NW).
 2. Prowlarr IMDb → fallback text queries.
-3. Фильтры: IMDb/title, season, quality/audio, junk-маркеры (CAM / TS / HDTS / Telesync / Screener / плохой звук).
+3. Фильтры: IMDb/title + обязательный год для movie, season, quality/audio (`russian` ≠ СТ/субтитры), junk-маркеры (CAM / TS / HDTS / Telesync / Screener / плохой звук).
+   Текстовый поиск фильмов с годом — только year-qualified запросы.
 4. Dedup `(imdb_id, info_hash)` + `content_hash`.
 5. Telegram (per-item `telegram_chat_id` или env) + `torrent_notification_log` + in-app.
    Формат как NightWatcher: постер + HTML (title/year/IMDb/genre, релиз, размер, magnet / Prowlarr / страница раздачи).
@@ -57,6 +58,7 @@ flowchart LR
 7. Concurrency 5.
 8. Torrent bencode → magnet/info hash.
 9. Pin-only и hunting auto-pin; UI-поиск кандидатов для pin — только по кнопке (открепить / заменить pin).
+   Unpin и смена pin удаляют прежнюю раздачу из `torrent_releases`.
 10. Ручная отправка: `POST /api/torrents/watchlist/[id]/notify` из UI кандидатов.
 
 Trigger:

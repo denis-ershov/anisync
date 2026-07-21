@@ -25,6 +25,7 @@ async function runMigrations() {
   const migrationClient = postgres(connectionString, {
     max: 1,
     connect_timeout: 30,
+    prepare: false,
     ssl: sslFromUrl(connectionString),
     onnotice: () => {},
   });

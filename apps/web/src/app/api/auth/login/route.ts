@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { LoginData } from '@/lib/types';
 import { withSloRoute } from '@/lib/api/with-slo';
+import { createLogger } from '@/lib/observability/logger';
 import { UserService } from '@/lib/services/user-service';
+
+const log = createLogger('api:auth:login');
 
 async function postHandler(request: NextRequest) {
   try {
@@ -28,6 +31,7 @@ async function postHandler(request: NextRequest) {
     });
     return response;
   } catch (error) {
+    log.error({ err: error }, 'Login failed');
     return NextResponse.json(
       {
         error: 'Internal server error',

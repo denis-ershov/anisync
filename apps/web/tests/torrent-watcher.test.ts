@@ -8,9 +8,11 @@ import {
 } from '@/lib/torrents/watcher/identity';
 import {
   buildSearchQueries,
+  filterResultsByImdbOrTitle,
   filterResultsBySeason,
   hasBadAudioMarkers,
   hasJunkReleaseMarkers,
+  matchesPreferredAudio,
 } from '@/lib/torrents/watcher/filters';
 import { extractEpisodeInfo, extractSeasonFromTitle } from '@/lib/torrents/watcher/parsers';
 import { torrentBytesToMagnet } from '@/lib/torrents/watcher/torrent-file';
@@ -76,16 +78,83 @@ test('hasBadAudioMarkers detects cam/ts', () => {
   assert.equal(hasBadAudioMarkers({ title: 'Movie WEB-DL 1080p' }), false);
 });
 
-test('buildSearchQueries adds season variants', () => {
-  const queries = buildSearchQueries({
+test('buildSearchQueries embeds year and skips yearless movie queries', () => {
+  const movieQueries = buildSearchQueries({
+    imdbId: 'tt1',
+    originalTitle: 'Carrie',
+    title: 'Кэрри',
+    itemType: 'movie',
+    year: '2013',
+  });
+  assert.ok(movieQueries.every((q) => q.includes('2013')));
+  assert.ok(movieQueries.some((q) => q.includes('Carrie')));
+  assert.equal(
+    movieQueries.some((q) => q === 'Carrie' || q === 'Кэрри'),
+    false
+  );
+
+  const tvQueries = buildSearchQueries({
     imdbId: 'tt1',
     originalTitle: 'Show',
     itemType: 'tv',
     year: '2024',
     targetSeason: 2,
   });
-  assert.ok(queries.some((q) => q.includes('сезон 2')));
-  assert.ok(queries.some((q) => q.includes('s02')));
+  assert.ok(tvQueries.some((q) => q.includes('сезон 2')));
+  assert.ok(tvQueries.some((q) => q.includes('s02')));
+  assert.ok(tvQueries.every((q) => q.includes('2024')));
+});
+
+test('filterResultsByImdbOrTitle rejects wrong-year remakes', () => {
+  const releases = [
+    {
+      title:
+        'Кэрри / Carrie (Брайан Де Пальма / Brian De Palma) [1976, США, ужасы, триллер, BDRip-AVC] AVO (Михаил Иванов)',
+    },
+    {
+      title: 'Кэрри / Carrie (2013) WEB-DL 1080p',
+    },
+  ];
+  const filtered = filterResultsByImdbOrTitle(
+    releases,
+    'tt1939659',
+    'Кэрри',
+    'Carrie',
+    '2013',
+    'movie'
+  );
+  assert.equal(filtered.length, 1);
+  assert.match(filtered[0].title ?? '', /2013/);
+});
+
+test('matchesPreferredAudio rejects subtitle-only СТ for russian', () => {
+  assert.equal(
+    matchesPreferredAudio(
+      {
+        title:
+          'Вверх по волшебному дереву / The Magic Faraway Tree / 2026 / СТ / WEBRip (1080p)',
+      },
+      'russian'
+    ),
+    false
+  );
+  assert.equal(
+    matchesPreferredAudio(
+      {
+        title:
+          'Кэрри / Carrie [2013] BDRip-AVC] AVO (Михаил Иванов)',
+      },
+      'russian'
+    ),
+    true
+  );
+  assert.equal(
+    matchesPreferredAudio(
+      { title: 'Movie 2024 WEB-DL 1080p Dub' },
+      'russian'
+    ),
+    false
+  );
 });
 
 test('torrentBytesToMagnet hashes exact bencoded info dictionary', () => {

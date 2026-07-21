@@ -79,6 +79,7 @@ node --import tsx scripts/seed-bootstrap-admin.ts
 2. Скопируйте connection string в `DATABASE_URL`.
 3. Если БД — Coolify Database на том же сервере: используйте **internal** URL (hostname из карточки БД), чтобы `web`/`worker` резолвили хост из Docker-сети.
 4. Публичный IP/порт — только если БД реально доступна с хоста compose снаружи.
+5. Если в URL порт **`6432`** (PgBouncer / pooler): в коде уже `prepare: false`. Не включайте prepared statements вручную. Предпочтителен **session** mode или прямой `:5432`, если pooler в transaction mode нестабилен.
 
 `POSTGRES_*` задавать не нужно — всё внутри одной строки.
 

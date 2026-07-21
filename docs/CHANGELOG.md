@@ -1,6 +1,33 @@
 # Changelog
 
+## 2026-07-21 (torrents: удаление раздачи из БД при откреплении)
+
+**Файлы:** `apps/web/src/lib/services/torrent-local-store.ts`, `docs/modules/TORRENTS_ARCHITECTURE.md`.
+
+**Изменения:** `unpin` удаляет соответствующую запись из `torrent_releases` (по `info_hash` / aliases); при смене pin предыдущая раздача тоже удаляется из БД.
+
+**Обоснование:** откреплённый релиз не должен оставаться в истории и мешать повторному уведомлению/охоте.
+
+## 2026-07-21 (fix: login 500 через PgBouncer)
+
+
+**Файлы:** `apps/web/src/lib/db/index.ts`, `apps/web/src/lib/db/migrate.ts`, `apps/web/src/app/api/auth/login/route.ts`, `docs/COOLIFY_DEPLOY.md`.
+
+**Изменения:** для postgres.js включён `prepare: false` (совместимость с PgBouncer `:6432`); ошибки логина пишутся в лог (`Login failed`).
+
+**Обоснование:** миграции проходили, а `POST /api/auth/login` отдавал 500 — типичный симптом prepared statements за transaction-mode pooler.
+
+## 2026-07-21 (torrents: год в поиске + фильтр СТ/субтитров)
+
+
+**Файлы:** `apps/web/src/lib/torrents/watcher/filters.ts`, `apps/web/src/lib/services/torrent-watcher-service.ts`, `apps/web/tests/torrent-watcher.test.ts`, `docs/modules/TORRENTS_ARCHITECTURE.md`.
+
+**Изменения:** для фильмов с годом текстовый поиск только с годом (без fallback `Carrie` → 1976); год проверяется даже при IMDb-совпадении, если в названии другой год; `russian` требует маркеры озвучки (AVO/DVO/дубляж/RUS) и отсекает `СТ`/субтитры.
+
+**Обоснование:** ложные срабатывания на ремейки без года и на раздачи только с субтитрами при фильтре «русский».
+
 ## 2026-07-21 (torrents: junk-фильтр + pin search по клику)
+
 
 **Файлы:** `apps/web/src/lib/torrents/watcher/filters.ts`, `apps/web/src/components/torrents/torrent-preferences-dialog.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `apps/web/tests/torrent-watcher.test.ts`, `docs/modules/TORRENTS_ARCHITECTURE.md`.
 

@@ -94,7 +94,10 @@ async function searchForItem(
     return id && id !== '0' && id.toLowerCase() === item.imdbId.toLowerCase();
   });
 
-  if (!hasExactImdb) {
+  const year = String(item.year || '').match(/\b((?:19|20)\d{2})\b/)?.[1] ?? null;
+  const needsYearQualifiedSearch = Boolean(year && item.type === 'movie');
+
+  if (!hasExactImdb || needsYearQualifiedSearch) {
     const queries = buildSearchQueries({
       imdbId: item.imdbId,
       title: item.title,
@@ -103,15 +106,42 @@ async function searchForItem(
       year: item.year,
       targetSeason: item.targetSeason,
     });
-    for (const query of queries) {
-      try {
-        const byQuery = await client.searchByQuery(query);
-        if (byQuery.length) {
-          results = byQuery;
-          break;
+
+    if (needsYearQualifiedSearch) {
+      const merged = new Map<string, ProwlarrRelease>();
+      for (const release of results) {
+        const identity = computeReleaseIdentity(release);
+        const key = identity.primary || release.guid || release.title;
+        if (key) {
+          merged.set(String(key).toLowerCase(), release);
         }
-      } catch (error) {
-        log.warn({ err: error, query }, 'Query search failed');
+      }
+      for (const query of queries) {
+        try {
+          const byQuery = await client.searchByQuery(query);
+          for (const release of byQuery) {
+            const identity = computeReleaseIdentity(release);
+            const key = identity.primary || release.guid || release.title;
+            if (key) {
+              merged.set(String(key).toLowerCase(), release);
+            }
+          }
+        } catch (error) {
+          log.warn({ err: error, query }, 'Query search failed');
+        }
+      }
+      results = Array.from(merged.values());
+    } else {
+      for (const query of queries) {
+        try {
+          const byQuery = await client.searchByQuery(query);
+          if (byQuery.length) {
+            results = byQuery;
+            break;
+          }
+        } catch (error) {
+          log.warn({ err: error, query }, 'Query search failed');
+        }
       }
     }
   }
