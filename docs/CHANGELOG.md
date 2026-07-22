@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-22 (anime: удаление статуса из списка)
+
+**Файлы:** `apps/web/src/app/api/user/library/[id]/route.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/integrations/provider-types.ts`, `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/components/anime-card.tsx`, `apps/web/src/components/anime-detail-modal.tsx`, `apps/web/src/components/schedule-view.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** добавлен `DELETE /api/user/library/[id]` — удаляет запись библиотеки локально и best-effort на primary/auto-sync провайдерах (Shikimori / MAL / AniList). В карточке и модалке — действие «Удалить из списка».
+
+**Обоснование:** раньше можно было только менять статус, но не убирать аниме из списка AniSync.
+
 ## 2026-07-22 (anime: точечный import расписания)
 
 **Файлы:** `apps/web/src/lib/integrations/library-schedule-import.ts`, `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/lib/integrations/provider-types.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/tests/library-schedule-import.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.

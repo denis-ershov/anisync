@@ -99,6 +99,11 @@ export interface ProviderUpdateResult {
   notes?: string | null;
 }
 
+export interface ProviderDeletePayload {
+  externalEntryId?: string | null;
+  externalAnimeId?: string | null;
+}
+
 export interface ProviderCapabilities {
   supportsNotes: boolean;
   supportsRating: boolean;
@@ -122,4 +127,5 @@ export interface ProviderAdapter {
   ): Promise<ProviderLibraryEntry[]>;
   fetchAnimeDetails(integration: UserIntegration, externalAnimeIds: string[]): Promise<ProviderAnimeDetails[]>;
   updateEntry(integration: UserIntegration, payload: ProviderUpdatePayload): Promise<ProviderUpdateResult>;
+  deleteEntry(integration: UserIntegration, payload: ProviderDeletePayload): Promise<void>;
 }

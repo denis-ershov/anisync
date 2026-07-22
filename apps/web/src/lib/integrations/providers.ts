@@ -12,6 +12,7 @@ import type {
   ProviderAnimeDetails,
   ProviderLibraryEntry,
   ProviderTokenResponse,
+  ProviderDeletePayload,
   ProviderUpdatePayload,
   ProviderUpdateResult,
   ProviderViewer,
@@ -227,6 +228,29 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
     const response = await fetch(input, init);
     if (response.ok) {
       return response.json() as Promise<T>;
+    }
+
+    if ((response.status === 429 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
+      await delay(getRetryDelayMs(response, attempt));
+      continue;
+    }
+
+    const errorText = await response.text();
+    throw new Error(`Request failed ${response.status}: ${errorText}`);
+  }
+
+  throw new Error('Request failed after retries');
+}
+
+/** DELETE/empty-body responses; treats 404 as already deleted. */
+async function fetchVoid(input: string, init?: RequestInit): Promise<void> {
+  const maxRetries = 3;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const response = await fetch(input, init);
+    if (response.ok || response.status === 404) {
+      await response.text().catch(() => undefined);
+      return;
     }
 
     if ((response.status === 429 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
@@ -477,6 +501,19 @@ const shikimoriProvider: ProviderAdapter = {
       personalRating: result.score ?? payload.personalRating ?? null,
       notes: payload.notes ?? null,
     };
+  },
+  async deleteEntry(integration: UserIntegration, payload: ProviderDeletePayload): Promise<void> {
+    if (!payload.externalEntryId) {
+      throw new Error('Shikimori delete requires external entry id');
+    }
+
+    await fetchVoid(getShikimoriApiUrl(`/api/v2/user_rates/${payload.externalEntryId}`), {
+      method: 'DELETE',
+      headers: {
+        'User-Agent': 'AniSync',
+        Authorization: `Bearer ${requireIntegrationToken(integration)}`,
+      },
+    });
   },
 };
 
@@ -743,6 +780,21 @@ const myAnimeListProvider: ProviderAdapter = {
       personalRating: payload.personalRating ?? null,
       notes: payload.notes ?? null,
     };
+  },
+  async deleteEntry(integration: UserIntegration, payload: ProviderDeletePayload): Promise<void> {
+    if (!payload.externalAnimeId) {
+      throw new Error('MyAnimeList delete requires external anime id');
+    }
+
+    await fetchVoid(
+      new URL(`/v2/anime/${payload.externalAnimeId}/my_list_status`, providerBaseUrls.myanimelistApi).toString(),
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${requireIntegrationToken(integration)}`,
+        },
+      }
+    );
   },
 };
 
@@ -1068,6 +1120,71 @@ const aniListProvider: ProviderAdapter = {
       personalRating: result.score ? Number(result.score) / 10 : payload.personalRating ?? null,
       notes: result.notes ?? payload.notes ?? null,
     };
+  },
+  async deleteEntry(integration: UserIntegration, payload: ProviderDeletePayload): Promise<void> {
+    let entryId = payload.externalEntryId ? Number(payload.externalEntryId) : null;
+
+    if (!entryId && payload.externalAnimeId) {
+      if (!integration.userIdExternal) {
+        throw new Error('AniList delete requires entry id or linked user id');
+      }
+
+      const lookup = await fetchJson<{ data?: { MediaList?: { id: number } | null } }>(
+        providerBaseUrls.anilistGraphql.toString(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${requireIntegrationToken(integration)}`,
+          },
+          body: JSON.stringify({
+            query: `
+              query ($mediaId: Int, $userId: Int) {
+                MediaList(mediaId: $mediaId, userId: $userId) {
+                  id
+                }
+              }
+            `,
+            variables: {
+              mediaId: Number(payload.externalAnimeId),
+              userId: Number(integration.userIdExternal),
+            },
+          }),
+        }
+      );
+
+      entryId = lookup.data?.MediaList?.id ?? null;
+    }
+
+    if (!entryId) {
+      // Already absent on AniList
+      return;
+    }
+
+    const response = await fetchJson<{ data?: { DeleteMediaListEntry?: { deleted?: boolean } } }>(
+      providerBaseUrls.anilistGraphql.toString(),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${requireIntegrationToken(integration)}`,
+        },
+        body: JSON.stringify({
+          query: `
+            mutation ($id: Int) {
+              DeleteMediaListEntry(id: $id) {
+                deleted
+              }
+            }
+          `,
+          variables: { id: entryId },
+        }),
+      }
+    );
+
+    if (!response.data?.DeleteMediaListEntry?.deleted) {
+      throw new Error('AniList delete failed');
+    }
   },
 };
 

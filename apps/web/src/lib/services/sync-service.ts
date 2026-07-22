@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import {
   db,
+  animeCatalog,
+  animeServiceIds,
   syncJobAttempts,
   syncJobs,
   userEntryChanges,
@@ -13,7 +15,7 @@ import {
 import { appConfig, env, isQueuesEnabled } from '@/lib/config';
 import { enqueueEntrySync, enqueuePrimarySyncJob } from '@/lib/queue/queues';
 import { getProvider } from '@/lib/integrations/providers';
-import type { IntegrationServiceName, ProviderUpdatePayload } from '@/lib/integrations/provider-types';
+import type { IntegrationServiceName, ProviderDeletePayload, ProviderUpdatePayload } from '@/lib/integrations/provider-types';
 import { IntegrationService } from '@/lib/services/integration-service';
 import { LibraryService } from '@/lib/services/library-service';
 import { UserSettingsService } from '@/lib/services/user-service';
@@ -466,6 +468,90 @@ export class SyncService {
               : 'synced'
             : entry.notesSyncStatus,
       }, hasLocalOnlyNotes ? 'local_only' : 'synced');
+    }
+
+    return results;
+  }
+
+  static async deleteEntryFromProviders(userId: number, entryId: number) {
+    const settings = await UserSettingsService.getUserSettings(userId);
+    const entry = await LibraryService.getEntryById(userId, entryId);
+    if (!entry) {
+      return [] as Array<{ serviceName: string; status: 'completed' | 'failed' | 'skipped'; error?: string }>;
+    }
+
+    const [anime] = await db
+      .select({ malId: animeCatalog.malId })
+      .from(animeCatalog)
+      .where(eq(animeCatalog.id, entry.animeId))
+      .limit(1);
+
+    const serviceIds = await db
+      .select()
+      .from(animeServiceIds)
+      .where(eq(animeServiceIds.animeId, entry.animeId));
+
+    const externalByService = new Map(
+      serviceIds.map((row) => [row.serviceName, row.externalAnimeId] as const)
+    );
+
+    const integrations = await db
+      .select()
+      .from(userIntegrations)
+      .where(eq(userIntegrations.userId, userId));
+
+    const targets = integrations.filter((integration) => {
+      if (!integration.accessToken) {
+        return false;
+      }
+      if (settings?.primaryService && integration.serviceName === settings.primaryService) {
+        return true;
+      }
+      return integration.automaticSync;
+    });
+
+    const results: Array<{ serviceName: string; status: 'completed' | 'failed' | 'skipped'; error?: string }> = [];
+
+    for (const integration of targets) {
+      const provider = getProvider(integration.serviceName as IntegrationServiceName);
+      const refreshed = await IntegrationService.refreshTokenIfNeeded(integration as UserIntegration);
+
+      const payload: ProviderDeletePayload = {
+        externalEntryId:
+          integration.serviceName === entry.sourceService ? entry.sourceEntryId : null,
+        externalAnimeId:
+          externalByService.get(integration.serviceName) ||
+          (integration.serviceName === 'myanimelist' && anime?.malId
+            ? String(anime.malId)
+            : null),
+      };
+
+      if (
+        (integration.serviceName === 'shikimori' && !payload.externalEntryId) ||
+        (integration.serviceName === 'myanimelist' && !payload.externalAnimeId) ||
+        (integration.serviceName === 'anilist' && !payload.externalEntryId && !payload.externalAnimeId)
+      ) {
+        results.push({
+          serviceName: integration.serviceName,
+          status: 'skipped',
+          error: 'Missing provider identifiers for delete',
+        });
+        continue;
+      }
+
+      try {
+        await provider.deleteEntry(refreshed, payload);
+        results.push({
+          serviceName: integration.serviceName,
+          status: 'completed',
+        });
+      } catch (error) {
+        results.push({
+          serviceName: integration.serviceName,
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Unknown provider delete error',
+        });
+      }
     }
 
     return results;

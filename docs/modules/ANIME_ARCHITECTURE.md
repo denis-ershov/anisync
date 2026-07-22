@@ -21,6 +21,17 @@
 
 `scope: 'full'` остаётся для редких админ/отладочных сценариев.
 
+## Удаление статуса (library entry)
+
+`DELETE /api/user/library/[id]`:
+
+1. Best-effort удаление на primary и auto-sync провайдерах (`provider.deleteEntry`).
+2. Локальное удаление строки `user_library_entries` (связанные `user_entry_changes` — cascade).
+
+Провайдеры: Shikimori — `DELETE user_rates/{id}`; MAL — `DELETE my_list_status`; AniList — `DeleteMediaListEntry` (при необходимости lookup по `mediaId`).
+
+UI: меню карточки и кнопка в модалке «Удалить из списка».
+
 ## Код
 
 - Модуль: `apps/web/src/modules/anime/`

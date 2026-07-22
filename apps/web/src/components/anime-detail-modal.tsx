@@ -9,6 +9,7 @@ import {
   Heart,
   NotebookText,
   Star,
+  Trash2,
   Tv,
   Plus,
   Minus,
@@ -44,6 +45,7 @@ interface AnimeDetailModalProps {
   anime: Anime;
   children: React.ReactNode;
   onEpisodesUpdate?: (episodes: number) => void;
+  onRemoved?: () => void;
 }
 
 const statusTranslationKeys: Record<string, string> = {
@@ -66,7 +68,7 @@ const getAnimeStatusKey = (status: string) => {
   return statusTranslationKeys[normalized] || 'unknown';
 };
 
-export function AnimeDetailModal({ anime, children, onEpisodesUpdate }: AnimeDetailModalProps) {
+export function AnimeDetailModal({ anime, children, onEpisodesUpdate, onRemoved }: AnimeDetailModalProps) {
   const t = useTranslations('AnimeDetailModal');
   const tAnimeCard = useTranslations('AnimeCard');
   const { toast } = useToast();
@@ -78,6 +80,7 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate }: AnimeDet
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [outOfSync, setOutOfSync] = React.useState(Boolean(anime.outOfSync));
   const [syncState, setSyncState] = React.useState(anime.syncState || (anime.outOfSync ? 'failed' : 'synced'));
+  const [open, setOpen] = React.useState(false);
   const primaryTitle = anime.titleRussian || anime.titleRomaji;
   const secondaryTitle = anime.titleRomaji && anime.titleRomaji !== primaryTitle ? anime.titleRomaji : null;
   const animeStatusKey = getAnimeStatusKey(anime.status);
@@ -241,8 +244,38 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate }: AnimeDet
     }
   };
 
+  const removeFromList = async () => {
+    if (!anime.userRateId || isUpdating) return;
+    if (!window.confirm(tAnimeCard('removeFromListConfirm'))) return;
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/user/library/${anime.userRateId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove entry');
+      }
+
+      toast({
+        title: tAnimeCard('removeSuccess'),
+      });
+      setOpen(false);
+      onRemoved?.();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: tAnimeCard('removeError'),
+        description: error instanceof Error ? error.message : tAnimeCard('removeError'),
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>{children}</DialogTrigger>
       <DialogContent className="max-w-4xl p-0">
         <DialogHeader className="relative h-64 md:h-80 overflow-hidden rounded-t-lg p-0">
@@ -391,6 +424,18 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate }: AnimeDet
                   className="min-h-[100px]"
                 />
             </div>
+
+            {anime.userRateId && (
+              <Button
+                variant="outline"
+                className="w-full text-destructive hover:text-destructive"
+                onClick={removeFromList}
+                disabled={isUpdating}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {tAnimeCard('removeFromList')}
+              </Button>
+            )}
 
           </div>
         </div>

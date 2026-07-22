@@ -398,6 +398,16 @@ export function ScheduleView() {
       {animes.map((anime) => (
         <AnimeCard
           key={anime.id}
+          onRemoved={() => {
+            setAnimeList((prev) =>
+              prev.filter((item) => {
+                if (anime.user_rate_id && item.user_rate_id) {
+                  return item.user_rate_id !== anime.user_rate_id;
+                }
+                return item.id !== anime.id;
+              })
+            );
+          }}
           anime={{
             id: parseInt(anime.id),
             titleRussian: anime.title,

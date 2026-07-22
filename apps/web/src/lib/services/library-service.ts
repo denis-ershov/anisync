@@ -571,6 +571,19 @@ export class LibraryService {
     return updated;
   }
 
+  static async deleteEntry(userId: number, entryId: number) {
+    const entry = await this.getEntryById(userId, entryId);
+    if (!entry) {
+      return null;
+    }
+
+    await db
+      .delete(userLibraryEntries)
+      .where(and(eq(userLibraryEntries.id, entry.id), eq(userLibraryEntries.userId, userId)));
+
+    return entry;
+  }
+
   static async markEntrySynced(
     entryId: number,
     changes: Partial<UserLibraryEntry>,

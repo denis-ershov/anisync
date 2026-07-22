@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Clock, MoreVertical, Plus, Minus, RotateCcw, Star } from "lucide-react";
+import { Clock, MoreVertical, Plus, Minus, RotateCcw, Star, Trash2 } from "lucide-react";
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { enUS, ru } from 'date-fns/locale';
 import { useLocale, useTranslations } from "next-intl";
@@ -24,9 +24,10 @@ import { Separator } from "./ui/separator";
 
 interface AnimeCardProps {
   anime: Anime;
+  onRemoved?: () => void;
 }
 
-export function AnimeCard({ anime }: AnimeCardProps) {
+export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
   const t = useTranslations('AnimeCard');
   const locale = useLocale();
   const dateLocale = locale === 'ru' ? ru : enUS;
@@ -142,6 +143,36 @@ export function AnimeCard({ anime }: AnimeCardProps) {
     return result;
   };
 
+  const removeFromList = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!anime.userRateId || isUpdating) return;
+    if (!window.confirm(t('removeFromListConfirm'))) return;
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`/api/user/library/${anime.userRateId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove entry');
+      }
+
+      toast({
+        title: t('removeSuccess'),
+      });
+      onRemoved?.();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: t('removeError'),
+        description: error instanceof Error ? error.message : t('removeError'),
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const retrySync = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!anime.userRateId || isUpdating) return;
@@ -193,6 +224,7 @@ export function AnimeCard({ anime }: AnimeCardProps) {
     <AnimeDetailModal
       anime={{...anime, watchedEpisodes: watchedEpisodes}}
       onEpisodesUpdate={setWatchedEpisodes}
+      onRemoved={onRemoved}
     >
       <Card className="group flex h-full flex-col overflow-hidden border-2 border-transparent transition-all duration-300 hover:border-primary hover:shadow-lg hover:shadow-primary/20">
         <CardHeader className="relative p-0 overflow-hidden rounded-t-lg">
@@ -255,6 +287,16 @@ export function AnimeCard({ anime }: AnimeCardProps) {
                 {outOfSync && (
                   <DropdownMenuItem onClick={retrySync}>
                     {t('retrySync')}
+                  </DropdownMenuItem>
+                )}
+                {anime.userRateId && (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={removeFromList}
+                    disabled={isUpdating}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {t('removeFromList')}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>

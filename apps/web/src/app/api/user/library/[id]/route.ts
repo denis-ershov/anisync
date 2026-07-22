@@ -107,3 +107,35 @@ export async function POST(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const userId = await requireCurrentUserId(request);
+    if (!userId) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const entryId = Number(id);
+    const entry = await LibraryService.getEntryById(userId, entryId);
+    if (!entry) {
+      return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+    }
+
+    const providers = await SyncService.deleteEntryFromProviders(userId, entryId);
+    const deleted = await LibraryService.deleteEntry(userId, entryId);
+    if (!deleted) {
+      return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ deleted: true, providers });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Internal server error', message: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
