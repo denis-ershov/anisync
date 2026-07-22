@@ -1,6 +1,15 @@
 # Changelog
 
+## 2026-07-22 (anime: точечный import расписания)
+
+**Файлы:** `apps/web/src/lib/integrations/library-schedule-import.ts`, `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/lib/integrations/provider-types.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/tests/library-schedule-import.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** primary import больше не тянет всю библиотеку (completed/dropped/…). Скачиваются только `watching` / `planned` / `rewatching`, затем оставляются тайтлы с эфиром/стартом в ближайшие 14 дней (текущая + следующая неделя).
+
+**Обоснование:** полный импорт (~тысячи записей) раздувает БД и тормозит sync; для расписания нужны только активные тайтлы на ближайшие недели.
+
 ## 2026-07-21 (torrents: удаление раздачи из БД при откреплении)
+
 
 **Файлы:** `apps/web/src/lib/services/torrent-local-store.ts`, `docs/modules/TORRENTS_ARCHITECTURE.md`.
 

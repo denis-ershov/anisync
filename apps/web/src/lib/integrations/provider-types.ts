@@ -1,4 +1,5 @@
 import type { UserIntegration } from '@/lib/db/schema';
+import type { FetchLibraryOptions } from '@/lib/integrations/library-schedule-import';
 
 export type IntegrationServiceName = 'shikimori' | 'myanimelist' | 'anilist';
 export type LibraryStatus =
@@ -115,7 +116,10 @@ export interface ProviderAdapter {
   exchangeCode(args: OAuthExchangeParams): Promise<ProviderTokenResponse>;
   refreshToken?(integration: UserIntegration): Promise<ProviderTokenResponse>;
   fetchViewer(accessToken: string): Promise<ProviderViewer>;
-  fetchLibrary(integration: UserIntegration): Promise<ProviderLibraryEntry[]>;
+  fetchLibrary(
+    integration: UserIntegration,
+    options?: FetchLibraryOptions
+  ): Promise<ProviderLibraryEntry[]>;
   fetchAnimeDetails(integration: UserIntegration, externalAnimeIds: string[]): Promise<ProviderAnimeDetails[]>;
   updateEntry(integration: UserIntegration, payload: ProviderUpdatePayload): Promise<ProviderUpdateResult>;
 }

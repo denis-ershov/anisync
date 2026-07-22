@@ -328,11 +328,15 @@ export class SyncService {
       const refreshedIntegration = await IntegrationService.refreshTokenIfNeeded(integration);
       const provider = getProvider(primaryService);
       attempt = await this.startAttempt(job.id, primaryService, { type: 'primary_import' });
-      const library = await provider.fetchLibrary(refreshedIntegration);
+      const library = await provider.fetchLibrary(refreshedIntegration, { scope: 'schedule' });
 
-      await LibraryService.upsertLibraryEntries(userId, primaryService, library);
+      const upserted = await LibraryService.upsertLibraryEntries(userId, primaryService, library);
+      await LibraryService.pruneLibraryToScheduleSlice(
+        userId,
+        upserted.map((row) => row.animeId)
+      );
 
-      await this.finishAttempt(attempt.id, 'completed', { imported: library.length });
+      await this.finishAttempt(attempt.id, 'completed', { imported: library.length, scope: 'schedule' });
       await db
         .update(syncJobs)
         .set({
@@ -340,6 +344,7 @@ export class SyncService {
           finishedAt: new Date(),
           summary: {
             imported: library.length,
+            scope: 'schedule',
           },
         })
         .where(eq(syncJobs.id, job.id));
@@ -347,7 +352,7 @@ export class SyncService {
       await LibraryService.createNotification(userId, {
         type: 'sync_completed',
         title: 'Sync completed',
-        message: `Imported ${library.length} entries from ${primaryService}.`,
+        message: `Imported ${library.length} watching/planned titles airing in the next 2 weeks from ${primaryService}.`,
       });
 
       return {
@@ -499,10 +504,17 @@ export class SyncService {
 
       const refreshedIntegration = await IntegrationService.refreshTokenIfNeeded(integration);
       const provider = getProvider(settings.primaryService);
-      const library = await provider.fetchLibrary(refreshedIntegration);
-      const scheduleEntries = library.filter((entry) => entry.watchStatus === 'watching' || entry.watchStatus === 'planned');
+      const scheduleEntries = await provider.fetchLibrary(refreshedIntegration, { scope: 'schedule' });
 
-      await LibraryService.upsertLibraryEntries(userId, settings.primaryService, scheduleEntries);
+      const upserted = await LibraryService.upsertLibraryEntries(
+        userId,
+        settings.primaryService,
+        scheduleEntries
+      );
+      await LibraryService.pruneLibraryToScheduleSlice(
+        userId,
+        upserted.map((row) => row.animeId)
+      );
 
       return scheduleEntries.length;
     } catch {

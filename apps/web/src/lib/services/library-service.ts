@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, notInArray, or, sql } from 'drizzle-orm';
 import {
   animeCatalog,
   animeServiceIds,
@@ -11,6 +11,7 @@ import {
   type AnimeCatalog,
   type UserLibraryEntry,
 } from '@/lib/db';
+import { SCHEDULE_IMPORT_STATUSES } from '@/lib/integrations/library-schedule-import';
 import type { IntegrationServiceName, ProviderAnimeDetails, ProviderLibraryEntry, ProviderUpdatePayload } from '@/lib/integrations/provider-types';
 import { applyLibraryFilters } from '@/lib/services/library-filters';
 import type { LibraryEntryView, LibraryFilters } from '@/lib/services/library-types';
@@ -325,6 +326,42 @@ export class LibraryService {
     }
 
     return results;
+  }
+
+  /**
+   * Оставляет в библиотеке пользователя только срез расписания:
+   * удаляет completed/dropped/… и watching/planned вне текущего import.
+   */
+  static async pruneLibraryToScheduleSlice(userId: number, keepAnimeIds: number[]) {
+    const junkStatuses = ['completed', 'on_hold', 'dropped', 'not_interested'] as const;
+    await db
+      .delete(userLibraryEntries)
+      .where(
+        and(eq(userLibraryEntries.userId, userId), inArray(userLibraryEntries.watchStatus, [...junkStatuses]))
+      );
+
+    const scheduleStatuses = [...SCHEDULE_IMPORT_STATUSES];
+    if (!keepAnimeIds.length) {
+      await db
+        .delete(userLibraryEntries)
+        .where(
+          and(
+            eq(userLibraryEntries.userId, userId),
+            inArray(userLibraryEntries.watchStatus, scheduleStatuses)
+          )
+        );
+      return;
+    }
+
+    await db
+      .delete(userLibraryEntries)
+      .where(
+        and(
+          eq(userLibraryEntries.userId, userId),
+          inArray(userLibraryEntries.watchStatus, scheduleStatuses),
+          notInArray(userLibraryEntries.animeId, keepAnimeIds)
+        )
+      );
   }
 
   static async mapLibraryEntry(entry: UserLibraryEntry): Promise<LibraryEntryView | null> {

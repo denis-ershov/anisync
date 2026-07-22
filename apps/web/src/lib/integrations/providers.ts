@@ -1,7 +1,12 @@
 import { env, getProviderCallbackUrl, getShikimoriApiUrl, getShikimoriGraphqlUrl, providerBaseUrls } from '@/lib/config';
 import type { UserIntegration } from '@/lib/db/schema';
+import {
+  filterLibraryForScheduleImport,
+  type FetchLibraryOptions,
+} from '@/lib/integrations/library-schedule-import';
 import type {
   IntegrationServiceName,
+  LibraryStatus,
   OAuthExchangeParams,
   ProviderAdapter,
   ProviderAnimeDetails,
@@ -20,6 +25,9 @@ import {
   toIsoOrNull,
 } from './provider-utils';
 
+function resolveLibraryScope(options?: FetchLibraryOptions) {
+  return options?.scope === 'full' ? 'full' : 'schedule';
+}
 function requireIntegrationToken(integration: UserIntegration) {
   if (!integration.accessToken) {
     throw new Error(`Missing access token for ${integration.serviceName}`);
@@ -317,7 +325,10 @@ const shikimoriProvider: ProviderAdapter = {
       username: data.nickname,
     };
   },
-  async fetchLibrary(integration: UserIntegration): Promise<ProviderLibraryEntry[]> {
+  async fetchLibrary(
+    integration: UserIntegration,
+    options?: FetchLibraryOptions
+  ): Promise<ProviderLibraryEntry[]> {
     const accessToken = requireIntegrationToken(integration);
     const userId = integration.userIdExternal;
 
@@ -325,14 +336,11 @@ const shikimoriProvider: ProviderAdapter = {
       throw new Error('Missing Shikimori external user id');
     }
 
-    const statuses: Array<ProviderLibraryEntry['watchStatus']> = [
-      'watching',
-      'planned',
-      'rewatching',
-      'completed',
-      'on_hold',
-      'dropped',
-    ];
+    const scope = resolveLibraryScope(options);
+    const statuses: LibraryStatus[] =
+      scope === 'schedule'
+        ? ['watching', 'planned', 'rewatching']
+        : ['watching', 'planned', 'rewatching', 'completed', 'on_hold', 'dropped'];
     const pageSize = 50;
     const entries: ProviderLibraryEntry[] = [];
 
@@ -354,7 +362,7 @@ const shikimoriProvider: ProviderAdapter = {
       await delay(SHIKIMORI_STATUS_DELAY_MS);
     }
 
-    return entries;
+    return scope === 'schedule' ? filterLibraryForScheduleImport(entries) : entries;
   },
   async fetchAnimeDetails(integration: UserIntegration, externalAnimeIds: string[]): Promise<ProviderAnimeDetails[]> {
     const accessToken = requireIntegrationToken(integration);
@@ -560,79 +568,91 @@ const myAnimeListProvider: ProviderAdapter = {
       username: viewer.name,
     };
   },
-  async fetchLibrary(integration: UserIntegration): Promise<ProviderLibraryEntry[]> {
+  async fetchLibrary(
+    integration: UserIntegration,
+    options?: FetchLibraryOptions
+  ): Promise<ProviderLibraryEntry[]> {
     const accessToken = requireIntegrationToken(integration);
+    const scope = resolveLibraryScope(options);
+    const statusParams =
+      scope === 'schedule' ? (['watching', 'plan_to_watch'] as const) : ([null] as const);
     const entries: ProviderLibraryEntry[] = [];
-    let nextUrl: URL | null = new URL(
-      '/v2/users/@me/animelist?fields=list_status,alternative_titles,media_type,num_episodes,mean,status,start_season,start_date,main_picture,synopsis,studios,genres,my_list_status',
-      providerBaseUrls.myanimelistApi
-    );
-    nextUrl.searchParams.set('limit', '100');
 
-    while (nextUrl) {
-      const response: {
-        data: Array<{
-          node: any;
-          list_status: any;
-        }>;
-        paging?: { next?: string };
-      } = await fetchJson(nextUrl.toString(), {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      entries.push(
-        ...response.data.map((entry: { node: any; list_status: any }) => ({
-          externalEntryId: String(entry.node.id),
-          externalAnimeId: String(entry.node.id),
-          malId: entry.node.id,
-          titleDefault: entry.node.title,
-          titleEnglish: entry.node.alternative_titles?.en || entry.node.title,
-          titleJapanese: entry.node.alternative_titles?.ja || null,
-          titleRussian: null,
-          licenseNameRu: null,
-          synonyms: entry.node.alternative_titles?.synonyms || [],
-          kind: entry.node.media_type || null,
-          rating: null,
-          score: entry.node.mean ?? null,
-          status: entry.node.status || null,
-          episodes: entry.node.num_episodes ?? null,
-          episodesAired: null,
-          duration: null,
-          airedOn: entry.node.start_date || null,
-          releasedOn: entry.node.start_date || null,
-          season: entry.node.start_season
-            ? `${entry.node.start_season.season}_${entry.node.start_season.year}`
-            : null,
-          url: `https://myanimelist.net/anime/${entry.node.id}`,
-          coverImage: entry.node.main_picture?.large || entry.node.main_picture?.medium || null,
-          nextEpisodeDate: null,
-          isCensored: false,
-          genres: (entry.node.genres || []).map((genre: any) => ({
-            id: String(genre.id),
-            name: genre.name,
-          })),
-          studios: (entry.node.studios || []).map((studio: any) => ({
-            id: String(studio.id),
-            name: studio.name,
-          })),
-          description: entry.node.synopsis || null,
-          descriptionHtml: null,
-          watchStatus: normalizeMalStatus(entry.list_status?.status),
-          watchedEpisodes: entry.list_status?.num_episodes_watched || 0,
-          personalRating: entry.list_status?.score ? Number(entry.list_status.score) : null,
-          notes: null,
-          isFavorite: false,
-          isNotInterested: false,
-          lastProviderUpdateAt: null,
-        }))
+    for (const status of statusParams) {
+      let nextUrl: URL | null = new URL(
+        '/v2/users/@me/animelist?fields=list_status,alternative_titles,media_type,num_episodes,mean,status,start_season,start_date,main_picture,synopsis,studios,genres,my_list_status',
+        providerBaseUrls.myanimelistApi
       );
+      nextUrl.searchParams.set('limit', '100');
+      if (status) {
+        nextUrl.searchParams.set('status', status);
+      }
 
-      nextUrl = response.paging?.next ? new URL(response.paging.next) : null;
+      while (nextUrl) {
+        const response: {
+          data: Array<{
+            node: any;
+            list_status: any;
+          }>;
+          paging?: { next?: string };
+        } = await fetchJson(nextUrl.toString(), {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        entries.push(
+          ...response.data.map((entry: { node: any; list_status: any }) => ({
+            externalEntryId: String(entry.node.id),
+            externalAnimeId: String(entry.node.id),
+            malId: entry.node.id,
+            titleDefault: entry.node.title,
+            titleEnglish: entry.node.alternative_titles?.en || entry.node.title,
+            titleJapanese: entry.node.alternative_titles?.ja || null,
+            titleRussian: null,
+            licenseNameRu: null,
+            synonyms: entry.node.alternative_titles?.synonyms || [],
+            kind: entry.node.media_type || null,
+            rating: null,
+            score: entry.node.mean ?? null,
+            status: entry.node.status || null,
+            episodes: entry.node.num_episodes ?? null,
+            episodesAired: null,
+            duration: null,
+            airedOn: entry.node.start_date || null,
+            releasedOn: entry.node.start_date || null,
+            season: entry.node.start_season
+              ? `${entry.node.start_season.season}_${entry.node.start_season.year}`
+              : null,
+            url: `https://myanimelist.net/anime/${entry.node.id}`,
+            coverImage: entry.node.main_picture?.large || entry.node.main_picture?.medium || null,
+            nextEpisodeDate: null,
+            isCensored: false,
+            genres: (entry.node.genres || []).map((genre: any) => ({
+              id: String(genre.id),
+              name: genre.name,
+            })),
+            studios: (entry.node.studios || []).map((studio: any) => ({
+              id: String(studio.id),
+              name: studio.name,
+            })),
+            description: entry.node.synopsis || null,
+            descriptionHtml: null,
+            watchStatus: normalizeMalStatus(entry.list_status?.status),
+            watchedEpisodes: entry.list_status?.num_episodes_watched || 0,
+            personalRating: entry.list_status?.score ? Number(entry.list_status.score) : null,
+            notes: null,
+            isFavorite: false,
+            isNotInterested: false,
+            lastProviderUpdateAt: null,
+          }))
+        );
+
+        nextUrl = response.paging?.next ? new URL(response.paging.next) : null;
+      }
     }
 
-    return entries;
+    return scope === 'schedule' ? filterLibraryForScheduleImport(entries) : entries;
   },
   async fetchAnimeDetails(integration: UserIntegration, externalAnimeIds: string[]): Promise<ProviderAnimeDetails[]> {
     const accessToken = requireIntegrationToken(integration);
@@ -799,11 +819,15 @@ const aniListProvider: ProviderAdapter = {
       username: viewer.name,
     };
   },
-  async fetchLibrary(integration: UserIntegration): Promise<ProviderLibraryEntry[]> {
+  async fetchLibrary(
+    integration: UserIntegration,
+    options?: FetchLibraryOptions
+  ): Promise<ProviderLibraryEntry[]> {
     const accessToken = requireIntegrationToken(integration);
+    const scope = resolveLibraryScope(options);
     const query = `
-      query ($userId: Int) {
-        MediaListCollection(userId: $userId, type: ANIME) {
+      query ($userId: Int, $statusIn: [MediaListStatus]) {
+        MediaListCollection(userId: $userId, type: ANIME, status_in: $statusIn) {
           lists {
             entries {
               id
@@ -853,6 +877,10 @@ const aniListProvider: ProviderAdapter = {
           query,
           variables: {
             userId: integration.userIdExternal ? Number(integration.userIdExternal) : undefined,
+            statusIn:
+              scope === 'schedule'
+                ? ['CURRENT', 'PLANNING', 'REPEATING']
+                : ['CURRENT', 'PLANNING', 'COMPLETED', 'PAUSED', 'DROPPED', 'REPEATING'],
           },
         }),
       }
@@ -860,7 +888,7 @@ const aniListProvider: ProviderAdapter = {
 
     const entries = response.data?.MediaListCollection?.lists?.flatMap((list) => list.entries || []) || [];
 
-    return entries.map((entry) => ({
+    const mapped: ProviderLibraryEntry[] = entries.map((entry) => ({
       externalEntryId: String(entry.id),
       externalAnimeId: String(entry.media.id),
       malId: entry.media.idMal ?? null,
@@ -906,6 +934,8 @@ const aniListProvider: ProviderAdapter = {
       isNotInterested: false,
       lastProviderUpdateAt: toIsoOrNull(entry.updatedAt),
     }));
+
+    return scope === 'schedule' ? filterLibraryForScheduleImport(mapped) : mapped;
   },
   async fetchAnimeDetails(integration: UserIntegration, externalAnimeIds: string[]): Promise<ProviderAnimeDetails[]> {
     requireIntegrationToken(integration);
