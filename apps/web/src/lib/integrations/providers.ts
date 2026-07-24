@@ -18,6 +18,7 @@ import type {
   ProviderUpdateResult,
   ProviderViewer,
 } from './provider-types';
+import { ProviderHttpError } from './provider-types';
 import {
   mapLibraryStatusToAniList,
   mapLibraryStatusToMal,
@@ -74,14 +75,14 @@ type ShikimoriRateResponse = {
       score?: number;
       episodes?: number;
       updatedAt?: string;
-        anime: {
-          id: string;
-          malId?: number;
-          name: string;
-          russian?: string;
-          licenseNameRu?: string;
-          english?: string | string[];
-          japanese?: string | string[];
+      anime: {
+        id: string;
+        malId?: number;
+        name: string;
+        russian?: string;
+        licenseNameRu?: string;
+        english?: string | string[];
+        japanese?: string | string[];
         synonyms?: string[];
         kind?: string;
         rating?: string;
@@ -101,7 +102,7 @@ type ShikimoriRateResponse = {
         studios?: Array<{ id: string; name: string; imageUrl?: string }>;
         description?: string;
         descriptionHtml?: string;
-      };
+      } | null;
     }>;
   };
 };
@@ -109,6 +110,23 @@ type ShikimoriRateResponse = {
 type ShikimoriRate = NonNullable<ShikimoriRateResponse['data']>['userRates'][number];
 
 function mapShikimoriRate(rate: ShikimoriRate): ProviderLibraryEntry {
+  if (!rate.anime) {
+    return {
+      externalEntryId: String(rate.id),
+      externalAnimeId: '',
+      titleDefault: 'Unavailable on Shikimori',
+      watchStatus: rate.status,
+      watchedEpisodes: rate.episodes || 0,
+      personalRating: rate.score ?? null,
+      notes: null,
+      isFavorite: false,
+      isNotInterested: false,
+      lastProviderUpdateAt: rate.updatedAt || null,
+      animeMissing: true,
+      isCensored: true,
+    };
+  }
+
   return {
     externalEntryId: String(rate.id),
     externalAnimeId: String(rate.anime.id),
@@ -133,12 +151,12 @@ function mapShikimoriRate(rate: ShikimoriRate): ProviderLibraryEntry {
     coverImage: rate.anime.poster?.originalUrl || rate.anime.poster?.mainUrl || null,
     nextEpisodeDate: rate.anime.nextEpisodeAt || null,
     isCensored: Boolean(rate.anime.isCensored),
-    genres: (rate.anime.genres || []).map((genre: NonNullable<ShikimoriRate['anime']['genres']>[number]) => ({
+    genres: (rate.anime.genres || []).map((genre: NonNullable<NonNullable<ShikimoriRate['anime']>['genres']>[number]) => ({
       id: genre.id,
       name: genre.russian || genre.name,
       kind: genre.kind,
     })),
-    studios: (rate.anime.studios || []).map((studio: NonNullable<ShikimoriRate['anime']['studios']>[number]) => ({
+    studios: (rate.anime.studios || []).map((studio: NonNullable<NonNullable<ShikimoriRate['anime']>['studios']>[number]) => ({
       id: studio.id,
       name: studio.name,
       image: studio.imageUrl,
@@ -244,10 +262,10 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
     }
 
     const errorText = await response.text();
-    throw new Error(`Request failed ${response.status}: ${errorText}`);
+    throw new ProviderHttpError(response.status, errorText, typeof input === 'string' ? input : undefined);
   }
 
-  throw new Error('Request failed after retries');
+  throw new ProviderHttpError(0, 'Request failed after retries');
 }
 
 /** DELETE/empty-body responses; treats 404 as already deleted. */
@@ -267,10 +285,10 @@ async function fetchVoid(input: string, init?: RequestInit): Promise<void> {
     }
 
     const errorText = await response.text();
-    throw new Error(`Request failed ${response.status}: ${errorText}`);
+    throw new ProviderHttpError(response.status, errorText, typeof input === 'string' ? input : undefined);
   }
 
-  throw new Error('Request failed after retries');
+  throw new ProviderHttpError(0, 'Request failed after retries');
 }
 
 const shikimoriProvider: ProviderAdapter = {
@@ -394,7 +412,9 @@ const shikimoriProvider: ProviderAdapter = {
       await delay(SHIKIMORI_STATUS_DELAY_MS);
     }
 
-    return scope === 'schedule' ? filterLibraryForScheduleImport(entries) : entries;
+    return scope === 'schedule'
+      ? filterLibraryForScheduleImport(entries.filter((entry) => !entry.animeMissing))
+      : entries;
   },
   async fetchAnimeDetails(integration: UserIntegration, externalAnimeIds: string[]): Promise<ProviderAnimeDetails[]> {
     const accessToken = requireIntegrationToken(integration);
@@ -1474,6 +1494,53 @@ export function getProvider(serviceName: IntegrationServiceName) {
 
 export function getCanonicalCallbackUrl(serviceName: IntegrationServiceName) {
   return getProviderCallbackUrl(serviceName);
+}
+
+/**
+ * Проверка: аниме ещё видно в GraphQL-каталоге Shikimori.
+ * false → каталог скрыт/удалён (кандидат на recovery после 404/422 write).
+ */
+export async function probeShikimoriAnimeExists(
+  accessToken: string,
+  externalAnimeId: string
+): Promise<boolean> {
+  const id = String(externalAnimeId || '').trim();
+  if (!id) {
+    return false;
+  }
+
+  const response = await fetchJson<{ data?: { animes?: Array<{ id: string }> } }>(getShikimoriGraphqlUrl(), {
+    method: 'POST',
+    headers: buildShikimoriHeaders(accessToken),
+    body: JSON.stringify({
+      query: `{ animes(ids: "${id}", limit: 1) { id } }`,
+    }),
+  });
+
+  return Boolean(response.data?.animes?.some((anime) => String(anime.id) === id));
+}
+
+/**
+ * Найти id аниме на Shikimori по MAL id.
+ * null → на Shiki тайтла нет (gap для secondary).
+ */
+export async function resolveShikimoriIdByMalId(
+  accessToken: string,
+  malId: number
+): Promise<string | null> {
+  if (!Number.isFinite(malId) || malId <= 0) {
+    return null;
+  }
+
+  const response = await fetchJson<Array<{ id: number; mal_id?: number }>>(
+    getShikimoriApiUrl(`/api/animes?mal_id=${malId}&limit=1`),
+    {
+      headers: buildShikimoriHeaders(accessToken),
+    }
+  );
+
+  const hit = Array.isArray(response) ? response[0] : null;
+  return hit?.id ? String(hit.id) : null;
 }
 
 /** Batch lookup AniList media ids by MAL ids (Page.media idMal_in). */

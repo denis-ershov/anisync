@@ -61,6 +61,10 @@ export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
         : syncState === 'local_only'
           ? t('syncLocalOnly')
           : null;
+  const showPrimaryUnavailable =
+    anime.sourceService &&
+    anime.sourceService !== 'shikimori' &&
+    Boolean(anime.serviceLinks?.some((link) => link.service === 'shikimori'));
 
   useEffect(() => {
     if (!anime.userRateId || (syncState !== 'pending' && syncState !== 'processing')) {
@@ -318,6 +322,11 @@ export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
             {syncBadgeLabel && (
               <Badge variant={syncState === 'failed' ? 'destructive' : 'outline'} className="text-[10px]">
                 {syncBadgeLabel}
+              </Badge>
+            )}
+            {showPrimaryUnavailable && (
+              <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400">
+                {t('primaryUnavailable')}
               </Badge>
             )}
           </div>

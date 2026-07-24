@@ -96,6 +96,10 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate, onRemoved 
         : syncState === 'local_only'
           ? tAnimeCard('syncLocalOnly')
           : null;
+  const showPrimaryUnavailable =
+    Boolean(anime.sourceService) &&
+    anime.sourceService !== 'shikimori' &&
+    Boolean(anime.serviceLinks?.some((link) => link.service === 'shikimori'));
 
   React.useEffect(() => {
     if (!anime.userRateId || (syncState !== 'pending' && syncState !== 'processing')) {
@@ -367,6 +371,11 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate, onRemoved 
                         {tAnimeCard('retrySync')}
                       </Button>
                     )}
+                  </div>
+                )}
+                {showPrimaryUnavailable && (
+                  <div className="rounded-md border border-dashed border-amber-500/40 p-2 text-sm text-amber-700 dark:text-amber-400">
+                    {tAnimeCard('primaryUnavailable')}
                   </div>
                 )}
                  <div className="flex items-center text-sm">

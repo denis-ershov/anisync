@@ -120,6 +120,7 @@
     "syncPending": "Sync queued",
     "syncFailed": "Sync failed",
     "syncLocalOnly": "Stored locally",
+    "primaryUnavailable": "Unavailable on Shikimori",
     "syncQueued": "Sync queued",
     "syncQueuedDescription": "The change was saved locally and queued for provider sync.",
     "syncRetryError": "Failed to requeue sync",

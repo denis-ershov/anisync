@@ -1,5 +1,60 @@
 # Changelog
 
+## 2026-07-24 (sync: primary эталон при сравнении сервисов)
+
+**Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/lib/integrations/providers.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:**
+- Primary всегда эталон vs secondary: есть на primary без статуса → не импортируем secondary, cascade удаляет и пушит отсутствие.
+- Gap только если тайтла физически нет на primary (`probe` / `resolveShikimoriIdByMalId`).
+- Primary → local с `preserveOutOfSync`; затем push primary-состояния на остальные.
+- Outbound «из каталога» только для явных правок (`manual_update` / `retry_sync`), не для secondary-import.
+
+**Обоснование:** secondary не должен перебивать primary; ручные правки в AniSync должны уходить на все сервисы без случайных откатов/удалений от импорта.
+
+## 2026-07-24 (fix: gap с secondary когда тайтла нет на primary)
+
+**Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/integrations/library-schedule-import.ts`, `apps/web/tests/library-schedule-import.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:**
+- Gap = нет в **membership** primary (malId / external id), а не «в каталоге есть shiki id».
+- Cascade: primary эталон, но если аниме физически нет на Shiki (probe) — не удаляем (оставляем secondary).
+- Schedule: `planned` + `currently_airing` импортируется без `nextEpisodeDate` (иначе MAL PTW airing не попадал в каталог).
+
+**Обоснование:** MAL 46488 и подобные — нет на Shiki, есть на MAL secondary, но не загружались / сносились.
+
+## 2026-07-24 (fix: локальные правки не затираются inbound)
+
+**Файлы:** `apps/web/src/lib/services/library-service.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/integrations/library-schedule-import.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** schedule refresh больше не перезаписывает статус/серии/оценки уже локальных записей с primary (`onExistingLibrary: 'keep'`). `upsertLibraryEntries` / `upsertLibraryEntry` по умолчанию не трогают `outOfSync`. После refresh outbound пушит новые с primary + все pending локальные правки (каталог → сервисы), а не «состояние primary на всех».
+
+**Обоснование:** правки в AniSync откатывались stale refresh и уходили на сервисы уже затёртыми данными primary.
+
+## 2026-07-24 (fix: cascade + gap secondary)
+
+**Файлы:** `apps/web/src/lib/services/sync-service.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** уточнены правила cascade/gap — см. запись «gap с secondary когда тайтла нет на primary».
+
+**Обоснование:** primary — эталон при наличии тайтла на сервисе; physically missing → secondary.
+
+## 2026-07-24 (sync: recovery когда Shikimori недоступен)
+
+**Файлы:** `apps/web/src/lib/integrations/provider-types.ts`, `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/components/anime-card.tsx`, `apps/web/src/components/anime-detail-modal.tsx`, `apps/web/messages/*`, `apps/web/tests/provider-http-error.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** `ProviderHttpError` + probe каталога Shiki; при 404/422 write и отсутствующем anime — DELETE rate, rebind на secondary, push на остальные; null-safe rates; бейдж «Недоступно на Shikimori».
+
+**Обоснование:** после цензуры/удаления тайтла с Shiki user_rate остаётся, PATCH падает и блокирует sync на MAL/AL.
+
+## 2026-07-24 (fix: secondary не затирает локальные правки)
+
+**Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/services/library-service.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** schedule refresh с secondary/MAL только **добавляет** gap-тайтлы; уже локальные записи не перезаписываются. При `outOfSync` — повторный outbound sync. `upsertLibraryEntry(..., onExistingLibrary: 'keep')`.
+
+**Обоснование:** правки статуса/серий на тайтле только с MAL откатывались inbound refresh с secondary.
+
 ## 2026-07-24 (deploy: один image для web/worker/scheduler)
 
 **Файлы:** `docker-compose.yml`, `apps/web/Dockerfile`, `docs/COOLIFY_DEPLOY.md`.

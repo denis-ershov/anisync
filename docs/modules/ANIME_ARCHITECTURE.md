@@ -1,6 +1,6 @@
 # Архитектура модуля Anime
 
-> **Версия:** 1.4  
+> **Версия:** 1.8  
 > **Дата:** 2026-07-24  
 > **Контракт:** [MODULE_CONTRACT.md](../MODULE_CONTRACT.md)
 
@@ -11,22 +11,45 @@
 - API: `/api/user/anime/*`, `/api/user/library/*`, `/api/integrations/*`, `/api/user/integrations/sync*`.
 - UI: расписание, настройки интеграций.
 
-## Primary / Secondary
+## Primary / Secondary / AniSync
 
 Настройки в `user_settings`: `primary_service`, `secondary_service` (оба nullable enum).
 
 | Роль | Смысл |
 |------|--------|
-| **Primary** | Эталон всего, что есть в его списке (статусы, оценки, эпизоды). |
-| **Secondary** | Эталон **только** для тайтлов, которых **нет** на primary (schedule gaps). |
-| Остальные connected | Targets для outbound push с primary; не эталон сами по себе. |
+| **Primary** | Эталон при **сравнении сервисов**. Статус/наличие в списке primary побеждает secondary. |
+| **Secondary** | Только **gap**: тайтла **физически нет** на primary (цензура / не заведён). |
+| **AniSync (локальные правки)** | Явные правки пользователя (`manual_update` / `retry_sync`) → outbound на primary и все connected. |
+| Остальные connected | Targets для push состояния эталона. |
+
+### Матрица авторитета
+
+| Ситуация | Эталон | Действие |
+|----------|--------|----------|
+| Тайтл в membership primary | Primary (статус/серии) | Импорт в local (если нет pending правки) → push на остальные |
+| Тайтл **есть** на primary-сервисе, **статуса нет** (нет в membership), на secondary есть статус | Primary («нет в списке») | Не импортировать secondary; cascade delete local + с провайдеров |
+| Тайтла **физически нет** на primary | Secondary | Gap-import; cascade не удаляет |
+| Пользователь изменил запись в AniSync | Local (intentional) | `outOfSync` + `user_entry_changes` → push на primary и все; refresh не затирает |
 
 Правила:
 
-1. Любая синхронизация смотрит на primary в первую очередь.
-2. Secondary ≠ primary; при смене primary совпадающий secondary сбрасывается.
-3. Тайтл есть на MAL/AniList, но нет на primary → full catalog sync **не** меняет его статус/серии/оценки.
-4. Schedule refresh: gaps сначала с explicit secondary, затем MAL → AniList → Shikimori.
+1. Primary всегда важнее secondary при сравнении сервисов.
+2. Gap ≠ «нет в membership». Gap = «нет на сервисе primary» (probe / resolve by MAL).
+3. Secondary-импорт **не** создаёт intentional `user_entry_changes` и не должен случайно пушиться как «правка каталога».
+4. Outbound после refresh: (a) состояние primary → others; (b) только intentional pending (`manual_update` / `retry_sync`).
+5. Secondary ≠ primary; при смене primary совпадающий secondary сбрасывается.
+6. Schedule: PTW + `currently_airing` импортируется даже без `nextEpisodeDate` (MAL).
+
+## Primary unavailable (Shikimori цензура / удалён каталог)
+
+Сигнал: PATCH/POST `user_rates` на Shiki → HTTP **404/422**, затем probe GraphQL `animes(ids)` пустой; либо membership rate с `anime: null`.
+
+Recovery (`recoverFromUnavailablePrimary`):
+
+1. DELETE `user_rates` на Shiki (404 = ok).
+2. `sourceService` → explicit secondary (или MAL).
+3. Outbound push на secondary + остальные **без** write на Shiki.
+4. Notification + UI-бейдж «Недоступно на Shikimori».
 
 ## Полная синхронизация каталога primary
 
@@ -35,9 +58,9 @@ API: `POST /api/user/integrations/sync/catalog`
 Job: `direction = primary_catalog_push`
 
 1. `fetchLibrary(primary, { scope: 'membership' })` — полный список.
-2. Local upsert всех записей с primary.
-3. `dispatchEntrySync` на каждую → outbound create/update на остальные connected.
-4. Без cascade-delete; без импорта тайтлов, которых нет на primary.
+2. Local upsert с primary (`preserveOutOfSync`).
+3. `dispatchEntrySync` на каждую → outbound на остальные connected.
+4. Без cascade-delete; без импорта gap с secondary.
 
 Отдельно: Manual Sync (schedule) = `primary_import` → `refreshScheduleSlice`.
 
@@ -48,16 +71,24 @@ Job: `direction = primary_catalog_push`
 
 ## Mixed-provider schedule import
 
-1. Primary membership → cascade delete (только primary) + upsert (schedule + align локальных).
-2. Push primary entries на остальные.
-3. Fallback services: secondary first, затем остальные; library только если нет на primary.
-4. Soft prune.
+1. Primary membership → cascade: нет в membership **и** тайтл существует на primary → delete (+ providers). Физически нет → keep (gap). `outOfSync` не трогаем.
+2. Upsert с primary → local (`preserveOutOfSync` для ручных правок).
+3. Secondary/fallback: импорт **только** если тайтла нет на primary-сервисе; если есть на primary без статуса — skip.
+4. Outbound: primary-aligned entries + intentional pending only.
+5. Soft prune.
 
 ## Outbound sync
 
-`syncEntryToProviders`: primary → MAL → rest; update или create.
+`syncEntryToProviders`: локальное состояние entry → primary → MAL → rest.
+
+Источники постановки в очередь:
+
+- UI PATCH / episodes → `manual_update` + `outOfSync`;
+- Retry → `retry_sync`;
+- Schedule refresh → push эталона primary (не secondary-import).
 
 ## Документы / код
 
 - `sync-service.ts`, `library-service.ts`, `integrations/page.tsx`
+- `resolveShikimoriIdByMalId` / `probeShikimoriAnimeExists` — проверка «есть ли тайтл на primary»
 - Миграция: `drizzle/0007_secondary_service.sql` — применяется автоматически при старте `web` (`RUN_MIGRATIONS=true`)

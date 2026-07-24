@@ -85,6 +85,34 @@ test('dropped/completed/on_hold never enter schedule import', () => {
   }
 });
 
+test('planned + currently airing imports even without nextEpisodeDate (MAL gaps)', () => {
+  const now = new Date('2026-07-22T12:00:00Z');
+  assert.equal(
+    shouldIncludeInScheduleImport(
+      entry({
+        watchStatus: 'planned',
+        status: 'currently_airing',
+        nextEpisodeDate: null,
+        airedOn: '2026-07-05',
+      }),
+      now
+    ),
+    true
+  );
+  assert.equal(
+    shouldIncludeInScheduleImport(
+      entry({
+        watchStatus: 'planned',
+        status: 'finished_airing',
+        nextEpisodeDate: null,
+        airedOn: '2026-07-05',
+      }),
+      now
+    ),
+    false
+  );
+});
+
 test('planned stays limited to 14-day window', () => {
   const now = new Date('2026-07-22T12:00:00Z');
   assert.equal(

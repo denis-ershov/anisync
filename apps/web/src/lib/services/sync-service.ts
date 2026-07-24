@@ -19,7 +19,7 @@ import {
   enqueueScheduleRefresh,
   getScheduleRefreshJobState,
 } from '@/lib/queue/queues';
-import { getProvider, resolveAniListIdsByMal } from '@/lib/integrations/providers';
+import { getProvider, probeShikimoriAnimeExists, resolveAniListIdsByMal, resolveShikimoriIdByMalId } from '@/lib/integrations/providers';
 import { filterLibraryForPrimaryAuthoritativeImport } from '@/lib/integrations/library-schedule-import';
 import type {
   IntegrationServiceName,
@@ -28,6 +28,10 @@ import type {
   ProviderLibraryEntry,
   ProviderSearchResult,
   ProviderUpdatePayload,
+} from '@/lib/integrations/provider-types';
+import {
+  isPrimaryWriteUnavailableStatus,
+  isProviderHttpError,
 } from '@/lib/integrations/provider-types';
 import { IntegrationService } from '@/lib/services/integration-service';
 import { LibraryService } from '@/lib/services/library-service';
@@ -61,6 +65,13 @@ export function isRunningSyncJobStale(
   const started = new Date(startedAt);
   return now.getTime() - started.getTime() > timeoutMs;
 }
+
+type ProviderSyncResult = {
+  serviceName: string;
+  status: 'completed' | 'failed' | 'skipped';
+  entryId?: string | null;
+  error?: string;
+};
 
 export class SyncService {
   private static buildInternalUrl(pathname: string, origin?: string) {
@@ -457,7 +468,9 @@ export class SyncService {
 
       const provider = getProvider(primaryService);
       const membership = await provider.fetchLibrary(refreshed, { scope: 'membership' });
-      const upserted = await LibraryService.upsertLibraryEntries(userId, primaryService, membership);
+      const upserted = await LibraryService.upsertLibraryEntries(userId, primaryService, membership, {
+        preserveOutOfSync: true,
+      });
 
       let pushed = 0;
       for (const row of upserted) {
@@ -524,14 +537,137 @@ export class SyncService {
     }
   }
 
-  static async syncEntryToProviders(userId: number, entryId: number, payload: ProviderUpdatePayload) {
+  /**
+   * Primary (Shikimori) write невозможен (каталог скрыт/удалён, rate «застрял»).
+   * DELETE rate на Shiki → source = secondary → push на остальные без Shiki.
+   */
+  static async recoverFromUnavailablePrimary(
+    userId: number,
+    entryId: number,
+    payload?: ProviderUpdatePayload
+  ): Promise<ProviderSyncResult[] | null> {
     const settings = await UserSettingsService.getUserSettings(userId);
     const entry = await LibraryService.getEntryById(userId, entryId);
     if (!settings?.primaryService || !entry) {
       return null;
     }
 
-    const primaryService = settings.primaryService;
+    const primaryService = settings.primaryService as IntegrationServiceName;
+    if (primaryService !== 'shikimori') {
+      return null;
+    }
+
+    const integrations = await db
+      .select()
+      .from(userIntegrations)
+      .where(eq(userIntegrations.userId, userId));
+    const connected = integrations.filter((row) => Boolean(row.accessToken));
+    const shikiIntegration = connected.find((row) => row.serviceName === 'shikimori');
+
+    if (shikiIntegration && entry.sourceEntryId && entry.sourceService === 'shikimori') {
+      try {
+        const refreshed = await IntegrationService.refreshTokenIfNeeded(shikiIntegration as UserIntegration);
+        await getProvider('shikimori').deleteEntry(refreshed, {
+          externalEntryId: entry.sourceEntryId,
+          externalAnimeId: null,
+        });
+      } catch {
+        // best-effort delete; 404 already treated as success in fetchVoid
+      }
+    }
+
+    const secondaryService = (settings.secondaryService as IntegrationServiceName | null) || null;
+    const pickFallback = (): IntegrationServiceName | null => {
+      const order: IntegrationServiceName[] = [];
+      if (secondaryService && secondaryService !== primaryService) {
+        order.push(secondaryService);
+      }
+      for (const name of ['myanimelist', 'anilist', 'shikimori'] as const) {
+        if (name !== primaryService && !order.includes(name)) {
+          order.push(name);
+        }
+      }
+      for (const name of order) {
+        if (connected.some((row) => row.serviceName === name)) {
+          return name;
+        }
+      }
+      return null;
+    };
+
+    const fallback = pickFallback();
+    if (!fallback) {
+      await LibraryService.markEntrySyncFailed(entry.id, false);
+      await LibraryService.createNotification(userId, {
+        animeId: entry.animeId,
+        type: 'sync_failed',
+        title: 'Shikimori unavailable',
+        message: 'Title is unavailable on Shikimori and no secondary service is connected.',
+      });
+      return [{ serviceName: 'shikimori', status: 'failed' as const, error: 'primary_unavailable_no_fallback' }];
+    }
+
+    const serviceIds = await LibraryService.listServiceIdsForAnime([entry.animeId]);
+    const fallbackAnimeId =
+      serviceIds.find((row) => row.serviceName === fallback)?.externalAnimeId ||
+      (fallback === 'myanimelist'
+        ? (
+            await db
+              .select({ malId: animeCatalog.malId })
+              .from(animeCatalog)
+              .where(eq(animeCatalog.id, entry.animeId))
+              .limit(1)
+          )[0]?.malId?.toString()
+        : null);
+
+    await LibraryService.rebindEntrySource(entry.id, fallback, fallbackAnimeId ? String(fallbackAnimeId) : null);
+
+    const syncPayload: ProviderUpdatePayload = payload || {
+      externalAnimeId: fallbackAnimeId || String(entry.animeId),
+      externalEntryId: fallbackAnimeId ? String(fallbackAnimeId) : null,
+      watchedEpisodes: entry.watchedEpisodes,
+      watchStatus: entry.watchStatus,
+      personalRating: entry.personalRating,
+      notes: entry.notes,
+      isFavorite: entry.isFavorite,
+      isNotInterested: entry.isNotInterested,
+    };
+
+    const results = await this.syncEntryToProviders(userId, entry.id, syncPayload, {
+      skipServices: ['shikimori'],
+      skipPrimaryRecovery: true,
+    });
+
+    await LibraryService.createNotification(userId, {
+      animeId: entry.animeId,
+      type: 'system',
+      title: 'Shikimori unavailable',
+      message: `Title is unavailable on Shikimori; sync moved to ${fallback}.`,
+    });
+
+    return [
+      { serviceName: 'shikimori', status: 'skipped' as const, error: 'primary_unavailable_recovered' },
+      ...(results || []),
+    ];
+  }
+
+  static async syncEntryToProviders(
+    userId: number,
+    entryId: number,
+    payload: ProviderUpdatePayload,
+    options?: {
+      skipServices?: IntegrationServiceName[];
+      skipPrimaryRecovery?: boolean;
+    }
+  ): Promise<ProviderSyncResult[] | null> {
+    const settings = await UserSettingsService.getUserSettings(userId);
+    const entry = await LibraryService.getEntryById(userId, entryId);
+    if (!settings?.primaryService || !entry) {
+      return null;
+    }
+
+    const primaryService = settings.primaryService as IntegrationServiceName;
+    const skipServices = new Set(options?.skipServices || []);
     const [anime] = await db
       .select({ malId: animeCatalog.malId })
       .from(animeCatalog)
@@ -563,7 +699,7 @@ export class SyncService {
       .filter((integration) => Boolean(integration.accessToken))
       .sort((a, b) => rank(a.serviceName) - rank(b.serviceName));
 
-    const results: Array<{ serviceName: string; status: 'completed' | 'failed' | 'skipped'; entryId?: string | null; error?: string }> = [];
+    const results: ProviderSyncResult[] = [];
     let hasLocalOnlyNotes = false;
     let fallbackSource: { serviceName: IntegrationServiceName; entryId: string } | null = null;
     let currentSourceEntryId = entry.sourceEntryId;
@@ -571,6 +707,15 @@ export class SyncService {
 
     for (const integration of targets) {
       const serviceName = integration.serviceName as IntegrationServiceName;
+      if (skipServices.has(serviceName)) {
+        results.push({
+          serviceName,
+          status: 'skipped',
+          error: serviceName === 'shikimori' ? 'primary_unavailable' : 'skipped_by_options',
+        });
+        continue;
+      }
+
       const provider = getProvider(serviceName);
       const refreshed = await IntegrationService.refreshTokenIfNeeded(integration as UserIntegration);
 
@@ -591,7 +736,6 @@ export class SyncService {
         continue;
       }
 
-      // Shikimori: update by entry id OR create by anime id
       if (serviceName === 'shikimori' && !externalEntryId && !externalAnimeId) {
         results.push({
           serviceName,
@@ -666,6 +810,30 @@ export class SyncService {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown provider sync error';
+
+        if (
+          !options?.skipPrimaryRecovery &&
+          serviceName === primaryService &&
+          primaryService === 'shikimori' &&
+          isProviderHttpError(error) &&
+          isPrimaryWriteUnavailableStatus(error.status)
+        ) {
+          const shikiAnimeId = externalAnimeId || payload.externalAnimeId;
+          let animeExists = true;
+          try {
+            animeExists = await probeShikimoriAnimeExists(
+              refreshed.accessToken || '',
+              String(shikiAnimeId || '')
+            );
+          } catch {
+            animeExists = false;
+          }
+
+          if (!animeExists) {
+            return this.recoverFromUnavailablePrimary(userId, entry.id, payload);
+          }
+        }
+
         results.push({
           serviceName,
           status: 'failed',
@@ -1056,7 +1224,7 @@ export class SyncService {
       .filter((integration) => integration.serviceName !== primaryService)
       .sort((a, b) => fallbackRank(a.serviceName) - fallbackRank(b.serviceName));
 
-    // 1) Primary membership — единый источник правды (статусы + удаление).
+    // 1) Primary membership — эталон при сравнении сервисов.
     let primaryMembership: ProviderLibraryEntry[] = [];
     if (primaryIntegration?.accessToken) {
       try {
@@ -1065,6 +1233,34 @@ export class SyncService {
       } catch {
         primaryMembership = [];
       }
+    }
+
+    // Orphan Shiki rates (anime null): recovery → secondary, без upsert с битыми данными.
+    if (primaryService === 'shikimori') {
+      const orphans = primaryMembership.filter((entry) => entry.animeMissing && entry.externalEntryId);
+      for (const orphan of orphans) {
+        try {
+          const local = await LibraryService.getEntryBySourceEntryId(
+            userId,
+            'shikimori',
+            orphan.externalEntryId
+          );
+          if (local) {
+            await this.recoverFromUnavailablePrimary(userId, local.id, {
+              externalAnimeId: String(local.animeId),
+              watchedEpisodes: local.watchedEpisodes,
+              watchStatus: local.watchStatus as LibraryStatus,
+              personalRating: local.personalRating,
+              notes: local.notes,
+              isFavorite: local.isFavorite,
+              isNotInterested: local.isNotInterested,
+            });
+          }
+        } catch {
+          // best-effort per orphan rate
+        }
+      }
+      primaryMembership = primaryMembership.filter((entry) => !entry.animeMissing);
     }
 
     const deleted = await this.cascadeExternalDeletes(userId, connected, primaryMembership);
@@ -1088,28 +1284,101 @@ export class SyncService {
     );
 
     const keepAnimeIds = new Set<number>();
-    const primaryAnimeIds = new Set<number>();
     const primaryEntryIdsToPush = new Set<number>();
     const malOwnedAnimeIds = new Set<number>();
     const sources: IntegrationServiceName[] = [];
 
-    // 2) Upsert с primary: schedule + выравнивание уже локальных тайтлов (completed и т.д.).
+    const primaryPresentExternalIds = new Set(
+      primaryMembership.map((entry) => String(entry.externalAnimeId)).filter(Boolean)
+    );
+    const primaryPresentMalIds = new Set(
+      primaryMembership
+        .map((entry) => entry.malId)
+        .filter((malId): malId is number => typeof malId === 'number')
+    );
+
+    let primaryToken: string | null = null;
+    if (primaryIntegration?.accessToken) {
+      try {
+        const refreshed = await IntegrationService.refreshTokenIfNeeded(primaryIntegration as UserIntegration);
+        primaryToken = refreshed.accessToken || null;
+      } catch {
+        primaryToken = primaryIntegration.accessToken || null;
+      }
+    }
+
+    // Кэш: malId / primaryExt → существует ли тайтл на primary-сервисе (не в membership, а в каталоге).
+    const existsOnPrimaryByKey = new Map<string, boolean>();
+    const resolveExistsOnPrimary = async (args: {
+      primaryExt?: string | null;
+      malId?: number | null;
+    }): Promise<boolean> => {
+      if (primaryService !== 'shikimori' || !primaryToken) {
+        // Для не-Shiki primary: наличие id в membership = есть; иначе считаем unknown→gap только без id.
+        return Boolean(args.primaryExt && primaryPresentExternalIds.has(args.primaryExt));
+      }
+
+      if (args.primaryExt) {
+        const key = `id:${args.primaryExt}`;
+        const cached = existsOnPrimaryByKey.get(key);
+        if (cached !== undefined) {
+          return cached;
+        }
+        let exists = false;
+        try {
+          exists = await probeShikimoriAnimeExists(primaryToken, args.primaryExt);
+        } catch {
+          exists = false;
+        }
+        existsOnPrimaryByKey.set(key, exists);
+        return exists;
+      }
+
+      if (typeof args.malId === 'number') {
+        const key = `mal:${args.malId}`;
+        const cached = existsOnPrimaryByKey.get(key);
+        if (cached !== undefined) {
+          return cached;
+        }
+        let exists = false;
+        try {
+          const shikiId = await resolveShikimoriIdByMalId(primaryToken, args.malId);
+          exists = Boolean(shikiId);
+          if (shikiId) {
+            existsOnPrimaryByKey.set(`id:${shikiId}`, true);
+          }
+        } catch {
+          exists = false;
+        }
+        existsOnPrimaryByKey.set(key, exists);
+        return exists;
+      }
+
+      return false;
+    };
+
+    // 2) Primary → local: эталон статусов (кроме явных локальных outOfSync правок).
     if (primaryMembership.length && primaryIntegration) {
       sources.push(primaryService);
       const toUpsert = filterLibraryForPrimaryAuthoritativeImport(primaryMembership, knownPrimaryExternalIds);
-      const upserted = await LibraryService.upsertLibraryEntries(userId, primaryService, toUpsert);
+      const upserted = await LibraryService.upsertLibraryEntries(userId, primaryService, toUpsert, {
+        // Primary побеждает secondary/stale local; preserveOutOfSync бережёт ручные правки.
+        preserveOutOfSync: true,
+      });
 
       for (const row of upserted) {
         keepAnimeIds.add(row.animeId);
-        primaryAnimeIds.add(row.animeId);
-        // Primary authoritative → всегда пушим состояние на остальные сервисы.
-        primaryEntryIdsToPush.add(row.id);
+        // Пушим состояние primary на остальные (не трогаем pending ручные правки).
+        if (!row.outOfSync) {
+          primaryEntryIdsToPush.add(row.id);
+        }
       }
 
       await IntegrationService.updateLastSync(primaryIntegration.id);
     }
 
-    // 3) Fallback services: explicit secondary first, then others. Library only if нет на primary.
+    // 3) Secondary/fallback: только настоящие gap (тайтла нет на primary-сервисе).
+    // Если на primary тайтл есть, а статуса у пользователя нет — primary эталон (не импортируем secondary).
     for (const integration of secondaryIntegrations) {
       const serviceName = integration.serviceName as IntegrationServiceName;
       try {
@@ -1124,20 +1393,67 @@ export class SyncService {
           onExisting: 'fill-gaps',
         });
 
-        for (const { animeId, entry } of linked) {
-          keepAnimeIds.add(animeId);
+        const linkedAnimeIds = linked.map((row) => row.animeId);
+        const linkedServiceIds = linkedAnimeIds.length
+          ? await LibraryService.listServiceIdsForAnime(linkedAnimeIds)
+          : [];
+        const primaryExtByAnime = new Map<number, string>();
+        for (const row of linkedServiceIds) {
+          if (row.serviceName === primaryService && row.externalAnimeId) {
+            primaryExtByAnime.set(row.animeId, String(row.externalAnimeId));
+          }
+        }
 
-          if (primaryAnimeIds.has(animeId)) {
+        for (const { animeId, entry } of linked) {
+          const onPrimaryList =
+            (typeof entry.malId === 'number' && primaryPresentMalIds.has(entry.malId)) ||
+            (() => {
+              const primaryExt = primaryExtByAnime.get(animeId);
+              return Boolean(primaryExt && primaryPresentExternalIds.has(primaryExt));
+            })();
+
+          if (onPrimaryList) {
+            keepAnimeIds.add(animeId);
             continue;
           }
 
-          // Explicit secondary — эталон для gap-тайтлов; остальные — только если secondary не покрыл.
+          const primaryExt = primaryExtByAnime.get(animeId) || null;
+          const existsOnPrimary = await resolveExistsOnPrimary({
+            primaryExt,
+            malId: entry.malId,
+          });
+
+          // Тайтл есть на primary, статуса нет → не берём secondary; cascade выровняет удаление.
+          if (existsOnPrimary) {
+            continue;
+          }
+
+          keepAnimeIds.add(animeId);
+
+          // Gap: тайтла физически нет на primary — secondary может добавить (без outOfSync / без push как «правка»).
+          const existingLocal = await LibraryService.getEntryByAnimeId(userId, animeId);
+          if (existingLocal) {
+            if (existingLocal.outOfSync) {
+              try {
+                await LibraryService.requeueEntrySync(userId, existingLocal.id);
+                await this.dispatchEntrySync(existingLocal.id);
+              } catch {
+                // best-effort
+              }
+            }
+            if (serviceName === 'myanimelist' || (secondaryService && serviceName === secondaryService)) {
+              malOwnedAnimeIds.add(animeId);
+            }
+            continue;
+          }
+
           const isConfiguredSecondary = Boolean(secondaryService && serviceName === secondaryService);
           const isMalFallback = !secondaryService && serviceName === 'myanimelist';
 
           if (isConfiguredSecondary || isMalFallback) {
             await LibraryService.upsertLibraryEntry(userId, serviceName, entry, {
               onExistingCatalog: 'fill-gaps',
+              onExistingLibrary: 'keep',
             });
             if (serviceName === 'myanimelist' || isConfiguredSecondary) {
               malOwnedAnimeIds.add(animeId);
@@ -1151,6 +1467,7 @@ export class SyncService {
 
           await LibraryService.upsertLibraryEntry(userId, serviceName, entry, {
             onExistingCatalog: 'fill-gaps',
+            onExistingLibrary: 'keep',
           });
         }
 
@@ -1163,9 +1480,21 @@ export class SyncService {
     await this.enrichAniListServiceIds(userId, connected);
     await LibraryService.pruneLibraryToScheduleSlice(userId, [...keepAnimeIds]);
 
-    // 4) Доводим MAL/AniList/… до состояния primary.
+    // 4) Outbound:
+    // - состояние primary → остальные connected;
+    // - только явные локальные правки (manual_update / retry_sync), не импорт с secondary.
+    const pushEntryIds = new Set(primaryEntryIdsToPush);
+    try {
+      const intentional = await LibraryService.listIntentionalPendingSyncEntries(userId);
+      for (const entry of intentional) {
+        pushEntryIds.add(entry.id);
+      }
+    } catch {
+      // best-effort
+    }
+
     let pushed = 0;
-    for (const entryId of primaryEntryIdsToPush) {
+    for (const entryId of pushEntryIds) {
       const stillExists = await LibraryService.getEntryById(userId, entryId);
       if (!stillExists) {
         continue;
@@ -1188,8 +1517,11 @@ export class SyncService {
   }
 
   /**
-   * Удаление на primary → cascade на остальные + local.
-   * Secondary не триггерит удаление. Primary всегда authoritative.
+   * Cascade delete по эталону primary:
+   * - нет в membership primary + тайтл существует на primary → удаляем локально и с провайдеров
+   *   (в т.ч. «на primary тайтл есть, статуса нет» — secondary не удерживает запись);
+   * - тайтл физически отсутствует на primary → не удаляем (gap);
+   * - явные локальные правки (outOfSync) не сносим.
    */
   private static async cascadeExternalDeletes(
     userId: number,
@@ -1213,6 +1545,7 @@ export class SyncService {
         animeId: userLibraryEntries.animeId,
         sourceService: userLibraryEntries.sourceService,
         sourceEntryId: userLibraryEntries.sourceEntryId,
+        outOfSync: userLibraryEntries.outOfSync,
       })
       .from(userLibraryEntries)
       .where(eq(userLibraryEntries.userId, userId));
@@ -1231,15 +1564,15 @@ export class SyncService {
       }
     }
 
-    const primaryLinked = localEntries.filter((entry) => {
-      if (primaryIdsByAnime.has(entry.animeId)) {
-        return true;
+    const catalogRows = await db
+      .select({ id: animeCatalog.id, malId: animeCatalog.malId })
+      .from(animeCatalog)
+      .where(inArray(animeCatalog.id, animeIds));
+    const malIdByAnime = new Map<number, number>();
+    for (const row of catalogRows) {
+      if (row.malId) {
+        malIdByAnime.set(row.id, row.malId);
       }
-      return entry.sourceService === primaryService && Boolean(entry.sourceEntryId);
-    });
-
-    if (!primaryLinked.length) {
-      return 0;
     }
 
     let membership = prefetchedPrimaryMembership;
@@ -1256,21 +1589,109 @@ export class SyncService {
     const present = new Set(
       membership.map((entry) => String(entry.externalAnimeId)).filter(Boolean)
     );
+    const presentMalIds = new Set(
+      membership
+        .map((entry) => entry.malId)
+        .filter((malId): malId is number => typeof malId === 'number')
+    );
 
-    if (present.size === 0 && primaryLinked.length >= 3) {
+    // Кандидаты на выравнивание: нет в membership primary.
+    const candidates = localEntries.filter((entry) => {
+      if (entry.outOfSync) {
+        return false;
+      }
+      const primaryId = primaryIdsByAnime.get(entry.animeId);
+      if (primaryId && present.has(primaryId)) {
+        return false;
+      }
+      const malId = malIdByAnime.get(entry.animeId);
+      if (malId && presentMalIds.has(malId)) {
+        return false;
+      }
+      return true;
+    });
+
+    if (!candidates.length) {
       return 0;
     }
-    if (present.size > 0 && primaryLinked.length >= 10 && present.size < Math.ceil(primaryLinked.length * 0.2)) {
+
+    // Safety: не массово сносить, если membership выглядит сломанным.
+    if (present.size === 0 && localEntries.length >= 3) {
+      return 0;
+    }
+    if (present.size > 0 && localEntries.length >= 10 && present.size < Math.ceil(localEntries.length * 0.2)) {
       return 0;
     }
 
+    let primaryToken: string | null = null;
+    if (primaryService === 'shikimori') {
+      try {
+        const refreshed = await IntegrationService.refreshTokenIfNeeded(primaryIntegration as UserIntegration);
+        primaryToken = refreshed.accessToken || null;
+      } catch {
+        primaryToken = primaryIntegration.accessToken || null;
+      }
+    }
+
+    const existsCache = new Map<string, boolean>();
     const toDelete = new Set<number>();
-    for (const entry of primaryLinked) {
-      const id = primaryIdsByAnime.get(entry.animeId);
-      if (!id || present.has(id)) {
+
+    for (const entry of candidates) {
+      const primaryId = primaryIdsByAnime.get(entry.animeId);
+      const malId = malIdByAnime.get(entry.animeId);
+
+      if (primaryService === 'shikimori' && primaryToken) {
+        let exists = false;
+        if (primaryId) {
+          const key = `id:${primaryId}`;
+          const cached = existsCache.get(key);
+          if (cached !== undefined) {
+            exists = cached;
+          } else {
+            try {
+              exists = await probeShikimoriAnimeExists(primaryToken, primaryId);
+            } catch {
+              exists = false;
+            }
+            existsCache.set(key, exists);
+          }
+        } else if (malId) {
+          const key = `mal:${malId}`;
+          const cached = existsCache.get(key);
+          if (cached !== undefined) {
+            exists = cached;
+          } else {
+            try {
+              const resolved = await resolveShikimoriIdByMalId(primaryToken, malId);
+              exists = Boolean(resolved);
+              if (resolved) {
+                existsCache.set(`id:${resolved}`, true);
+                await LibraryService.ensureServiceIdForAnime(entry.animeId, 'shikimori', resolved);
+              }
+            } catch {
+              exists = false;
+            }
+            existsCache.set(key, exists);
+          }
+        } else {
+          // Нет primary id и нет mal — не угадываем; gap/ручное — не удаляем.
+          continue;
+        }
+
+        if (!exists) {
+          // Физически нет на primary → gap, secondary может держать.
+          continue;
+        }
+
+        // Есть на primary, нет в membership → эталон «без статуса» → удаляем везде.
+        toDelete.add(entry.id);
         continue;
       }
-      toDelete.add(entry.id);
+
+      // Primary не Shiki: удаляем только если была явная привязка к primary id и его нет в membership.
+      if (primaryId && !present.has(primaryId)) {
+        toDelete.add(entry.id);
+      }
     }
 
     let deleted = 0;

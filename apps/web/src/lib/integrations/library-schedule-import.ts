@@ -85,11 +85,27 @@ export function isCatchingUpImportStatus(status: LibraryStatus): boolean {
   return status === 'watching' || status === 'rewatching';
 }
 
+/** Провайдерный статус «сейчас в эфире» (MAL/Shiki/AL). */
+export function isProviderCurrentlyAiring(status?: string | null): boolean {
+  const normalized = String(status || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  return (
+    normalized === 'currently_airing' ||
+    normalized === 'ongoing' ||
+    normalized === 'releasing' ||
+    normalized === 'airing'
+  );
+}
+
 export function shouldIncludeInScheduleImport(
   entry: {
     nextEpisodeDate?: string | null;
     airedOn?: string | null;
     watchStatus: LibraryStatus;
+    /** Медиа-статус провайдера (currently_airing / ongoing / …), не watch-status. */
+    status?: string | null;
   },
   now: Date = new Date()
 ): boolean {
@@ -98,6 +114,11 @@ export function shouldIncludeInScheduleImport(
   }
 
   if (isCatchingUpImportStatus(entry.watchStatus)) {
+    return true;
+  }
+
+  // PTW + уже в эфире: у MAL нет nextEpisodeDate — иначе airing gaps с secondary никогда не попадут в каталог.
+  if (entry.watchStatus === 'planned' && isProviderCurrentlyAiring(entry.status)) {
     return true;
   }
 
@@ -113,9 +134,10 @@ export function filterLibraryForScheduleImport(
 }
 
 /**
- * Primary-authoritative import set:
+ * Primary import set for schedule refresh:
  * - schedule slice (watching/rewatching + planned в окне);
- * - плюс любой статус с primary для тайтлов, уже есть локально (выравнивание completed и т.п.).
+ * - плюс любой статус с primary для тайтлов, уже есть локально (обновление метаданных каталога).
+ * Статус/серии локальной библиотеки при refresh не перезаписываются (`onExistingLibrary: 'keep'`).
  */
 export function filterLibraryForPrimaryAuthoritativeImport(
   entries: ProviderLibraryEntry[],

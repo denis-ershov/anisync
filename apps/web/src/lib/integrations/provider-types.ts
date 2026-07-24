@@ -66,6 +66,8 @@ export interface ProviderLibraryEntry extends ProviderAnimeDetails {
   isFavorite?: boolean;
   isNotInterested?: boolean;
   lastProviderUpdateAt?: string | null;
+  /** user_rate есть, но anime в ответе null (каталог скрыт/удалён). */
+  animeMissing?: boolean;
 }
 
 export interface ProviderTokenResponse {
@@ -102,6 +104,30 @@ export interface ProviderUpdateResult {
 export interface ProviderDeletePayload {
   externalEntryId?: string | null;
   externalAnimeId?: string | null;
+}
+
+/** HTTP-ошибка провайдера с парсируемым status (для 404/422 recovery). */
+export class ProviderHttpError extends Error {
+  readonly status: number;
+  readonly body: string;
+  readonly url?: string;
+
+  constructor(status: number, body: string, url?: string) {
+    super(`Request failed ${status}: ${body}`);
+    this.name = 'ProviderHttpError';
+    this.status = status;
+    this.body = body;
+    this.url = url;
+  }
+}
+
+export function isProviderHttpError(error: unknown): error is ProviderHttpError {
+  return error instanceof ProviderHttpError;
+}
+
+/** Write на primary невозможен: 404/422 — кандидат на probe + recovery. */
+export function isPrimaryWriteUnavailableStatus(status: number): boolean {
+  return status === 404 || status === 422;
 }
 
 export interface ProviderSearchResult extends ProviderAnimeDetails {}

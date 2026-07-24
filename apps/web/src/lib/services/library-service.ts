@@ -381,7 +381,13 @@ export class LibraryService {
     userId: number,
     serviceName: IntegrationServiceName,
     entry: ProviderLibraryEntry,
-    options?: { onExistingCatalog?: CatalogMetadataMode }
+    options?: {
+      onExistingCatalog?: CatalogMetadataMode;
+      /** replace — перезаписать локальную запись; keep — не трогать статус/серии (только gap-insert). */
+      onExistingLibrary?: 'replace' | 'keep';
+      /** Не затирать локальные правки с outOfSync (default true). */
+      preserveOutOfSync?: boolean;
+    }
   ) {
     const catalogEntry = await this.upsertCatalogEntry(serviceName, entry, {
       onExisting: options?.onExistingCatalog ?? 'replace',
@@ -391,6 +397,13 @@ export class LibraryService {
       .from(userLibraryEntries)
       .where(and(eq(userLibraryEntries.userId, userId), eq(userLibraryEntries.animeId, catalogEntry.id)))
       .limit(1);
+
+    if (existing && options?.onExistingLibrary === 'keep') {
+      return existing;
+    }
+    if (existing && options?.preserveOutOfSync !== false && existing.outOfSync) {
+      return existing;
+    }
 
     const payload = {
       sourceService: serviceName,
@@ -431,15 +444,121 @@ export class LibraryService {
     return created;
   }
 
+  static async getEntryByAnimeId(userId: number, animeId: number) {
+    const [entry] = await db
+      .select()
+      .from(userLibraryEntries)
+      .where(and(eq(userLibraryEntries.userId, userId), eq(userLibraryEntries.animeId, animeId)))
+      .limit(1);
+    return entry || null;
+  }
+
+  static async getEntryBySourceEntryId(
+    userId: number,
+    sourceService: IntegrationServiceName,
+    sourceEntryId: string
+  ) {
+    const [entry] = await db
+      .select()
+      .from(userLibraryEntries)
+      .where(
+        and(
+          eq(userLibraryEntries.userId, userId),
+          eq(userLibraryEntries.sourceService, sourceService),
+          eq(userLibraryEntries.sourceEntryId, sourceEntryId)
+        )
+      )
+      .limit(1);
+    return entry || null;
+  }
+
+  static async rebindEntrySource(
+    entryId: number,
+    sourceService: IntegrationServiceName,
+    sourceEntryId: string | null
+  ) {
+    const [updated] = await db
+      .update(userLibraryEntries)
+      .set({
+        sourceService,
+        sourceEntryId,
+        updatedAt: new Date(),
+      })
+      .where(eq(userLibraryEntries.id, entryId))
+      .returning();
+    return updated || null;
+  }
+
+  static async listOutOfSyncEntries(userId: number) {
+    return db
+      .select()
+      .from(userLibraryEntries)
+      .where(and(eq(userLibraryEntries.userId, userId), eq(userLibraryEntries.outOfSync, true)));
+  }
+
+  /**
+   * Локальные правки, которые нужно пушить на сервисы.
+   * Только явные изменения пользователя (manual_update / retry_sync), не импорт с secondary.
+   */
+  static async listIntentionalPendingSyncEntries(userId: number) {
+    const outOfSync = await this.listOutOfSyncEntries(userId);
+    if (!outOfSync.length) {
+      return [];
+    }
+
+    const entryIds = outOfSync.map((row) => row.id);
+    const changes = await db
+      .select({
+        libraryEntryId: userEntryChanges.libraryEntryId,
+        changeType: userEntryChanges.changeType,
+        status: userEntryChanges.status,
+      })
+      .from(userEntryChanges)
+      .where(inArray(userEntryChanges.libraryEntryId, entryIds))
+      .orderBy(desc(userEntryChanges.createdAt));
+
+    const latestByEntry = new Map<number, { changeType: string; status: string }>();
+    for (const change of changes) {
+      if (!latestByEntry.has(change.libraryEntryId)) {
+        latestByEntry.set(change.libraryEntryId, {
+          changeType: change.changeType,
+          status: change.status,
+        });
+      }
+    }
+
+    const intentionalTypes = new Set(['manual_update', 'retry_sync']);
+    return outOfSync.filter((entry) => {
+      const latest = latestByEntry.get(entry.id);
+      if (!latest) {
+        return false;
+      }
+      if (!intentionalTypes.has(latest.changeType)) {
+        return false;
+      }
+      return latest.status === 'pending' || latest.status === 'processing' || latest.status === 'failed';
+    });
+  }
+
   static async upsertLibraryEntries(
     userId: number,
     serviceName: IntegrationServiceName,
     entries: ProviderLibraryEntry[],
-    batchSize: number = 10
+    options?: {
+      batchSize?: number;
+      /** replace — перезаписать; keep — только insert новых (метаданные каталога всё равно обновляются). */
+      onExistingLibrary?: 'replace' | 'keep';
+      /** Не затирать локальные правки с outOfSync (default true). */
+      preserveOutOfSync?: boolean;
+    }
   ) {
     if (!entries.length) {
       return [];
     }
+
+    const batchSize = options?.batchSize ?? 10;
+    const onExistingLibrary = options?.onExistingLibrary ?? 'replace';
+    const preserveOutOfSync = options?.preserveOutOfSync !== false;
 
     const externalAnimeIds = Array.from(new Set(entries.map((entry) => entry.externalAnimeId)));
     const malIds = Array.from(
@@ -491,93 +610,126 @@ export class LibraryService {
 
     for (let index = 0; index < entries.length; index += batchSize) {
       const batch = entries.slice(index, index + batchSize);
-      const libraryValues = await Promise.all(
-        batch.map(async (entry) => {
-          const matchedByExternalId = catalogByExternalId.has(entry.externalAnimeId);
-          let catalogEntry =
-            catalogByExternalId.get(entry.externalAnimeId) || (entry.malId ? catalogByMalId.get(entry.malId) : null) || null;
+      const libraryValues = [] as Array<{
+        userId: number;
+        animeId: number;
+        sourceService: IntegrationServiceName;
+        sourceEntryId: string;
+        watchStatus: ProviderLibraryEntry['watchStatus'];
+        watchedEpisodes: number;
+        totalEpisodesSnapshot: number | null;
+        personalRating: number | null;
+        notes: string | null;
+        notesSyncStatus: 'synced' | 'local_only';
+        outOfSync: boolean;
+        isFavorite: boolean;
+        isNotInterested: boolean;
+        lastProviderUpdateAt: Date | null;
+        lastSyncedAt: Date;
+        updatedAt: Date;
+        createdAt: Date;
+      }>;
 
-          if (!catalogEntry && !entry.malId) {
-            const titleKeys = collectTitleKeys(entry);
-            const candidateMap = new Map<number, AnimeCatalog>();
-            for (const key of titleKeys) {
-              for (const candidate of catalogByTitleKey.get(key) || []) {
-                candidateMap.set(candidate.id, candidate);
-              }
-            }
-            catalogEntry = matchCatalogByTitle(entry, [...candidateMap.values()]);
-            if (!catalogEntry) {
-              catalogEntry = await findCatalogByTitleFallback(entry);
+      for (const entry of batch) {
+        const matchedByExternalId = catalogByExternalId.has(entry.externalAnimeId);
+        let catalogEntry =
+          catalogByExternalId.get(entry.externalAnimeId) || (entry.malId ? catalogByMalId.get(entry.malId) : null) || null;
+
+        if (!catalogEntry && !entry.malId) {
+          const titleKeys = collectTitleKeys(entry);
+          const candidateMap = new Map<number, AnimeCatalog>();
+          for (const key of titleKeys) {
+            for (const candidate of catalogByTitleKey.get(key) || []) {
+              candidateMap.set(candidate.id, candidate);
             }
           }
+          catalogEntry = matchCatalogByTitle(entry, [...candidateMap.values()]);
+          if (!catalogEntry) {
+            catalogEntry = await findCatalogByTitleFallback(entry);
+          }
+        }
 
-          if (catalogEntry) {
-            if (shouldUpdateCatalog(entry, matchedByExternalId)) {
-              const [updatedCatalog] = await db
-                .update(animeCatalog)
-                .set(toCatalogPayload(entry, catalogEntry))
-                .where(eq(animeCatalog.id, catalogEntry.id))
-                .returning();
-              catalogEntry = updatedCatalog || catalogEntry;
-            }
-            await db
-              .insert(animeServiceIds)
-              .values({
-                animeId: catalogEntry.id,
-                serviceName,
-                externalAnimeId: entry.externalAnimeId,
-              })
-              .onConflictDoNothing();
-          } else {
-            const [createdCatalogEntry] = await db
-              .insert(animeCatalog)
-              .values({
-                ...toCatalogPayload(entry),
-                createdAt: new Date(),
-              })
+        if (catalogEntry) {
+          if (shouldUpdateCatalog(entry, matchedByExternalId)) {
+            const [updatedCatalog] = await db
+              .update(animeCatalog)
+              .set(toCatalogPayload(entry, catalogEntry))
+              .where(eq(animeCatalog.id, catalogEntry.id))
               .returning();
-            await db
-              .insert(animeServiceIds)
-              .values({
-                animeId: createdCatalogEntry.id,
-                serviceName,
-                externalAnimeId: entry.externalAnimeId,
-              })
-              .onConflictDoNothing();
-            catalogEntry = createdCatalogEntry;
+            catalogEntry = updatedCatalog || catalogEntry;
           }
+          await db
+            .insert(animeServiceIds)
+            .values({
+              animeId: catalogEntry.id,
+              serviceName,
+              externalAnimeId: entry.externalAnimeId,
+            })
+            .onConflictDoNothing();
+        } else {
+          const [createdCatalogEntry] = await db
+            .insert(animeCatalog)
+            .values({
+              ...toCatalogPayload(entry),
+              createdAt: new Date(),
+            })
+            .returning();
+          await db
+            .insert(animeServiceIds)
+            .values({
+              animeId: createdCatalogEntry.id,
+              serviceName,
+              externalAnimeId: entry.externalAnimeId,
+            })
+            .onConflictDoNothing();
+          catalogEntry = createdCatalogEntry;
+        }
 
-          catalogByExternalId.set(entry.externalAnimeId, catalogEntry);
-          if (entry.malId || catalogEntry.malId) {
-            catalogByMalId.set(entry.malId || catalogEntry.malId!, catalogEntry);
+        catalogByExternalId.set(entry.externalAnimeId, catalogEntry);
+        if (entry.malId || catalogEntry.malId) {
+          catalogByMalId.set(entry.malId || catalogEntry.malId!, catalogEntry);
+        }
+        indexTitles(catalogEntry);
+
+        const [existing] = await db
+          .select()
+          .from(userLibraryEntries)
+          .where(and(eq(userLibraryEntries.userId, userId), eq(userLibraryEntries.animeId, catalogEntry.id)))
+          .limit(1);
+
+        if (existing) {
+          const shouldKeep =
+            onExistingLibrary === 'keep' || (preserveOutOfSync && existing.outOfSync);
+          if (shouldKeep) {
+            results.push(existing);
+            continue;
           }
-          indexTitles(catalogEntry);
+        }
 
-          const payload = {
-            sourceService: serviceName,
-            sourceEntryId: entry.externalEntryId,
-            watchStatus: entry.watchStatus,
-            watchedEpisodes: entry.watchedEpisodes,
-            totalEpisodesSnapshot: entry.episodes ?? null,
-            personalRating: entry.personalRating ?? null,
-            notes: entry.notes ?? null,
-            notesSyncStatus: entry.notes ? 'synced' : 'local_only',
-            outOfSync: false,
-            isFavorite: Boolean(entry.isFavorite),
-            isNotInterested: Boolean(entry.isNotInterested),
-            lastProviderUpdateAt: entry.lastProviderUpdateAt ? new Date(entry.lastProviderUpdateAt) : null,
-            lastSyncedAt: new Date(),
-            updatedAt: new Date(),
-          } as const;
+        libraryValues.push({
+          userId,
+          animeId: catalogEntry.id,
+          sourceService: serviceName,
+          sourceEntryId: entry.externalEntryId,
+          watchStatus: entry.watchStatus,
+          watchedEpisodes: entry.watchedEpisodes,
+          totalEpisodesSnapshot: entry.episodes ?? null,
+          personalRating: entry.personalRating ?? null,
+          notes: entry.notes ?? null,
+          notesSyncStatus: entry.notes ? 'synced' : 'local_only',
+          outOfSync: false,
+          isFavorite: Boolean(entry.isFavorite),
+          isNotInterested: Boolean(entry.isNotInterested),
+          lastProviderUpdateAt: entry.lastProviderUpdateAt ? new Date(entry.lastProviderUpdateAt) : null,
+          lastSyncedAt: new Date(),
+          updatedAt: new Date(),
+          createdAt: new Date(),
+        });
+      }
 
-          return {
-            userId,
-            animeId: catalogEntry.id,
-            ...payload,
-            createdAt: new Date(),
-          };
-        })
-      );
+      if (!libraryValues.length) {
+        continue;
+      }
 
       const upserted = await db
         .insert(userLibraryEntries)
