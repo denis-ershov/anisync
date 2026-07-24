@@ -117,6 +117,16 @@ node --import tsx scripts/seed-bootstrap-admin.ts
 
 Если статус **Running (unknown)** — redeploy после обновления compose; если **unhealthy** — логи `web` (миграции/env) и `docker inspect` → `Health`. `depends_on` не ждёт healthy — стек поднимется, Traefik всё равно смотрит health у `web`.
 
+### Почему не удаляются старые образы
+
+Деплой **не** чистит disk сам по себе. Coolify **намеренно** оставляет предыдущие application images для Rollback.
+
+- Теги вида `{uuid}_web:{commit}` / `{uuid}_worker:{commit}` накапливаются после каждого build.
+- Cleanup — отдельная задача сервера (**Servers → Docker Cleanup**), не шаг Redeploy.
+- Чтобы чистить агрессивнее: включите **Force Docker Cleanup** и при необходимости **Disable Application Image Retention** (или снизьте число образов в Rollback).
+- Разовый ручной сброс на сервере: `docker image prune -af` (удалит все неиспользуемые образы; rollback по старым тегам станет недоступен).
+- Раньше AniSync билдил один Dockerfile трижды (`web`/`worker`/`scheduler`) → ×3 мусора за деплой; сейчас общий `anisync-runtime:local`, build только у `web`.
+
 ---
 
 ## 6. Частые ошибки
