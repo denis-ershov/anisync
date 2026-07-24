@@ -29,15 +29,23 @@ export async function PUT(request: NextRequest) {
     }
 
     const body: UpdateUserSettingsData = await request.json();
-    const updatedSettings = await UserSettingsService.updateUserSettings(userId, body);
-    if (!updatedSettings) {
-      return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
-    }
+    try {
+      const updatedSettings = await UserSettingsService.updateUserSettings(userId, body);
+      if (!updatedSettings) {
+        return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
+      }
 
-    return NextResponse.json({
-      message: 'Settings updated successfully',
-      settings: updatedSettings,
-    });
+      return NextResponse.json({
+        message: 'Settings updated successfully',
+        settings: updatedSettings,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (message.includes('must be a connected')) {
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+      throw error;
+    }
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

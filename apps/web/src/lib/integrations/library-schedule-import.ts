@@ -111,3 +111,21 @@ export function filterLibraryForScheduleImport(
 ): ProviderLibraryEntry[] {
   return entries.filter((entry) => shouldIncludeInScheduleImport(entry, now));
 }
+
+/**
+ * Primary-authoritative import set:
+ * - schedule slice (watching/rewatching + planned в окне);
+ * - плюс любой статус с primary для тайтлов, уже есть локально (выравнивание completed и т.п.).
+ */
+export function filterLibraryForPrimaryAuthoritativeImport(
+  entries: ProviderLibraryEntry[],
+  knownPrimaryExternalIds: ReadonlySet<string>,
+  now: Date = new Date()
+): ProviderLibraryEntry[] {
+  return entries.filter((entry) => {
+    if (shouldIncludeInScheduleImport(entry, now)) {
+      return true;
+    }
+    return knownPrimaryExternalIds.has(String(entry.externalAnimeId));
+  });
+}

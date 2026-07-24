@@ -8,7 +8,9 @@
 
 ## Обзор
 
-AniSync использует **Drizzle ORM** и additive-миграции в `drizzle/`. Схема описана в `src/lib/db/schema.ts`.
+AniSync использует **Drizzle ORM** и additive-миграции в `apps/web/drizzle/`. Схема описана в `src/lib/db/schema.ts`.
+
+**Деплой:** миграции применяются автоматически при старте сервиса `web` (`entrypoint.sh` → `migrate.ts`, `RUN_MIGRATIONS=true` по умолчанию). Ручной шаг после Coolify deploy не требуется.
 
 Платформа разделена на bounded contexts:
 

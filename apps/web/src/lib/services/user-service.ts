@@ -34,6 +34,7 @@ function toAuthUser(user: User, settings: UserSettings): AuthUser {
       theme: settings.theme,
       language: settings.language,
       primaryService: settings.primaryService || undefined,
+      secondaryService: settings.secondaryService || undefined,
       enabledModules: settings.enabledModules ?? ['anime'],
       notificationPreferences: settings.notificationPreferences ?? { inApp: true },
       createdAt: toIsoString(settings.createdAt),
@@ -218,21 +219,55 @@ export class UserSettingsService {
 
   static async updateUserSettings(userId: number, settingsData: UpdateUserSettingsData): Promise<UserSettings | null> {
     const updateData: Partial<typeof userSettings.$inferInsert> = {};
+    const current = await this.getUserSettings(userId);
 
     if (settingsData.theme) updateData.theme = settingsData.theme;
     if (settingsData.language) updateData.language = settingsData.language;
     if (settingsData.primaryService !== undefined) updateData.primaryService = settingsData.primaryService;
+    if (settingsData.secondaryService !== undefined) updateData.secondaryService = settingsData.secondaryService;
     if (settingsData.enabledModules) updateData.enabledModules = settingsData.enabledModules;
     if (settingsData.notificationPreferences) {
-      const current = await this.getUserSettings(userId);
       updateData.notificationPreferences = {
         ...(current?.notificationPreferences ?? { inApp: true, telegram: false, email: false }),
         ...settingsData.notificationPreferences,
       };
     }
 
+    const nextPrimary =
+      settingsData.primaryService !== undefined ? settingsData.primaryService : current?.primaryService ?? null;
+    let nextSecondary =
+      settingsData.secondaryService !== undefined
+        ? settingsData.secondaryService
+        : current?.secondaryService ?? null;
+
+    if (nextPrimary && nextSecondary && nextPrimary === nextSecondary) {
+      nextSecondary = null;
+      updateData.secondaryService = null;
+    }
+
+    if (settingsData.primaryService !== undefined && current?.secondaryService === settingsData.primaryService) {
+      updateData.secondaryService = null;
+      nextSecondary = null;
+    }
+
     if (Object.keys(updateData).length === 0) {
       return this.getUserSettings(userId);
+    }
+
+    // Validate connected tokens when setting primary/secondary
+    if (settingsData.primaryService || settingsData.secondaryService) {
+      const { IntegrationService } = await import('@/lib/services/integration-service');
+      const integrations = await IntegrationService.getUserIntegrations(userId);
+      const connected = new Set(
+        integrations.filter((row) => Boolean(row.accessToken)).map((row) => row.serviceName)
+      );
+
+      if (nextPrimary && !connected.has(nextPrimary)) {
+        throw new Error('Primary service must be a connected integration');
+      }
+      if (nextSecondary && !connected.has(nextSecondary)) {
+        throw new Error('Secondary service must be a connected integration');
+      }
     }
 
     updateData.updatedAt = new Date();

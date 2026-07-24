@@ -35,6 +35,7 @@ export interface UserSettings {
   theme: 'light' | 'dark';
   language: 'en' | 'ru';
   primaryService?: IntegrationServiceName | null;
+  secondaryService?: IntegrationServiceName | null;
   enabledModules: PlatformModule[];
   notificationPreferences: NotificationPreferences;
   createdAt: string;
@@ -59,6 +60,7 @@ export interface UpdateUserSettingsData {
   theme?: 'light' | 'dark';
   language?: 'en' | 'ru';
   primaryService?: IntegrationServiceName | null;
+  secondaryService?: IntegrationServiceName | null;
   enabledModules?: PlatformModule[];
   notificationPreferences?: NotificationPreferences;
 }

@@ -20,10 +20,12 @@ import {
   getScheduleRefreshJobState,
 } from '@/lib/queue/queues';
 import { getProvider, resolveAniListIdsByMal } from '@/lib/integrations/providers';
+import { filterLibraryForPrimaryAuthoritativeImport } from '@/lib/integrations/library-schedule-import';
 import type {
   IntegrationServiceName,
   LibraryStatus,
   ProviderDeletePayload,
+  ProviderLibraryEntry,
   ProviderSearchResult,
   ProviderUpdatePayload,
 } from '@/lib/integrations/provider-types';
@@ -66,14 +68,18 @@ export class SyncService {
     return `${baseUrl}${pathname}`;
   }
 
-  static async createJob(userId: number, primaryService: IntegrationServiceName) {
+  static async createJob(
+    userId: number,
+    primaryService: IntegrationServiceName,
+    direction: string = 'primary_import'
+  ) {
     const [job] = await db
       .insert(syncJobs)
       .values({
         userId,
         primaryService,
         status: 'pending',
-        direction: 'primary_import',
+        direction,
         summary: {},
         createdAt: new Date(),
       })
@@ -151,7 +157,23 @@ export class SyncService {
       };
     }
 
-    const job = await this.createJob(userId, primaryService);
+    const job = await this.createJob(userId, primaryService, 'primary_import');
+    return {
+      job,
+      created: true,
+    };
+  }
+
+  static async enqueuePrimaryCatalogPush(userId: number, primaryService: IntegrationServiceName) {
+    const activeJob = await this.getActiveJob(userId);
+    if (activeJob) {
+      return {
+        job: activeJob,
+        created: false,
+      };
+    }
+
+    const job = await this.createJob(userId, primaryService, 'primary_catalog_push');
     return {
       job,
       created: true,
@@ -236,6 +258,10 @@ export class SyncService {
         status: job.status,
         imported: Number(job.summary?.imported || 0),
       };
+    }
+
+    if (job.direction === 'primary_catalog_push') {
+      return this.runPrimaryCatalogPush(job.userId, job.primaryService as IntegrationServiceName, job);
     }
 
     return this.runPrimaryImport(job.userId, job.primaryService as IntegrationServiceName, job);
@@ -400,6 +426,104 @@ export class SyncService {
     }
   }
 
+  /**
+   * Полный каталог primary → local upsert + outbound на все остальные connected.
+   * Тайтлы, которых нет на primary, не трогаем.
+   */
+  static async runPrimaryCatalogPush(
+    userId: number,
+    primaryService: IntegrationServiceName,
+    existingJob?: SyncJob
+  ) {
+    const job = existingJob || (await this.createJob(userId, primaryService, 'primary_catalog_push'));
+    await db
+      .update(syncJobs)
+      .set({
+        status: 'running',
+        startedAt: new Date(),
+      })
+      .where(eq(syncJobs.id, job.id));
+
+    let attempt: Awaited<ReturnType<typeof this.startAttempt>> | null = null;
+
+    try {
+      const integration = await IntegrationService.getIntegrationByUserAndService(userId, primaryService);
+      if (!integration?.accessToken) {
+        throw new Error(`Primary integration ${primaryService} is not connected`);
+      }
+
+      const refreshed = await IntegrationService.refreshTokenIfNeeded(integration);
+      attempt = await this.startAttempt(job.id, primaryService, { type: 'primary_catalog_push' });
+
+      const provider = getProvider(primaryService);
+      const membership = await provider.fetchLibrary(refreshed, { scope: 'membership' });
+      const upserted = await LibraryService.upsertLibraryEntries(userId, primaryService, membership);
+
+      let pushed = 0;
+      for (const row of upserted) {
+        try {
+          await LibraryService.requeueEntrySync(userId, row.id);
+          await this.dispatchEntrySync(row.id);
+          pushed += 1;
+        } catch {
+          // best-effort per entry
+        }
+      }
+
+      const summary = {
+        imported: upserted.length,
+        pushed,
+        scope: 'membership',
+        direction: 'primary_catalog_push',
+      };
+
+      await this.finishAttempt(attempt.id, 'completed', summary);
+      await db
+        .update(syncJobs)
+        .set({
+          status: 'completed',
+          finishedAt: new Date(),
+          summary,
+        })
+        .where(eq(syncJobs.id, job.id));
+
+      await LibraryService.createNotification(userId, {
+        type: 'sync_completed',
+        title: 'Catalog sync completed',
+        message: `Synced ${upserted.length} titles from ${primaryService} to other services (${pushed} queued).`,
+      });
+
+      return {
+        jobId: job.id,
+        status: 'completed' as const,
+        imported: upserted.length,
+        pushed,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown catalog sync error';
+      if (attempt) {
+        await this.finishAttempt(attempt.id, 'failed', {}, message);
+      }
+
+      await db
+        .update(syncJobs)
+        .set({
+          status: 'failed',
+          finishedAt: new Date(),
+          error: message,
+        })
+        .where(eq(syncJobs.id, job.id));
+
+      await LibraryService.createNotification(userId, {
+        type: 'sync_failed',
+        title: 'Catalog sync failed',
+        message,
+      });
+
+      throw error;
+    }
+  }
+
   static async syncEntryToProviders(userId: number, entryId: number, payload: ProviderUpdatePayload) {
     const settings = await UserSettingsService.getUserSettings(userId);
     const entry = await LibraryService.getEntryById(userId, entryId);
@@ -420,7 +544,7 @@ export class SyncService {
       .where(eq(animeServiceIds.animeId, entry.animeId));
 
     const externalByService = new Map(
-      serviceIds.map((row) => [row.serviceName, row.externalAnimeId] as const)
+      serviceIds.map((row) => [row.serviceName, String(row.externalAnimeId)] as const)
     );
 
     const integrations = await db
@@ -613,7 +737,7 @@ export class SyncService {
       .where(eq(animeServiceIds.animeId, entry.animeId));
 
     const externalByService = new Map(
-      serviceIds.map((row) => [row.serviceName, row.externalAnimeId] as const)
+      serviceIds.map((row) => [row.serviceName, String(row.externalAnimeId)] as const)
     );
 
     const integrations = await db
@@ -891,7 +1015,6 @@ export class SyncService {
     if (!existingMarker) {
       await this.beginScheduleRefreshMarker(userId, 'running');
     } else {
-      // Promote pending → running when worker picks up the job
       await db
         .update(syncJobs)
         .set({
@@ -917,73 +1040,84 @@ export class SyncService {
       return { imported: 0, sources: [] as IntegrationServiceName[], deleted: 0, pushed: 0 };
     }
 
-    const deleted = await this.cascadeExternalDeletes(userId, connected);
+    const primaryService = settings.primaryService as IntegrationServiceName;
+    const secondaryService = (settings.secondaryService as IntegrationServiceName | null) || null;
+    const primaryIntegration = connected.find((integration) => integration.serviceName === primaryService);
 
-    const primaryService = settings.primaryService;
-    const secondaryRank = (serviceName: string) => {
+    const fallbackRank = (serviceName: string) => {
+      if (secondaryService && serviceName === secondaryService) return -1;
       if (serviceName === 'myanimelist') return 0;
       if (serviceName === 'anilist') return 1;
       if (serviceName === 'shikimori') return 2;
       return 9;
     };
 
-    const primaryIntegrations = connected.filter((integration) => integration.serviceName === primaryService);
     const secondaryIntegrations = connected
       .filter((integration) => integration.serviceName !== primaryService)
-      .sort((a, b) => secondaryRank(a.serviceName) - secondaryRank(b.serviceName));
+      .sort((a, b) => fallbackRank(a.serviceName) - fallbackRank(b.serviceName));
+
+    // 1) Primary membership — единый источник правды (статусы + удаление).
+    let primaryMembership: ProviderLibraryEntry[] = [];
+    if (primaryIntegration?.accessToken) {
+      try {
+        const refreshed = await IntegrationService.refreshTokenIfNeeded(primaryIntegration as UserIntegration);
+        primaryMembership = await getProvider(primaryService).fetchLibrary(refreshed, { scope: 'membership' });
+      } catch {
+        primaryMembership = [];
+      }
+    }
+
+    const deleted = await this.cascadeExternalDeletes(userId, connected, primaryMembership);
 
     const beforeRows = await db
       .select({
         id: userLibraryEntries.id,
         animeId: userLibraryEntries.animeId,
-        watchedEpisodes: userLibraryEntries.watchedEpisodes,
-        watchStatus: userLibraryEntries.watchStatus,
       })
       .from(userLibraryEntries)
       .where(eq(userLibraryEntries.userId, userId));
-    const beforeByAnime = new Map(beforeRows.map((row) => [row.animeId, row]));
+
+    const localAnimeIds = beforeRows.map((row) => row.animeId);
+    const serviceIdRows = localAnimeIds.length
+      ? await LibraryService.listServiceIdsForAnime(localAnimeIds)
+      : [];
+    const knownPrimaryExternalIds = new Set(
+      serviceIdRows
+        .filter((row) => row.serviceName === primaryService)
+        .map((row) => String(row.externalAnimeId))
+    );
 
     const keepAnimeIds = new Set<number>();
     const primaryAnimeIds = new Set<number>();
+    const primaryEntryIdsToPush = new Set<number>();
     const malOwnedAnimeIds = new Set<number>();
-    const changedEntryIds = new Set<number>();
     const sources: IntegrationServiceName[] = [];
 
-    for (const integration of primaryIntegrations) {
-      const serviceName = integration.serviceName as IntegrationServiceName;
-      try {
-        const refreshed = await IntegrationService.refreshTokenIfNeeded(integration as UserIntegration);
-        const provider = getProvider(serviceName);
-        const scheduleEntries = await provider.fetchLibrary(refreshed, { scope: 'schedule' });
-        sources.push(serviceName);
+    // 2) Upsert с primary: schedule + выравнивание уже локальных тайтлов (completed и т.д.).
+    if (primaryMembership.length && primaryIntegration) {
+      sources.push(primaryService);
+      const toUpsert = filterLibraryForPrimaryAuthoritativeImport(primaryMembership, knownPrimaryExternalIds);
+      const upserted = await LibraryService.upsertLibraryEntries(userId, primaryService, toUpsert);
 
-        const upserted = await LibraryService.upsertLibraryEntries(userId, serviceName, scheduleEntries);
-        for (const row of upserted) {
-          keepAnimeIds.add(row.animeId);
-          primaryAnimeIds.add(row.animeId);
-
-          const prev = beforeByAnime.get(row.animeId);
-          if (
-            !prev ||
-            prev.watchedEpisodes !== row.watchedEpisodes ||
-            prev.watchStatus !== row.watchStatus
-          ) {
-            changedEntryIds.add(row.id);
-          }
-        }
-
-        await IntegrationService.updateLastSync(integration.id);
-      } catch {
-        // Best-effort per provider; continue with others.
+      for (const row of upserted) {
+        keepAnimeIds.add(row.animeId);
+        primaryAnimeIds.add(row.animeId);
+        // Primary authoritative → всегда пушим состояние на остальные сервисы.
+        primaryEntryIdsToPush.add(row.id);
       }
+
+      await IntegrationService.updateLastSync(primaryIntegration.id);
     }
 
+    // 3) Fallback services: explicit secondary first, then others. Library only if нет на primary.
     for (const integration of secondaryIntegrations) {
       const serviceName = integration.serviceName as IntegrationServiceName;
       try {
-        const refreshed = await IntegrationService.refreshTokenIfNeeded(integration as UserIntegration);
+        const refreshedIntegration = await IntegrationService.refreshTokenIfNeeded(
+          integration as UserIntegration
+        );
         const provider = getProvider(serviceName);
-        const scheduleEntries = await provider.fetchLibrary(refreshed, { scope: 'schedule' });
+        const scheduleEntries = await provider.fetchLibrary(refreshedIntegration, { scope: 'schedule' });
         sources.push(serviceName);
 
         const linked = await LibraryService.linkProviderCatalogEntries(serviceName, scheduleEntries, {
@@ -997,11 +1131,17 @@ export class SyncService {
             continue;
           }
 
-          if (serviceName === 'myanimelist') {
+          // Explicit secondary — эталон для gap-тайтлов; остальные — только если secondary не покрыл.
+          const isConfiguredSecondary = Boolean(secondaryService && serviceName === secondaryService);
+          const isMalFallback = !secondaryService && serviceName === 'myanimelist';
+
+          if (isConfiguredSecondary || isMalFallback) {
             await LibraryService.upsertLibraryEntry(userId, serviceName, entry, {
               onExistingCatalog: 'fill-gaps',
             });
-            malOwnedAnimeIds.add(animeId);
+            if (serviceName === 'myanimelist' || isConfiguredSecondary) {
+              malOwnedAnimeIds.add(animeId);
+            }
             continue;
           }
 
@@ -1023,8 +1163,9 @@ export class SyncService {
     await this.enrichAniListServiceIds(userId, connected);
     await LibraryService.pruneLibraryToScheduleSlice(userId, [...keepAnimeIds]);
 
+    // 4) Доводим MAL/AniList/… до состояния primary.
     let pushed = 0;
-    for (const entryId of changedEntryIds) {
+    for (const entryId of primaryEntryIdsToPush) {
       const stillExists = await LibraryService.getEntryById(userId, entryId);
       if (!stillExists) {
         continue;
@@ -1046,8 +1187,15 @@ export class SyncService {
     };
   }
 
-  /** Удаление на primary → cascade на остальные + local. Secondary не триггерит удаление. */
-  private static async cascadeExternalDeletes(userId: number, connected: UserIntegration[]) {
+  /**
+   * Удаление на primary → cascade на остальные + local.
+   * Secondary не триггерит удаление. Primary всегда authoritative.
+   */
+  private static async cascadeExternalDeletes(
+    userId: number,
+    connected: UserIntegration[],
+    prefetchedPrimaryMembership?: ProviderLibraryEntry[]
+  ) {
     const settings = await UserSettingsService.getUserSettings(userId);
     const primaryService = settings?.primaryService as IntegrationServiceName | undefined;
     if (!primaryService) {
@@ -1083,7 +1231,6 @@ export class SyncService {
       }
     }
 
-    // Только тайтлы, реально привязанные к primary (не secondary-only enrichment).
     const primaryLinked = localEntries.filter((entry) => {
       if (primaryIdsByAnime.has(entry.animeId)) {
         return true;
@@ -1095,21 +1242,21 @@ export class SyncService {
       return 0;
     }
 
-    let membership: Awaited<ReturnType<ReturnType<typeof getProvider>['fetchLibrary']>>;
-    try {
-      const refreshed = await IntegrationService.refreshTokenIfNeeded(primaryIntegration as UserIntegration);
-      const provider = getProvider(primaryService);
-      membership = await provider.fetchLibrary(refreshed, { scope: 'membership' });
-    } catch {
-      // Не удаляем при ошибке membership — иначе ложный wipe primary.
-      return 0;
+    let membership = prefetchedPrimaryMembership;
+    if (!membership) {
+      try {
+        const refreshed = await IntegrationService.refreshTokenIfNeeded(primaryIntegration as UserIntegration);
+        const provider = getProvider(primaryService);
+        membership = await provider.fetchLibrary(refreshed, { scope: 'membership' });
+      } catch {
+        return 0;
+      }
     }
 
     const present = new Set(
       membership.map((entry) => String(entry.externalAnimeId)).filter(Boolean)
     );
 
-    // Защита: пустой/подозрительно маленький ответ API не должен сносить всю библиотеку.
     if (present.size === 0 && primaryLinked.length >= 3) {
       return 0;
     }
@@ -1129,7 +1276,6 @@ export class SyncService {
     let deleted = 0;
     for (const entryId of toDelete) {
       try {
-        // Primary уже без записи — убираем с остальных connected и локально.
         await this.deleteEntryFromProviders(userId, entryId);
         const removed = await LibraryService.deleteEntry(userId, entryId);
         if (removed) {

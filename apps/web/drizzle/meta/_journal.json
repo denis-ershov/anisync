@@ -50,6 +50,13 @@
       "when": 1765201535769,
       "tag": "0006_torrent_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1765201535770,
+      "tag": "0007_secondary_service",
+      "breakpoints": true
     }
   ]
 }

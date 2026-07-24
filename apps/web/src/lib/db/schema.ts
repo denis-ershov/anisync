@@ -83,6 +83,9 @@ export const userSettings = pgTable(
     primaryService: text('primary_service', {
       enum: integrationServices,
     }),
+    secondaryService: text('secondary_service', {
+      enum: integrationServices,
+    }),
     enabledModules: jsonb('enabled_modules').$type<PlatformModule[]>().default(['anime']).notNull(),
     notificationPreferences: jsonb('notification_preferences')
       .$type<NotificationPreferences>()

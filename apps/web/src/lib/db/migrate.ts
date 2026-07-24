@@ -1,6 +1,11 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
+
+/** Папка drizzle относительно этого файла — не зависит от cwd контейнера. */
+const migrationsFolder = resolve(dirname(fileURLToPath(import.meta.url)), '../../../drizzle');
 
 function requiredDatabaseUrl() {
   const value = process.env.DATABASE_URL?.trim();
@@ -32,7 +37,8 @@ async function runMigrations() {
   const db = drizzle(migrationClient);
 
   try {
-    await migrate(db, { migrationsFolder: './drizzle' });
+    console.log(`Applying drizzle migrations from ${migrationsFolder}`);
+    await migrate(db, { migrationsFolder });
     console.log('Database migrations completed');
   } catch (error) {
     console.error('Database migration failed', error);

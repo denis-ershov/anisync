@@ -60,10 +60,12 @@ export default function IntegrationsPage() {
   const { user } = useAuth();
   const [integrations, setIntegrations] = useState<UserIntegration[]>([]);
   const [primaryService, setPrimaryService] = useState<string | null>(null);
+  const [secondaryService, setSecondaryService] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [syncJob, setSyncJob] = useState<{
     id: number;
     status: string;
+    direction?: string | null;
     error?: string | null;
     summary?: Record<string, unknown>;
     createdAt?: string;
@@ -114,9 +116,8 @@ export default function IntegrationsPage() {
       if (response.ok) {
         const data = await response.json();
         setIntegrations(data.integrations);
-        if (data.settings?.primaryService) {
-          setPrimaryService(data.settings.primaryService);
-        }
+        setPrimaryService(data.settings?.primaryService || null);
+        setSecondaryService(data.settings?.secondaryService || null);
       }
     } catch (error) {
       console.error('Failed to fetch integrations:', error);
@@ -275,6 +276,33 @@ export default function IntegrationsPage() {
     }
   };
 
+  const handleCatalogSync = async () => {
+    try {
+      setIsSyncing(true);
+      const response = await fetch('/api/user/integrations/sync/catalog', {
+        method: 'POST',
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        setSyncJob(result.job);
+        toast({
+          title: t('catalogSyncStarted'),
+          description: result.queued ? t('catalogSyncStartedDescription') : t('syncAlreadyRunning'),
+        });
+      } else {
+        throw new Error(result.error || 'Failed to start catalog sync');
+      }
+    } catch (error) {
+      setIsSyncing(false);
+      toast({
+        variant: 'destructive',
+        title: t('syncError'),
+        description: error instanceof Error ? error.message : t('syncErrorDescription'),
+      });
+    }
+  };
+
   const handlePrimaryServiceChange = async (serviceName: string | null) => {
     try {
       const response = await fetch('/api/user/settings', {
@@ -282,11 +310,17 @@ export default function IntegrationsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ primaryService: serviceName }),
+        body: JSON.stringify({ primaryService: serviceName || null }),
       });
 
       if (response.ok) {
+        const data = await response.json();
         setPrimaryService(serviceName);
+        if (data.settings?.secondaryService !== undefined) {
+          setSecondaryService(data.settings.secondaryService || null);
+        } else if (secondaryService === serviceName) {
+          setSecondaryService(null);
+        }
         toast({
           title: t('primaryServiceUpdated'),
           description: t('primaryServiceUpdatedDescription'),
@@ -303,9 +337,43 @@ export default function IntegrationsPage() {
     }
   };
 
+  const handleSecondaryServiceChange = async (serviceName: string) => {
+    const next = serviceName === '__none__' ? null : serviceName;
+    try {
+      const response = await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ secondaryService: next }),
+      });
+
+      if (response.ok) {
+        setSecondaryService(next);
+        toast({
+          title: t('secondaryServiceUpdated'),
+          description: t('secondaryServiceUpdatedDescription'),
+        });
+      } else {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update secondary service');
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: t('updateError'),
+        description: error instanceof Error ? error.message : t('updateErrorDescription'),
+      });
+    }
+  };
+
   const getIntegrationStatus = (serviceName: string) => {
     return integrations.find(integration => integration.serviceName === serviceName);
   };
+
+  const connectedServices = integrationServices.filter((service) => Boolean(getIntegrationStatus(service.name)));
+  const secondaryCandidates = connectedServices.filter((service) => service.name !== primaryService);
+  const canCatalogSync = Boolean(primaryService) && secondaryCandidates.length > 0;
 
   return (
     <div className="space-y-8">
@@ -325,25 +393,58 @@ export default function IntegrationsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <RadioGroup value={primaryService || ''} onValueChange={handlePrimaryServiceChange}>
-            {integrationServices.map((service) => {
-              const integration = getIntegrationStatus(service.name);
-              if (!integration) return null;
-              
-              return (
-                <div key={service.name} className="flex items-center space-x-2 rounded-lg border p-4">
-                  <RadioGroupItem value={service.name} id={`primary-${service.name}`} />
-                  <Label htmlFor={`primary-${service.name}`} className="flex items-center space-x-3 cursor-pointer w-full">
-                    <ServiceIcon service={service.name} size={32} />
-                    <div>
-                      <p className="font-medium">{service.displayName}</p>
-                      {primaryService === service.name && (
-                        <p className="text-xs text-muted-foreground">{t('PrimaryService.isPrimary')}</p>
-                      )}
-                    </div>
-                  </Label>
-                </div>
-              );
-            })}
+            {connectedServices.map((service) => (
+              <div key={service.name} className="flex items-center space-x-2 rounded-lg border p-4">
+                <RadioGroupItem value={service.name} id={`primary-${service.name}`} />
+                <Label htmlFor={`primary-${service.name}`} className="flex items-center space-x-3 cursor-pointer w-full">
+                  <ServiceIcon service={service.name} size={32} />
+                  <div>
+                    <p className="font-medium">{service.displayName}</p>
+                    {primaryService === service.name && (
+                      <p className="text-xs text-muted-foreground">{t('PrimaryService.isPrimary')}</p>
+                    )}
+                  </div>
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('SecondaryService.title')}</CardTitle>
+          <CardDescription>
+            {t('SecondaryService.description')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <RadioGroup
+            value={secondaryService || '__none__'}
+            onValueChange={handleSecondaryServiceChange}
+            disabled={!primaryService || secondaryCandidates.length === 0}
+          >
+            <div className="flex items-center space-x-2 rounded-lg border p-4">
+              <RadioGroupItem value="__none__" id="secondary-none" />
+              <Label htmlFor="secondary-none" className="cursor-pointer w-full">
+                <p className="font-medium">{t('SecondaryService.none')}</p>
+                <p className="text-xs text-muted-foreground">{t('SecondaryService.noneHint')}</p>
+              </Label>
+            </div>
+            {secondaryCandidates.map((service) => (
+              <div key={service.name} className="flex items-center space-x-2 rounded-lg border p-4">
+                <RadioGroupItem value={service.name} id={`secondary-${service.name}`} />
+                <Label htmlFor={`secondary-${service.name}`} className="flex items-center space-x-3 cursor-pointer w-full">
+                  <ServiceIcon service={service.name} size={32} />
+                  <div>
+                    <p className="font-medium">{service.displayName}</p>
+                    {secondaryService === service.name && (
+                      <p className="text-xs text-muted-foreground">{t('SecondaryService.isSecondary')}</p>
+                    )}
+                  </div>
+                </Label>
+              </div>
+            ))}
           </RadioGroup>
         </CardContent>
       </Card>
@@ -356,10 +457,21 @@ export default function IntegrationsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Button onClick={handleManualSync} disabled={integrations.length === 0 || isSyncing}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {t('SyncOptions.manualSyncButton')}
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={handleManualSync} disabled={integrations.length === 0 || isSyncing}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {t('SyncOptions.manualSyncButton')}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleCatalogSync}
+              disabled={!canCatalogSync || isSyncing}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {t('SyncOptions.catalogSyncButton')}
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">{t('SyncOptions.catalogSyncHint')}</p>
           {syncJob && (
             <div className="rounded-lg border p-4 space-y-2">
               <div className="flex items-center justify-between">
@@ -368,12 +480,20 @@ export default function IntegrationsPage() {
                   {syncJob.status}
                 </Badge>
               </div>
+              {syncJob.direction && (
+                <p className="text-xs text-muted-foreground">{syncJob.direction}</p>
+              )}
               <p className="text-sm text-muted-foreground">
                 #{syncJob.id} {syncJob.createdAt ? new Date(syncJob.createdAt).toLocaleString() : ''}
               </p>
               {typeof syncJob.summary?.imported === 'number' && (
                 <p className="text-sm text-muted-foreground">
                   {t('SyncOptions.importedEntries', { count: Number(syncJob.summary.imported) })}
+                </p>
+              )}
+              {typeof syncJob.summary?.pushed === 'number' && (
+                <p className="text-sm text-muted-foreground">
+                  {t('SyncOptions.pushedEntries', { count: Number(syncJob.summary.pushed) })}
                 </p>
               )}
               {syncJob.error && (

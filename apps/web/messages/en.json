@@ -287,9 +287,12 @@
       "description": "Configure how your watchlists are synchronized across services.",
       "automaticSync": "Automatic Synchronization",
       "automaticSyncDescription": "Automatically sync when you update an anime's status or progress.",
-      "manualSyncButton": "Manual Sync",
+      "manualSyncButton": "Manual Sync (schedule)",
+      "catalogSyncButton": "Sync primary catalog to other services",
+      "catalogSyncHint": "Pushes statuses, scores and progress from the full primary list to all other connected services. Titles missing on primary are left untouched.",
       "lastSyncJob": "Latest Sync Job",
-      "importedEntries": "Imported {count} entries"
+      "importedEntries": "Imported {count} entries",
+      "pushedEntries": "Queued push for {count} entries"
     },
     "AvailableIntegrations": {
       "title": "Available Integrations",
@@ -315,13 +318,26 @@
     "syncStarted": "Sync Started",
     "syncStartedDescription": "Manual synchronization has been started.",
     "syncAlreadyRunning": "A synchronization job is already running.",
+    "syncError": "Sync Error",
+    "syncErrorDescription": "Failed to start synchronization.",
+    "catalogSyncStarted": "Catalog sync started",
+    "catalogSyncStartedDescription": "Full primary catalog push has been queued.",
     "PrimaryService": {
       "title": "Primary Service",
-      "description": "Select the main service from which to load your anime list. Other services will sync automatically or manually.",
+      "description": "Authoritative catalog. Statuses, scores and progress from this service win over others.",
       "isPrimary": "This is your primary service"
     },
+    "SecondaryService": {
+      "title": "Secondary Service",
+      "description": "Fallback authority only for titles that are missing on primary (schedule gaps).",
+      "none": "Not selected",
+      "noneHint": "Gaps will use MAL → AniList → Shikimori order among connected services.",
+      "isSecondary": "This is your secondary service"
+    },
     "primaryServiceUpdated": "Primary Service Updated",
-    "primaryServiceUpdatedDescription": "Your primary service has been changed successfully."
+    "primaryServiceUpdatedDescription": "Your primary service has been changed successfully.",
+    "secondaryServiceUpdated": "Secondary Service Updated",
+    "secondaryServiceUpdatedDescription": "Your secondary service has been changed successfully."
   },
   "SettingsProfile": {
     "toast": {

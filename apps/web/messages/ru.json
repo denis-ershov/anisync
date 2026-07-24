@@ -287,9 +287,12 @@
       "description": "Настройте, как синхронизируются ваши списки просмотра между службами.",
       "automaticSync": "Автоматическая синхронизация",
       "automaticSyncDescription": "Автоматически синхронизировать при обновлении статуса или прогресса аниме.",
-      "manualSyncButton": "Ручная синхронизация",
+      "manualSyncButton": "Ручная синхронизация (расписание)",
+      "catalogSyncButton": "Синхронизировать каталог primary с другими сервисами",
+      "catalogSyncHint": "Переносит статусы, оценки и прогресс из полного списка primary на все остальные подключённые сервисы. Тайтлы, которых нет на primary, не меняются.",
       "lastSyncJob": "Последняя задача синхронизации",
-      "importedEntries": "Импортировано {count} записей"
+      "importedEntries": "Импортировано {count} записей",
+      "pushedEntries": "В очередь push: {count} записей"
     },
     "AvailableIntegrations": {
       "title": "Доступные интеграции",
@@ -315,13 +318,26 @@
     "syncStarted": "Синхронизация запущена",
     "syncStartedDescription": "Ручная синхронизация была запущена.",
     "syncAlreadyRunning": "Задача синхронизации уже выполняется.",
+    "syncError": "Ошибка синхронизации",
+    "syncErrorDescription": "Не удалось запустить синхронизацию.",
+    "catalogSyncStarted": "Синхронизация каталога запущена",
+    "catalogSyncStartedDescription": "Полный push каталога primary поставлен в очередь.",
     "PrimaryService": {
-      "title": "Главный сервис",
-      "description": "Выберите основной сервис для загрузки вашего списка аниме. Остальные сервисы будут синхронизироваться автоматически или вручную.",
-      "isPrimary": "Это ваш главный сервис"
+      "title": "Primary (главный сервис)",
+      "description": "Эталонный каталог. Статусы, оценки и прогресс с этого сервиса имеют приоритет.",
+      "isPrimary": "Это ваш primary-сервис"
     },
-    "primaryServiceUpdated": "Главный сервис обновлен",
-    "primaryServiceUpdatedDescription": "Ваш главный сервис был успешно изменен."
+    "SecondaryService": {
+      "title": "Secondary (запасной)",
+      "description": "Эталон только для тайтлов, которых нет на primary (дыры расписания).",
+      "none": "Не выбран",
+      "noneHint": "Для дыр будет порядок MAL → AniList → Shikimori среди подключённых.",
+      "isSecondary": "Это ваш secondary-сервис"
+    },
+    "primaryServiceUpdated": "Primary обновлён",
+    "primaryServiceUpdatedDescription": "Главный сервис успешно изменён.",
+    "secondaryServiceUpdated": "Secondary обновлён",
+    "secondaryServiceUpdatedDescription": "Запасной сервис успешно изменён."
   },
   "SettingsProfile": {
     "toast": {

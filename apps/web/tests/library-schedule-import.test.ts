@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  filterLibraryForPrimaryAuthoritativeImport,
   filterLibraryForScheduleImport,
   isWithinScheduleImportWindow,
   shouldIncludeInScheduleImport,
@@ -129,4 +130,35 @@ test('filterLibraryForScheduleImport keeps catching-up watching and in-window pl
   );
   assert.equal(filtered.some((item) => item.watchStatus === 'planned'), true);
   assert.equal(filtered.some((item) => item.watchStatus === 'completed'), false);
+});
+
+test('filterLibraryForPrimaryAuthoritativeImport keeps known local titles even if completed', () => {
+  const now = new Date('2026-07-22T12:00:00Z');
+  const known = new Set(['100']);
+  const filtered = filterLibraryForPrimaryAuthoritativeImport(
+    [
+      entry({
+        watchStatus: 'completed',
+        externalAnimeId: '100',
+        nextEpisodeDate: null,
+      }),
+      entry({
+        watchStatus: 'completed',
+        externalAnimeId: '999',
+        nextEpisodeDate: null,
+      }),
+      entry({
+        watchStatus: 'watching',
+        externalAnimeId: '50',
+        nextEpisodeDate: null,
+      }),
+    ],
+    known,
+    now
+  );
+
+  assert.deepEqual(
+    filtered.map((item) => item.externalAnimeId).sort(),
+    ['100', '50']
+  );
 });

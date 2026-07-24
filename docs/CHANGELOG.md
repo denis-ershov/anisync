@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-07-24 (deploy: авто-миграции при старте web)
+
+**Файлы:** `apps/web/src/lib/db/migrate.ts`, `docs/COOLIFY_DEPLOY.md`, `docs/DB_ARCHITECTURE.md`.
+
+**Изменения:** путь к `drizzle/` в migrate резолвится от файла (не от cwd); в Coolify/DB docs зафиксировано, что `0007` и последующие SQL применяются entrypoint `web` при деплое.
+
+**Обоснование:** миграции на проде должны идти автоматически, без ручного шага после deploy.
+
+## 2026-07-24 (integrations: primary/secondary + full catalog sync)
+
+**Файлы:** `apps/web/src/lib/db/schema.ts`, `apps/web/drizzle/0007_secondary_service.sql`, `apps/web/src/lib/types.ts`, `apps/web/src/lib/services/user-service.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/app/api/user/settings/route.ts`, `apps/web/src/app/api/user/integrations/sync/catalog/route.ts`, `apps/web/src/app/[locale]/settings/integrations/page.tsx`, `apps/web/messages/*`, `docs/modules/ANIME_ARCHITECTURE.md`, `docs/COOLIFY_DEPLOY.md`, `docs/DB_ARCHITECTURE.md`.
+
+**Изменения:**
+- Поле `secondary_service` + выбор Primary/Secondary на экране интеграций.
+- Кнопка и job `primary_catalog_push`: полный membership primary → local → push на остальные сервисы; тайтлы вне primary не трогаем.
+- Schedule refresh заполняет gaps сначала с explicit secondary.
+- `0007_secondary_service.sql` подхватывается entrypoint `web` при деплое (`RUN_MIGRATIONS=true`); ручной migrate на проде не нужен. Документация Coolify/DB уточнена.
+
+**Обоснование:** явная модель эталона и отдельная операция выравнивания всех connected под каталог primary.
+
+## 2026-07-24 (sync: primary всегда authoritative)
+
+**Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/integrations/library-schedule-import.ts`, `apps/web/tests/library-schedule-import.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** refresh берёт primary membership → upsert (schedule + выравнивание локальных, в т.ч. completed) → **push всех primary entries** на остальные сервисы; secondary только если тайтла нет на primary. «Продолжаю смотреть» тоже идёт из primary.
+
+**Обоснование:** статус/прогресс с primary должен побеждать (пример: primary=просмотрено, MAL=смотрю → везде просмотрено).
+
 ## 2026-07-24 (fix: ложный cascade delete с secondary)
 
 **Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/integrations/providers.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
