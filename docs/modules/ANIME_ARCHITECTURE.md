@@ -8,8 +8,8 @@
 
 - Каталог и библиотека аниме (Shikimori / MAL / AniList).
 - Sync jobs, library entries, provider OAuth.
-- API: `/api/user/anime/*`, `/api/user/library/*`, `/api/integrations/*`, `/api/user/integrations/sync*`.
-- UI: расписание, настройки интеграций.
+- API: `/api/user/anime/*`, `/api/user/library/*`, `/api/integrations/*`, `/api/user/integrations/sync*`, `/api/user/integrations/sync/queue` (обзор очереди).
+- UI: расписание, настройки интеграций (очередь jobs + entry-задачи).
 
 ## Primary / Secondary / AniSync
 
@@ -88,6 +88,8 @@ UI (`schedule-day.ts`): день недели по `next_episode_date` (для p
 - UI PATCH / episodes → `manual_update` + `outOfSync`;
 - Retry → `retry_sync`;
 - Schedule refresh → push эталона primary (не secondary-import).
+
+Обзор очереди: `GET /api/user/integrations/sync/queue` + панель на `/settings/integrations` (`SyncQueuePanel`).
 
 ## Документы / код
 

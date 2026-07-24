@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { UserIntegration } from "@/lib/types";
+import { SyncQueuePanel } from '@/components/sync-queue-panel';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface IntegrationService {
@@ -503,6 +504,8 @@ export default function IntegrationsPage() {
           )}
         </CardContent>
       </Card>
+
+      <SyncQueuePanel />
       
       <div className="space-y-4">
         <h3 className="text-xl font-bold tracking-tight">{t('AvailableIntegrations.title')}</h3>

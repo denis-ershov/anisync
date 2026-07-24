@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-24 (ui: очередь синхронизации на интеграциях)
+
+**Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/app/api/user/integrations/sync/queue/route.ts`, `apps/web/src/components/sync-queue-panel.tsx`, `apps/web/src/[locale]/settings/integrations/page.tsx`, `apps/web/messages/*`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** панель «Очередь и задачи» — counts, последние sync jobs, pending/failed правки тайтлов с названиями; автообновление при активной работе; API `GET /api/user/integrations/sync/queue`.
+
+**Обоснование:** на интеграциях было непонятно, что в очереди и работает ли sync.
+
 ## 2026-07-24 (ui: компактные карточки на mobile/PWA)
 
 **Файлы:** `apps/web/src/components/schedule-view.tsx`, `apps/web/src/components/anime-card.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`.

@@ -298,6 +298,50 @@
       "importedEntries": "Импортировано {count} записей",
       "pushedEntries": "В очередь push: {count} записей"
     },
+    "SyncQueue": {
+      "title": "Очередь и задачи",
+      "description": "Что сейчас в очереди синхронизации: jobs (расписание/каталог) и правки отдельных тайтлов.",
+      "refresh": "Обновить",
+      "loading": "Загрузка очереди…",
+      "queuesEnabled": "Очереди BullMQ включены (Redis)",
+      "queuesDisabled": "Очереди через HTTP (без Redis) — worker/внутренние process-роуты",
+      "updatedAt": "Обновлено: {time}",
+      "autoRefresh": "автообновление каждые 5 с",
+      "jobsTitle": "Задачи синхронизации",
+      "jobsEmpty": "Нет недавних sync jobs",
+      "entriesTitle": "Правки тайтлов",
+      "entriesEmpty": "Нет активных правок в очереди",
+      "outOfSyncBadge": "out of sync",
+      "syncedAt": "Синхронизировано: {time}",
+      "jobImported": "Импорт: {count}",
+      "jobPushed": "Push: {count}",
+      "counts": {
+        "jobsPending": "Jobs pending: {count}",
+        "jobsRunning": "Jobs running: {count}",
+        "entryPending": "Правки pending: {count}",
+        "entryProcessing": "Правки processing: {count}",
+        "entryFailed": "Правки failed: {count}",
+        "outOfSync": "Out of sync: {count}"
+      },
+      "status": {
+        "pending": "В очереди",
+        "running": "Выполняется",
+        "processing": "Обработка",
+        "completed": "Готово",
+        "failed": "Ошибка",
+        "synced": "Синхронизировано",
+        "local_only": "Только локально"
+      },
+      "directions": {
+        "primary_import": "Импорт расписания",
+        "primary_catalog_push": "Push каталога primary",
+        "schedule_refresh": "Обновление расписания"
+      },
+      "changeTypes": {
+        "manual_update": "Ручное изменение",
+        "retry_sync": "Повторная синхронизация"
+      }
+    },
     "AvailableIntegrations": {
       "title": "Доступные интеграции",
       "connectButton": "Подключить",

@@ -298,6 +298,50 @@
       "importedEntries": "Imported {count} entries",
       "pushedEntries": "Queued push for {count} entries"
     },
+    "SyncQueue": {
+      "title": "Queue & tasks",
+      "description": "What is currently in the sync queue: jobs (schedule/catalog) and per-title entry changes.",
+      "refresh": "Refresh",
+      "loading": "Loading queue…",
+      "queuesEnabled": "BullMQ queues enabled (Redis)",
+      "queuesDisabled": "HTTP fallback queues (no Redis) — worker/internal process routes",
+      "updatedAt": "Updated: {time}",
+      "autoRefresh": "auto-refresh every 5s",
+      "jobsTitle": "Sync jobs",
+      "jobsEmpty": "No recent sync jobs",
+      "entriesTitle": "Title changes",
+      "entriesEmpty": "No active entry changes in queue",
+      "outOfSyncBadge": "out of sync",
+      "syncedAt": "Synced: {time}",
+      "jobImported": "Imported: {count}",
+      "jobPushed": "Pushed: {count}",
+      "counts": {
+        "jobsPending": "Jobs pending: {count}",
+        "jobsRunning": "Jobs running: {count}",
+        "entryPending": "Changes pending: {count}",
+        "entryProcessing": "Changes processing: {count}",
+        "entryFailed": "Changes failed: {count}",
+        "outOfSync": "Out of sync: {count}"
+      },
+      "status": {
+        "pending": "Queued",
+        "running": "Running",
+        "processing": "Processing",
+        "completed": "Completed",
+        "failed": "Failed",
+        "synced": "Synced",
+        "local_only": "Local only"
+      },
+      "directions": {
+        "primary_import": "Schedule import",
+        "primary_catalog_push": "Primary catalog push",
+        "schedule_refresh": "Schedule refresh"
+      },
+      "changeTypes": {
+        "manual_update": "Manual update",
+        "retry_sync": "Retry sync"
+      }
+    },
     "AvailableIntegrations": {
       "title": "Available Integrations",
       "connectButton": "Connect",

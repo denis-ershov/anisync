@@ -120,6 +120,139 @@ export class SyncService {
     };
   }
 
+  /**
+   * Обзор очереди для UI интеграций: jobs + entry-задачи с названиями тайтлов.
+   */
+  static async getSyncQueueOverview(userId: number) {
+    const recentJobs = await db
+      .select({
+        id: syncJobs.id,
+        status: syncJobs.status,
+        direction: syncJobs.direction,
+        primaryService: syncJobs.primaryService,
+        summary: syncJobs.summary,
+        error: syncJobs.error,
+        startedAt: syncJobs.startedAt,
+        finishedAt: syncJobs.finishedAt,
+        createdAt: syncJobs.createdAt,
+      })
+      .from(syncJobs)
+      .where(eq(syncJobs.userId, userId))
+      .orderBy(desc(syncJobs.createdAt))
+      .limit(20);
+
+    const activeEntryRows = await db
+      .select({
+        id: userEntryChanges.id,
+        libraryEntryId: userEntryChanges.libraryEntryId,
+        changeType: userEntryChanges.changeType,
+        status: userEntryChanges.status,
+        createdAt: userEntryChanges.createdAt,
+        syncedAt: userEntryChanges.syncedAt,
+        animeId: userLibraryEntries.animeId,
+        outOfSync: userLibraryEntries.outOfSync,
+        titleDefault: animeCatalog.titleDefault,
+        titleRussian: animeCatalog.titleRussian,
+        titleEnglish: animeCatalog.titleEnglish,
+      })
+      .from(userEntryChanges)
+      .innerJoin(userLibraryEntries, eq(userEntryChanges.libraryEntryId, userLibraryEntries.id))
+      .innerJoin(animeCatalog, eq(userLibraryEntries.animeId, animeCatalog.id))
+      .where(
+        and(
+          eq(userEntryChanges.userId, userId),
+          inArray(userEntryChanges.status, ['pending', 'processing', 'failed'])
+        )
+      )
+      .orderBy(desc(userEntryChanges.createdAt))
+      .limit(40);
+
+    const recentSyncedRows = await db
+      .select({
+        id: userEntryChanges.id,
+        libraryEntryId: userEntryChanges.libraryEntryId,
+        changeType: userEntryChanges.changeType,
+        status: userEntryChanges.status,
+        createdAt: userEntryChanges.createdAt,
+        syncedAt: userEntryChanges.syncedAt,
+        animeId: userLibraryEntries.animeId,
+        outOfSync: userLibraryEntries.outOfSync,
+        titleDefault: animeCatalog.titleDefault,
+        titleRussian: animeCatalog.titleRussian,
+        titleEnglish: animeCatalog.titleEnglish,
+      })
+      .from(userEntryChanges)
+      .innerJoin(userLibraryEntries, eq(userEntryChanges.libraryEntryId, userLibraryEntries.id))
+      .innerJoin(animeCatalog, eq(userLibraryEntries.animeId, animeCatalog.id))
+      .where(and(eq(userEntryChanges.userId, userId), eq(userEntryChanges.status, 'synced')))
+      .orderBy(desc(userEntryChanges.syncedAt))
+      .limit(10);
+
+    const [outOfSyncCountRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userLibraryEntries)
+      .where(and(eq(userLibraryEntries.userId, userId), eq(userLibraryEntries.outOfSync, true)));
+
+    const mapEntryTask = (row: (typeof activeEntryRows)[number]) => ({
+      id: row.id,
+      kind: 'entry_change' as const,
+      libraryEntryId: row.libraryEntryId,
+      animeId: row.animeId,
+      title: row.titleRussian || row.titleEnglish || row.titleDefault || `#${row.animeId}`,
+      changeType: row.changeType,
+      status: row.status,
+      outOfSync: row.outOfSync,
+      createdAt: row.createdAt?.toISOString?.() ?? String(row.createdAt),
+      syncedAt: row.syncedAt ? row.syncedAt.toISOString?.() ?? String(row.syncedAt) : null,
+    });
+
+    const jobs = recentJobs.map((job) => ({
+      id: job.id,
+      kind: 'sync_job' as const,
+      status: job.status,
+      direction: job.direction,
+      primaryService: job.primaryService,
+      summary: job.summary || {},
+      error: job.error,
+      startedAt: job.startedAt ? job.startedAt.toISOString?.() ?? String(job.startedAt) : null,
+      finishedAt: job.finishedAt ? job.finishedAt.toISOString?.() ?? String(job.finishedAt) : null,
+      createdAt: job.createdAt?.toISOString?.() ?? String(job.createdAt),
+    }));
+
+    const [jobsPendingRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(syncJobs)
+      .where(and(eq(syncJobs.userId, userId), eq(syncJobs.status, 'pending')));
+    const [jobsRunningRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(syncJobs)
+      .where(and(eq(syncJobs.userId, userId), eq(syncJobs.status, 'running')));
+
+    const counts = {
+      jobsPending: Number(jobsPendingRow?.count || 0),
+      jobsRunning: Number(jobsRunningRow?.count || 0),
+      entryPending: activeEntryRows.filter((row) => row.status === 'pending').length,
+      entryProcessing: activeEntryRows.filter((row) => row.status === 'processing').length,
+      entryFailed: activeEntryRows.filter((row) => row.status === 'failed').length,
+      outOfSync: Number(outOfSyncCountRow?.count || 0),
+    };
+
+    const hasActiveWork =
+      counts.jobsPending > 0 ||
+      counts.jobsRunning > 0 ||
+      counts.entryPending > 0 ||
+      counts.entryProcessing > 0;
+
+    return {
+      queuesEnabled: isQueuesEnabled(),
+      hasActiveWork,
+      counts,
+      jobs,
+      entryTasks: [...activeEntryRows.map(mapEntryTask), ...recentSyncedRows.map(mapEntryTask)],
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   static async getRecentJobs(userId: number, limit: number = 10) {
     await this.failStaleRunningJobs(userId);
 
