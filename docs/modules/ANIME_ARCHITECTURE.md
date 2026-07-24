@@ -20,21 +20,21 @@
 3. Если срез старше **15 минут** (или `?force=1`) — enqueue `anime.schedule.refresh` (или fire-and-forget без Redis).
 4. Ответ: `{ anime, sync: { status, stale } }`.
 
-UI показывает кэш сразу; индикатор «Обновление списка…» + poll ~5с пока `sync.status` не `idle`.
+UI показывает кэш сразу; индикатор «Обновление списка…» (бейдж со спиннером) + poll ~5с пока `sync.status` не `idle`. Статус фонового refresh хранится в `sync_jobs` (`direction=schedule_refresh`), чтобы переживать запросы/инстансы.
 
 ## Mixed-provider schedule import
 
 `SyncService.refreshScheduleSlice(userId)`:
 
-1. **Membership cascade delete** — для каждого connected провайдера `fetchLibrary({ scope: 'membership' })`; если локальный тайтл был привязан к сервису и пропал из списка — удаление на всех провайдерах + local.
+1. **Membership cascade delete** — **только primary**: `fetchLibrary({ scope: 'membership' })`. Если тайтл был привязан к primary и пропал из его списка — удаление на остальных connected + local. Secondary (MAL/AniList) **не** триггерят cascade (иначе enrichment id → ложный wipe primary).
 2. **Primary** — полный upsert метаданных и library entries (replace progress); фиксация изменившихся `watchStatus` / `watchedEpisodes`.
 3. **MAL** (если подключён) — только тайтлы, которых **нет** на primary; метаданные с MAL.
 4. **Остальные** (AniList и т.д.) — только тайтлы, которых нет ни на primary, ни на MAL.
 5. На уже существующие строки каталога secondary делает `fill-gaps`: **добивает только пустые поля** — **не перезаписывает** primary.
-6. **Soft prune** — `pruneLibraryToScheduleSlice` не удаляет active titles вне schedule-окна; удаления только через cascade (§membership) или UI DELETE.
+6. **Soft prune** — `pruneLibraryToScheduleSlice` не удаляет active titles вне schedule-окна; удаления только через cascade (§primary membership) или UI DELETE.
 7. Для записей с изменившимся progress/status с primary — `requeueEntrySync` + `dispatchEntrySync` (push на остальные сервисы).
 
-Приоритет источника метаданных: `primary → myanimelist → другие`.
+Приоритет источника метаданных и удалений: **primary всегда authoritative**. Secondary не переопределяет primary.
 
 ### Сопоставление тайтлов
 
@@ -73,13 +73,15 @@ UI: диалог «Добавить аниме» на расписании (`Add
 По умолчанию `fetchLibrary({ scope: 'schedule' })`:
 
 1. Статусы **watching / planned / rewatching**.
-2. Окно **14 дней** по `nextEpisodeDate` / `airedOn` (planned) — только фильтр import/отображения, не DELETE.
-3. Отдельно `scope: 'membership'` — id тайтлов во всех статусах списка (для cascade delete).
+2. **watching / rewatching** — импортируются **целиком** (в т.ч. без даты / с эфиром вне окна) → блок «Продолжаю смотреть».
+3. **planned** — только окно **14 дней** по `nextEpisodeDate` / `airedOn`.
+4. Фильтр окна — только import/отображение среза planned, не DELETE.
+5. Отдельно `scope: 'membership'` — id тайтлов во всех статусах списка (для cascade delete).
 
 ## Удаление статуса (library entry)
 
-- `DELETE /api/user/library/[id]`: local delete + cascade на **все** connected провайдеры.
-- External delete (на сайте сервиса): детект на refresh через membership → cascade везде.
+- `DELETE /api/user/library/[id]`: local delete + cascade на **все** connected провайдеры (явное действие пользователя).
+- External delete: детект **только с primary** через membership → cascade на остальные + local. Secondary absence не считается удалением.
 
 ## Код
 

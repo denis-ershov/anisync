@@ -110,8 +110,8 @@ type ShikimoriRate = NonNullable<ShikimoriRateResponse['data']>['userRates'][num
 
 function mapShikimoriRate(rate: ShikimoriRate): ProviderLibraryEntry {
   return {
-    externalEntryId: rate.id,
-    externalAnimeId: rate.anime.id,
+    externalEntryId: String(rate.id),
+    externalAnimeId: String(rate.anime.id),
     malId: rate.anime.malId ?? null,
     titleDefault: rate.anime.name,
     titleEnglish: getPrimaryLocalizedTitle(rate.anime.english) || rate.anime.name,
@@ -443,7 +443,7 @@ const shikimoriProvider: ProviderAdapter = {
     });
 
     return (response.data?.animes || []).map((anime) => ({
-      externalAnimeId: anime.id,
+      externalAnimeId: String(anime.id),
       malId: anime.malId ?? null,
       titleDefault: anime.name,
       titleEnglish: getPrimaryLocalizedTitle(anime.english) || anime.name,

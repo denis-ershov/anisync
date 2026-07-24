@@ -10,6 +10,8 @@ export const SCHEDULE_IMPORT_STATUSES: readonly LibraryStatus[] = [
 /**
  * Текущая + ближайшая неделя: rolling-окно от сегодня (14 дней).
  * Совпадает с расписанием UI (7 дней) + следующая неделя.
+ * Окно применяется к **planned**; watching/rewatching импортируются целиком
+ * (в т.ч. для блока «Продолжаю смотреть» вне окна).
  */
 export const SCHEDULE_IMPORT_WINDOW_DAYS = 14;
 
@@ -17,7 +19,7 @@ export type FetchLibraryScope = 'schedule' | 'full' | 'membership';
 
 export type FetchLibraryOptions = {
   /**
-   * `schedule` — статусы расписания + окно эфира.
+   * `schedule` — watching/rewatching целиком + planned в окне эфира.
    * `full` / `membership` — все статусы списка без окна (membership — для детекта удалений).
    */
   scope?: FetchLibraryScope;
@@ -78,11 +80,34 @@ export function isWithinScheduleImportWindow(
   return days >= 0 && days < SCHEDULE_IMPORT_WINDOW_DAYS;
 }
 
+/** Активный просмотр — всегда в schedule-import (расписание + «Продолжаю смотреть»). */
+export function isCatchingUpImportStatus(status: LibraryStatus): boolean {
+  return status === 'watching' || status === 'rewatching';
+}
+
+export function shouldIncludeInScheduleImport(
+  entry: {
+    nextEpisodeDate?: string | null;
+    airedOn?: string | null;
+    watchStatus: LibraryStatus;
+  },
+  now: Date = new Date()
+): boolean {
+  if (!isScheduleImportStatus(entry.watchStatus)) {
+    return false;
+  }
+
+  if (isCatchingUpImportStatus(entry.watchStatus)) {
+    return true;
+  }
+
+  // planned — только в окне 14 дней
+  return isWithinScheduleImportWindow(entry, now);
+}
+
 export function filterLibraryForScheduleImport(
   entries: ProviderLibraryEntry[],
   now: Date = new Date()
 ): ProviderLibraryEntry[] {
-  return entries.filter(
-    (entry) => isScheduleImportStatus(entry.watchStatus) && isWithinScheduleImportWindow(entry, now)
-  );
+  return entries.filter((entry) => shouldIncludeInScheduleImport(entry, now));
 }

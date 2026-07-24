@@ -50,6 +50,12 @@ interface AnimeData {
   personal_rating: number | null;
   user_rate_id?: string;
   source: string;
+  sourceService?: IntegrationServiceName;
+  serviceLinks?: Array<{
+    service: IntegrationServiceName;
+    externalAnimeId: string;
+    url: string;
+  }>;
   out_of_sync?: boolean;
   sync_state?: 'pending' | 'processing' | 'synced' | 'failed' | 'local_only';
 }
@@ -522,6 +528,8 @@ export function ScheduleView() {
             personalRating: anime.personal_rating,
             userNotes: '',
             userRateId: anime.user_rate_id,
+            sourceService: (anime.sourceService || anime.source) as IntegrationServiceName,
+            serviceLinks: anime.serviceLinks,
             outOfSync: anime.out_of_sync,
             syncState: anime.sync_state,
           }}
@@ -533,9 +541,19 @@ export function ScheduleView() {
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground">
-          {(syncStatus === 'queued' || syncStatus === 'running') && (
-            <span>{t('syncRefreshing')}</span>
+        <div className="flex min-h-8 items-center gap-2 text-sm">
+          {(syncStatus === 'queued' || syncStatus === 'running' || isRefreshing) && (
+            <div
+              className="inline-flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-1.5 text-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent"
+                aria-hidden
+              />
+              <span>{t('syncRefreshing')}</span>
+            </div>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">

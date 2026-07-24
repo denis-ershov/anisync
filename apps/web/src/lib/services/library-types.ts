@@ -1,4 +1,5 @@
 import type { IntegrationServiceName } from '@/lib/integrations/provider-types';
+import type { ProviderServiceLink } from '@/lib/integrations/provider-links';
 
 export interface LibraryFilters {
   search?: string;
@@ -49,6 +50,7 @@ export interface LibraryEntryView {
   personal_rating: number | null;
   user_rate_id: string;
   source: IntegrationServiceName;
+  serviceLinks: ProviderServiceLink[];
   user_notes: string;
   is_favorite: boolean;
   is_not_interested: boolean;

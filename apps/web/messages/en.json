@@ -132,6 +132,11 @@
       "dropped": "Dropped",
       "rewatching": "Rewatching",
       "not_interested": "Not Interested"
+    },
+    "source": {
+      "shikimori": "Shikimori",
+      "myanimelist": "MyAnimeList",
+      "anilist": "AniList"
     }
   },
   "Genres": {
@@ -190,7 +195,8 @@
     "yourRating": "Your Rating",
     "episodes": "Episodes",
     "notes": "Notes",
-    "notesPlaceholder": "Your private notes about this anime..."
+    "notesPlaceholder": "Your private notes about this anime...",
+    "onServices": "On services"
   },
   "Profile": {
     "joined": "Joined on {date}",

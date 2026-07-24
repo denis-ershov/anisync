@@ -367,7 +367,7 @@ export class SyncService {
       await LibraryService.createNotification(userId, {
         type: 'sync_completed',
         title: 'Sync completed',
-        message: `Imported ${refreshed.imported} watching/planned titles airing in the next 2 weeks from ${refreshed.sources.join(', ') || primaryService}.`,
+        message: `Imported ${refreshed.imported} watching (incl. catching-up) and planned (next 2 weeks) titles from ${refreshed.sources.join(', ') || primaryService}.`,
       });
 
       return {
@@ -704,9 +704,97 @@ export class SyncService {
     return Date.now() - lastSyncedAt.getTime() > appConfig.scheduleRefreshTtlMs;
   }
 
+  /** Durable marker for UI: schedule refresh pending/running across requests. */
+  private static async beginScheduleRefreshMarker(userId: number, status: 'pending' | 'running' = 'running') {
+    const settings = await UserSettingsService.getUserSettings(userId);
+    if (!settings?.primaryService) {
+      return;
+    }
+
+    await db
+      .update(syncJobs)
+      .set({
+        status: 'failed',
+        finishedAt: new Date(),
+        error: 'superseded by newer schedule refresh',
+      })
+      .where(
+        and(
+          eq(syncJobs.userId, userId),
+          eq(syncJobs.direction, 'schedule_refresh'),
+          inArray(syncJobs.status, ['pending', 'running'])
+        )
+      );
+
+    await db.insert(syncJobs).values({
+      userId,
+      primaryService: settings.primaryService,
+      status,
+      direction: 'schedule_refresh',
+      summary: {},
+      startedAt: status === 'running' ? new Date() : null,
+      createdAt: new Date(),
+    });
+  }
+
+  private static async finishScheduleRefreshMarker(
+    userId: number,
+    outcome: 'completed' | 'failed',
+    summary?: Record<string, unknown>,
+    error?: string
+  ) {
+    await db
+      .update(syncJobs)
+      .set({
+        status: outcome,
+        finishedAt: new Date(),
+        summary: summary ?? {},
+        error: error ?? null,
+      })
+      .where(
+        and(
+          eq(syncJobs.userId, userId),
+          eq(syncJobs.direction, 'schedule_refresh'),
+          inArray(syncJobs.status, ['pending', 'running'])
+        )
+      );
+  }
+
+  private static async getScheduleRefreshMarkerStatus(userId: number): Promise<ScheduleSyncStatus | null> {
+    const [job] = await db
+      .select()
+      .from(syncJobs)
+      .where(
+        and(
+          eq(syncJobs.userId, userId),
+          eq(syncJobs.direction, 'schedule_refresh'),
+          inArray(syncJobs.status, ['pending', 'running'])
+        )
+      )
+      .orderBy(desc(syncJobs.createdAt))
+      .limit(1);
+
+    if (!job) {
+      return null;
+    }
+
+    const startedOrCreated = job.startedAt || job.createdAt;
+    if (isRunningSyncJobStale(startedOrCreated)) {
+      await this.finishScheduleRefreshMarker(userId, 'failed', {}, 'Schedule refresh timed out');
+      return null;
+    }
+
+    return job.status === 'pending' ? 'queued' : 'running';
+  }
+
   static async getScheduleSyncStatus(userId: number): Promise<ScheduleSyncStatus> {
     if (scheduleRefreshInFlight.has(userId)) {
       return 'running';
+    }
+
+    const marker = await this.getScheduleRefreshMarkerStatus(userId);
+    if (marker) {
+      return marker;
     }
 
     if (isQueuesEnabled()) {
@@ -743,19 +831,22 @@ export class SyncService {
 
     if (isQueuesEnabled()) {
       try {
+        await this.beginScheduleRefreshMarker(userId, 'pending');
         const result = await enqueueScheduleRefresh(userId);
         return {
-          status: result.enqueued ? 'queued' : current === 'idle' ? 'queued' : current,
+          status: 'queued',
           stale,
           dispatched: result.enqueued,
         };
       } catch {
+        await this.finishScheduleRefreshMarker(userId, 'failed', {}, 'Failed to enqueue schedule refresh');
         // fall through to fire-and-forget
       }
     }
 
     if (!scheduleRefreshInFlight.has(userId)) {
       scheduleRefreshInFlight.add(userId);
+      await this.beginScheduleRefreshMarker(userId, 'running');
       void this.refreshScheduleSlice(userId)
         .catch(() => undefined)
         .finally(() => {
@@ -770,9 +861,50 @@ export class SyncService {
    * Mixed-provider schedule import + membership cascade delete + push изменений.
    */
   static async refreshScheduleSlice(userId: number) {
+    try {
+      const result = await this.refreshScheduleSliceInner(userId);
+      await this.finishScheduleRefreshMarker(userId, 'completed', {
+        imported: result.imported,
+        sources: result.sources,
+        deleted: result.deleted,
+        pushed: result.pushed,
+      });
+      return result;
+    } catch (error) {
+      await this.finishScheduleRefreshMarker(
+        userId,
+        'failed',
+        {},
+        error instanceof Error ? error.message : 'Schedule refresh failed'
+      );
+      throw error;
+    }
+  }
+
+  private static async refreshScheduleSliceInner(userId: number) {
     const settings = await UserSettingsService.getUserSettings(userId);
     if (!settings?.primaryService) {
       return { imported: 0, sources: [] as IntegrationServiceName[], deleted: 0, pushed: 0 };
+    }
+
+    const existingMarker = await this.getScheduleRefreshMarkerStatus(userId);
+    if (!existingMarker) {
+      await this.beginScheduleRefreshMarker(userId, 'running');
+    } else {
+      // Promote pending → running when worker picks up the job
+      await db
+        .update(syncJobs)
+        .set({
+          status: 'running',
+          startedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(syncJobs.userId, userId),
+            eq(syncJobs.direction, 'schedule_refresh'),
+            eq(syncJobs.status, 'pending')
+          )
+        );
     }
 
     const integrations = await db
@@ -914,12 +1046,25 @@ export class SyncService {
     };
   }
 
-  /** Удаление на любом сервисе → cascade local + все connected. */
+  /** Удаление на primary → cascade на остальные + local. Secondary не триггерит удаление. */
   private static async cascadeExternalDeletes(userId: number, connected: UserIntegration[]) {
+    const settings = await UserSettingsService.getUserSettings(userId);
+    const primaryService = settings?.primaryService as IntegrationServiceName | undefined;
+    if (!primaryService) {
+      return 0;
+    }
+
+    const primaryIntegration = connected.find((integration) => integration.serviceName === primaryService);
+    if (!primaryIntegration?.accessToken) {
+      return 0;
+    }
+
     const localEntries = await db
       .select({
         id: userLibraryEntries.id,
         animeId: userLibraryEntries.animeId,
+        sourceService: userLibraryEntries.sourceService,
+        sourceEntryId: userLibraryEntries.sourceEntryId,
       })
       .from(userLibraryEntries)
       .where(eq(userLibraryEntries.userId, userId));
@@ -930,37 +1075,61 @@ export class SyncService {
 
     const animeIds = localEntries.map((row) => row.animeId);
     const serviceIdRows = await LibraryService.listServiceIdsForAnime(animeIds);
-    const entryByAnimeId = new Map(localEntries.map((row) => [row.animeId, row.id]));
-    const toDelete = new Set<number>();
+    const primaryIdsByAnime = new Map<number, string>();
 
-    for (const integration of connected) {
-      const serviceName = integration.serviceName as IntegrationServiceName;
-      try {
-        const refreshed = await IntegrationService.refreshTokenIfNeeded(integration as UserIntegration);
-        const provider = getProvider(serviceName);
-        const membership = await provider.fetchLibrary(refreshed, { scope: 'membership' });
-        const present = new Set(membership.map((entry) => entry.externalAnimeId));
-
-        for (const row of serviceIdRows) {
-          if (row.serviceName !== serviceName) {
-            continue;
-          }
-          if (present.has(row.externalAnimeId)) {
-            continue;
-          }
-          const entryId = entryByAnimeId.get(row.animeId);
-          if (entryId) {
-            toDelete.add(entryId);
-          }
-        }
-      } catch {
-        // skip provider on membership failure — avoid false deletes
+    for (const row of serviceIdRows) {
+      if (row.serviceName === primaryService && row.externalAnimeId) {
+        primaryIdsByAnime.set(row.animeId, String(row.externalAnimeId));
       }
+    }
+
+    // Только тайтлы, реально привязанные к primary (не secondary-only enrichment).
+    const primaryLinked = localEntries.filter((entry) => {
+      if (primaryIdsByAnime.has(entry.animeId)) {
+        return true;
+      }
+      return entry.sourceService === primaryService && Boolean(entry.sourceEntryId);
+    });
+
+    if (!primaryLinked.length) {
+      return 0;
+    }
+
+    let membership: Awaited<ReturnType<ReturnType<typeof getProvider>['fetchLibrary']>>;
+    try {
+      const refreshed = await IntegrationService.refreshTokenIfNeeded(primaryIntegration as UserIntegration);
+      const provider = getProvider(primaryService);
+      membership = await provider.fetchLibrary(refreshed, { scope: 'membership' });
+    } catch {
+      // Не удаляем при ошибке membership — иначе ложный wipe primary.
+      return 0;
+    }
+
+    const present = new Set(
+      membership.map((entry) => String(entry.externalAnimeId)).filter(Boolean)
+    );
+
+    // Защита: пустой/подозрительно маленький ответ API не должен сносить всю библиотеку.
+    if (present.size === 0 && primaryLinked.length >= 3) {
+      return 0;
+    }
+    if (present.size > 0 && primaryLinked.length >= 10 && present.size < Math.ceil(primaryLinked.length * 0.2)) {
+      return 0;
+    }
+
+    const toDelete = new Set<number>();
+    for (const entry of primaryLinked) {
+      const id = primaryIdsByAnime.get(entry.animeId);
+      if (!id || present.has(id)) {
+        continue;
+      }
+      toDelete.add(entry.id);
     }
 
     let deleted = 0;
     for (const entryId of toDelete) {
       try {
+        // Primary уже без записи — убираем с остальных connected и локально.
         await this.deleteEntryFromProviders(userId, entryId);
         const removed = await LibraryService.deleteEntry(userId, entryId);
         if (removed) {

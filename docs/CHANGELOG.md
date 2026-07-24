@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-07-24 (fix: ложный cascade delete с secondary)
+
+**Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/integrations/providers.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** external delete детектится **только по primary membership**; secondary больше не триггерят wipe; защита от пустого/урезанного ответа API; Shikimori `externalAnimeId` нормализуется в `String`.
+
+**Обоснование:** AniList id enrichment + cascade «с любого сервиса» удаляли тайтлы с primary (ложный массовый wipe в истории Shikimori). Primary всегда authoritative.
+
+## 2026-07-24 (ui: ссылки на сервисы + бейдж источника)
+
+**Файлы:** `apps/web/src/lib/integrations/provider-links.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/lib/services/library-types.ts`, `apps/web/src/lib/types.ts`, `apps/web/src/components/provider-service-links.tsx`, `apps/web/src/components/anime-card.tsx`, `apps/web/src/components/anime-detail-modal.tsx`, `apps/web/src/components/schedule-view.tsx`, `apps/web/messages/*`, `docs/CHANGELOG.md`.
+
+**Изменения:** в API библиотеки отдаются `serviceLinks` по всем известным `anime_service_ids` (+ MAL по `mal_id`); на карточке — бейдж источника и компактные ссылки; в модалке — полный блок «На сервисах».
+
+**Обоснование:** удобный переход на Shikimori/MAL/AniList и понимание, откуда взят тайтл в смешанном каталоге.
+
+## 2026-07-24 (ui: индикатор фонового schedule refresh)
+
+**Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/app/api/user/anime/route.ts`, `apps/web/src/components/schedule-view.tsx`, `docs/CHANGELOG.md`.
+
+**Изменения:** статус фонового `schedule_refresh` пишется в `sync_jobs` (видно между запросами); API отдаёт live status; на расписании — заметный бейдж со спиннером «Обновление списка…».
+
+**Обоснование:** in-memory Set не переживал poll/другие инстансы, индикатор сразу пропадал.
+
+## 2026-07-24 (anime: catching-up import вне окна 14 дней)
+
+**Файлы:** `apps/web/src/lib/integrations/library-schedule-import.ts`, `apps/web/tests/library-schedule-import.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** schedule-import всегда тянет **watching/rewatching** (даже без даты или с эфиром за пределами 14 дней) для блока «Продолжаю смотреть»; окно 14 дней остаётся только для **planned**.
+
+**Обоснование:** иначе тайтлы в статусе «смотрю» вне окна не попадали в локальную библиотеку и секция catching-up была пустой.
+
+## 2026-07-24 (ci: pnpm version из packageManager)
+
+**Файлы:** `.github/workflows/ci.yml`.
+
+**Изменения:** убран дублирующий `version: 9` у `pnpm/action-setup` (используется `packageManager: pnpm@9.15.0`); checkout/setup-node обновлены до v5.
+
+**Обоснование:** CI падал с `ERR_PNPM_BAD_PM_VERSION` из‑за конфликта version в Action и package.json.
+
 ## 2026-07-24 (anime: outbound upsert-all, cascade delete, search/add)
 
 **Файлы:** `apps/web/src/lib/integrations/provider-types.ts`, `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/app/api/user/anime/search/route.ts`, `apps/web/src/app/api/user/library/route.ts`, `apps/web/src/components/add-anime-dialog.tsx`, `apps/web/src/components/schedule-view.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `docs/modules/ANIME_ARCHITECTURE.md`.

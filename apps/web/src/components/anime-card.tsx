@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { AnimeDetailModal } from "./anime-detail-modal";
+import { ProviderServiceLinks, ServiceSourceBadge } from "@/components/provider-service-links";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -247,15 +248,16 @@ export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
               </p>
             )}
           </div>
-          {/* Rating - Left side */}
-          {anime.rating > 0 && (
-            <div className="absolute top-2 left-2">
+          {/* Rating + source - Left side */}
+          <div className="absolute top-2 left-2 flex flex-col items-start gap-1.5">
+            {anime.rating > 0 && (
               <div className="flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 backdrop-blur-sm">
                 <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
                 <span className="text-sm font-semibold text-white">{anime.rating.toFixed(1)}</span>
               </div>
-            </div>
-          )}
+            )}
+            <ServiceSourceBadge service={anime.sourceService} className="text-[10px] bg-black/60 text-white backdrop-blur-sm border-0" />
+          </div>
           {/* Menu - Right side */}
           <div className="absolute top-2 right-2">
             <DropdownMenu>
@@ -319,6 +321,11 @@ export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
               </Badge>
             )}
           </div>
+          {anime.serviceLinks && anime.serviceLinks.length > 0 && (
+            <div className="mb-2">
+              <ProviderServiceLinks links={anime.serviceLinks} compact />
+            </div>
+          )}
           <p className="mt-3 text-sm text-muted-foreground line-clamp-3">
             {anime.shortDescription}
           </p>

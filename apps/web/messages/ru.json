@@ -132,6 +132,11 @@
       "dropped": "Брошено",
       "rewatching": "Пересматриваю",
       "not_interested": "Не интересует"
+    },
+    "source": {
+      "shikimori": "Shikimori",
+      "myanimelist": "MyAnimeList",
+      "anilist": "AniList"
     }
   },
   "Genres": {
@@ -190,7 +195,8 @@
     "yourRating": "Ваш рейтинг",
     "episodes": "Эпизоды",
     "notes": "Заметки",
-    "notesPlaceholder": "Ваши личные заметки об этом аниме..."
+    "notesPlaceholder": "Ваши личные заметки об этом аниме...",
+    "onServices": "На сервисах"
   },
   "Profile": {
     "joined": "Присоединился {date}",

@@ -43,10 +43,16 @@ export async function GET(request: NextRequest) {
 
     // Cold start: empty library must wait for first import.
     const existingIds = await LibraryService.getAnimeIdsForUserLibrary(user.id);
+    let refresh: { status: 'idle' | 'queued' | 'running'; stale: boolean; dispatched: boolean } = {
+      status: 'idle',
+      stale: false,
+      dispatched: false,
+    };
+
     if (!existingIds.length) {
       await SyncService.ensurePrimaryLibraryLoaded(user.id);
     } else {
-      await SyncService.requestScheduleRefresh(user.id, {
+      refresh = await SyncService.requestScheduleRefresh(user.id, {
         force,
         origin: request.nextUrl.origin,
       });
@@ -67,8 +73,10 @@ export async function GET(request: NextRequest) {
       types: parseList(searchParams.get('types')),
     });
 
-    const stale = await SyncService.isScheduleSliceStale(user.id);
-    const syncStatus = await SyncService.getScheduleSyncStatus(user.id);
+    const stale = refresh.stale || (await SyncService.isScheduleSliceStale(user.id));
+    const liveStatus = await SyncService.getScheduleSyncStatus(user.id);
+    const syncStatus =
+      liveStatus !== 'idle' ? liveStatus : refresh.status !== 'idle' ? refresh.status : 'idle';
 
     return NextResponse.json({
       service: user.settings.primaryService,

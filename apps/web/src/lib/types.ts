@@ -142,6 +142,12 @@ export type Anime = {
   personalRating: number | null;
   userNotes: string;
   userRateId?: string;
+  sourceService?: IntegrationServiceName;
+  serviceLinks?: Array<{
+    service: IntegrationServiceName;
+    externalAnimeId: string;
+    url: string;
+  }>;
   isFavorite?: boolean;
   isNotInterested?: boolean;
   outOfSync?: boolean;

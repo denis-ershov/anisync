@@ -12,6 +12,7 @@ import {
   type UserLibraryEntry,
 } from '@/lib/db';
 import type { IntegrationServiceName, ProviderAnimeDetails, ProviderLibraryEntry, ProviderUpdatePayload } from '@/lib/integrations/provider-types';
+import { collectProviderServiceLinks } from '@/lib/integrations/provider-links';
 import { applyLibraryFilters } from '@/lib/services/library-filters';
 import {
   collectTitleKeys,
@@ -343,6 +344,39 @@ export class LibraryService {
     return db.select().from(animeServiceIds).where(inArray(animeServiceIds.animeId, animeIds));
   }
 
+  private static async attachServiceLinks<
+    T extends {
+      animeId: number;
+      malId: number | null;
+      url?: string | null;
+      sourceService: IntegrationServiceName;
+    },
+  >(entries: T[]): Promise<Array<T & { serviceLinks: ReturnType<typeof collectProviderServiceLinks> }>> {
+    if (!entries.length) {
+      return [];
+    }
+
+    const animeIds = Array.from(new Set(entries.map((entry) => entry.animeId)));
+    const rows = await this.listServiceIdsForAnime(animeIds);
+    const byAnimeId = new Map<number, Array<{ serviceName: string; externalAnimeId: string }>>();
+
+    for (const row of rows) {
+      const list = byAnimeId.get(row.animeId) || [];
+      list.push({ serviceName: row.serviceName, externalAnimeId: row.externalAnimeId });
+      byAnimeId.set(row.animeId, list);
+    }
+
+    return entries.map((entry) => ({
+      ...entry,
+      serviceLinks: collectProviderServiceLinks({
+        serviceIds: byAnimeId.get(entry.animeId) || [],
+        malId: entry.malId,
+        catalogUrl: entry.url,
+        sourceService: entry.sourceService,
+      }),
+    }));
+  }
+
   static async upsertLibraryEntry(
     userId: number,
     serviceName: IntegrationServiceName,
@@ -604,49 +638,53 @@ export class LibraryService {
 
     const latestChangeStatusMap = await getLatestChangeStatusMap([record.entry.id]);
 
-    return {
-      id: record.entry.id,
-      animeId: record.anime.id,
-      sourceService: record.entry.sourceService as IntegrationServiceName,
-      sourceEntryId: record.entry.sourceEntryId,
-      externalAnimeId: record.serviceId?.externalAnimeId || null,
-      malId: record.anime.malId ?? null,
-      title: record.anime.titleRussian || record.anime.titleDefault,
-      title_en: record.anime.titleEnglish,
-      title_jp: record.anime.titleJapanese,
-      license_name_ru: record.anime.licenseNameRu,
-      synonyms: record.anime.synonyms || [],
-      kind: record.anime.kind,
-      rating: record.anime.rating,
-      score: record.anime.score || 0,
-      status: record.anime.status,
-      episodes: record.anime.episodes || 0,
-      episodes_aired: record.anime.episodesAired || 0,
-      duration: record.anime.duration,
-      aired_on: record.anime.airedOn,
-      released_on: record.anime.releasedOn,
-      season: record.anime.season,
-      url: record.anime.url,
-      cover_image: record.anime.coverImage || '',
-      next_episode_date: record.anime.nextEpisodeDate || null,
-      is_censored: record.anime.isCensored,
-      genres: record.anime.genres || [],
-      studios: record.anime.studios || [],
-      description: removeHtmlTags(record.anime.descriptionHtml || record.anime.description || ''),
-      description_html: record.anime.descriptionHtml,
-      watched_episodes: record.entry.watchedEpisodes,
-      watch_status: record.entry.watchStatus,
-      personal_rating: record.entry.personalRating ?? null,
-      user_rate_id: String(record.entry.id),
-      source: record.entry.sourceService as IntegrationServiceName,
-      user_notes: record.entry.notes || '',
-      is_favorite: record.entry.isFavorite,
-      is_not_interested: record.entry.isNotInterested,
-      out_of_sync: record.entry.outOfSync,
-      sync_state:
-        latestChangeStatusMap.get(record.entry.id) ||
-        (record.entry.notesSyncStatus === 'local_only' ? 'local_only' : 'synced'),
-    };
+    const [mapped] = await this.attachServiceLinks([
+      {
+        id: record.entry.id,
+        animeId: record.anime.id,
+        sourceService: record.entry.sourceService as IntegrationServiceName,
+        sourceEntryId: record.entry.sourceEntryId,
+        externalAnimeId: record.serviceId?.externalAnimeId || null,
+        malId: record.anime.malId ?? null,
+        title: record.anime.titleRussian || record.anime.titleDefault,
+        title_en: record.anime.titleEnglish,
+        title_jp: record.anime.titleJapanese,
+        license_name_ru: record.anime.licenseNameRu,
+        synonyms: record.anime.synonyms || [],
+        kind: record.anime.kind,
+        rating: record.anime.rating,
+        score: record.anime.score || 0,
+        status: record.anime.status,
+        episodes: record.anime.episodes || 0,
+        episodes_aired: record.anime.episodesAired || 0,
+        duration: record.anime.duration,
+        aired_on: record.anime.airedOn,
+        released_on: record.anime.releasedOn,
+        season: record.anime.season,
+        url: record.anime.url,
+        cover_image: record.anime.coverImage || '',
+        next_episode_date: record.anime.nextEpisodeDate || null,
+        is_censored: record.anime.isCensored,
+        genres: record.anime.genres || [],
+        studios: record.anime.studios || [],
+        description: removeHtmlTags(record.anime.descriptionHtml || record.anime.description || ''),
+        description_html: record.anime.descriptionHtml,
+        watched_episodes: record.entry.watchedEpisodes,
+        watch_status: record.entry.watchStatus,
+        personal_rating: record.entry.personalRating ?? null,
+        user_rate_id: String(record.entry.id),
+        source: record.entry.sourceService as IntegrationServiceName,
+        user_notes: record.entry.notes || '',
+        is_favorite: record.entry.isFavorite,
+        is_not_interested: record.entry.isNotInterested,
+        out_of_sync: record.entry.outOfSync,
+        sync_state:
+          latestChangeStatusMap.get(record.entry.id) ||
+          (record.entry.notesSyncStatus === 'local_only' ? 'local_only' : 'synced'),
+      },
+    ]);
+
+    return mapped;
   }
 
   static async listUserLibrary(userId: number, filters?: LibraryFilters): Promise<LibraryEntryView[]> {
@@ -685,49 +723,51 @@ export class LibraryService {
 
     const latestChangeStatusMap = await getLatestChangeStatusMap(records.map((record) => record.entry.id));
 
-    let mapped = records.map((record) => ({
-      id: record.entry.id,
-      animeId: record.anime.id,
-      sourceService: record.entry.sourceService as IntegrationServiceName,
-      sourceEntryId: record.entry.sourceEntryId,
-      externalAnimeId: record.serviceId?.externalAnimeId || null,
-      malId: record.anime.malId ?? null,
-      title: record.anime.titleRussian || record.anime.titleDefault,
-      title_en: record.anime.titleEnglish,
-      title_jp: record.anime.titleJapanese,
-      license_name_ru: record.anime.licenseNameRu,
-      synonyms: record.anime.synonyms || [],
-      kind: record.anime.kind,
-      rating: record.anime.rating,
-      score: record.anime.score || 0,
-      status: record.anime.status,
-      episodes: record.anime.episodes || 0,
-      episodes_aired: record.anime.episodesAired || 0,
-      duration: record.anime.duration,
-      aired_on: record.anime.airedOn,
-      released_on: record.anime.releasedOn,
-      season: record.anime.season,
-      url: record.anime.url,
-      cover_image: record.anime.coverImage || '',
-      next_episode_date: record.anime.nextEpisodeDate || null,
-      is_censored: record.anime.isCensored,
-      genres: record.anime.genres || [],
-      studios: record.anime.studios || [],
-      description: removeHtmlTags(record.anime.descriptionHtml || record.anime.description || ''),
-      description_html: record.anime.descriptionHtml,
-      watched_episodes: record.entry.watchedEpisodes,
-      watch_status: record.entry.watchStatus,
-      personal_rating: record.entry.personalRating ?? null,
-      user_rate_id: String(record.entry.id),
-      source: record.entry.sourceService as IntegrationServiceName,
-      user_notes: record.entry.notes || '',
-      is_favorite: record.entry.isFavorite,
-      is_not_interested: record.entry.isNotInterested,
-      out_of_sync: record.entry.outOfSync,
-      sync_state:
-        latestChangeStatusMap.get(record.entry.id) ||
-        (record.entry.notesSyncStatus === 'local_only' ? 'local_only' : 'synced'),
-    }));
+    let mapped = await this.attachServiceLinks(
+      records.map((record) => ({
+        id: record.entry.id,
+        animeId: record.anime.id,
+        sourceService: record.entry.sourceService as IntegrationServiceName,
+        sourceEntryId: record.entry.sourceEntryId,
+        externalAnimeId: record.serviceId?.externalAnimeId || null,
+        malId: record.anime.malId ?? null,
+        title: record.anime.titleRussian || record.anime.titleDefault,
+        title_en: record.anime.titleEnglish,
+        title_jp: record.anime.titleJapanese,
+        license_name_ru: record.anime.licenseNameRu,
+        synonyms: record.anime.synonyms || [],
+        kind: record.anime.kind,
+        rating: record.anime.rating,
+        score: record.anime.score || 0,
+        status: record.anime.status,
+        episodes: record.anime.episodes || 0,
+        episodes_aired: record.anime.episodesAired || 0,
+        duration: record.anime.duration,
+        aired_on: record.anime.airedOn,
+        released_on: record.anime.releasedOn,
+        season: record.anime.season,
+        url: record.anime.url,
+        cover_image: record.anime.coverImage || '',
+        next_episode_date: record.anime.nextEpisodeDate || null,
+        is_censored: record.anime.isCensored,
+        genres: record.anime.genres || [],
+        studios: record.anime.studios || [],
+        description: removeHtmlTags(record.anime.descriptionHtml || record.anime.description || ''),
+        description_html: record.anime.descriptionHtml,
+        watched_episodes: record.entry.watchedEpisodes,
+        watch_status: record.entry.watchStatus,
+        personal_rating: record.entry.personalRating ?? null,
+        user_rate_id: String(record.entry.id),
+        source: record.entry.sourceService as IntegrationServiceName,
+        user_notes: record.entry.notes || '',
+        is_favorite: record.entry.isFavorite,
+        is_not_interested: record.entry.isNotInterested,
+        out_of_sync: record.entry.outOfSync,
+        sync_state:
+          latestChangeStatusMap.get(record.entry.id) ||
+          (record.entry.notesSyncStatus === 'local_only' ? 'local_only' : 'synced'),
+      }))
+    );
 
     return applyLibraryFilters(mapped, filters);
   }

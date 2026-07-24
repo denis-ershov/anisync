@@ -38,6 +38,7 @@ import {
 import { Separator } from "./ui/separator";
 import { Textarea } from "./ui/textarea";
 import { Slider } from "./ui/slider";
+import { ProviderServiceLinks, ServiceSourceBadge } from "@/components/provider-service-links";
 import { useTranslations } from "next-intl";
 import { useToast } from "@/hooks/use-toast";
 
@@ -290,6 +291,12 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate, onRemoved 
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
           </div>
           <div className="relative z-0 flex h-full flex-col justify-end p-6 pointer-events-none">
+            <div className="mb-2 pointer-events-auto w-fit">
+              <ServiceSourceBadge
+                service={anime.sourceService}
+                className="border-0 bg-black/50 text-white backdrop-blur-sm"
+              />
+            </div>
             <DialogTitle className="text-3xl font-bold font-headline text-foreground">
               {primaryTitle}
             </DialogTitle>
@@ -315,6 +322,12 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate, onRemoved 
                 </Badge>
               ))}
             </div>
+            {anime.serviceLinks && anime.serviceLinks.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg font-headline">{t('onServices')}</h3>
+                <ProviderServiceLinks links={anime.serviceLinks} />
+              </div>
+            )}
           </div>
           <div className="space-y-6">
             <div className="rounded-lg border bg-card text-card-foreground p-4 space-y-4">
