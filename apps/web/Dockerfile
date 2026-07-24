@@ -21,7 +21,7 @@ ENV NEXT_PUBLIC_TORRENTS_MODULE_ENABLED=$NEXT_PUBLIC_TORRENTS_MODULE_ENABLED
 ENV NEXT_PUBLIC_REGISTRATION_OPEN=$NEXT_PUBLIC_REGISTRATION_OPEN
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/web ./apps/web
-# Root hoist may expose zod@4 (serwist); app needs its own zod@3 from apps/web/node_modules.
+# Keep app-local zod v3; root may hoist a newer zod for serwist.
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 WORKDIR /app/apps/web

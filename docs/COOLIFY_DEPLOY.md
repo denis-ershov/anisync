@@ -1,6 +1,6 @@
 # Деплой AniSync в Coolify
 
-> **Версия:** 7.1  
+> **Версия:** 7.2  
 > **Дата:** 2026-07-24  
 > **Связанные документы:** [PLATFORM_ARCHITECTURE.md](PLATFORM_ARCHITECTURE.md), [ENV_INVENTORY.md](ENV_INVENTORY.md), [`.env.example`](../.env.example)
 
@@ -15,9 +15,11 @@ PostgreSQL и Redis — **отдельные** Coolify Database resources. В co
 
 | Сервис | Роль |
 |--------|------|
-| `web` | Next.js UI + API, **миграции при старте** |
-| `worker` | BullMQ consumers |
-| `scheduler` | Repeatable jobs |
+| `web` | Next.js UI + API, **миграции при старте**; единственный сервис с `build` |
+| `worker` | BullMQ consumers (тот же image `anisync-runtime`) |
+| `scheduler` | Repeatable jobs (тот же image) |
+
+`worker` и `scheduler` **не** объявляют свой `build` — иначе Coolify трижды экспортирует один огромный образ и деплой может надолго зависнуть на `exporting to image` / `resolving provenance`.
 
 Postgres и Redis **не** входят в compose — Coolify Database + **Connect To Predefined Network**.  
 В env только полные строки `DATABASE_URL` и `REDIS_URL` (internal hostname из карточки ресурса).

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-24 (deploy: один image для web/worker/scheduler)
+
+**Файлы:** `docker-compose.yml`, `apps/web/Dockerfile`, `docs/COOLIFY_DEPLOY.md`.
+
+**Изменения:** общий `anisync-runtime:local`; `build` только у `web`. Worker/scheduler берут тот же image.
+
+**Обоснование:** Coolify трижды экспортировал один тяжёлый образ → деплой зависал на unpack/provenance.
+
 ## 2026-07-24 (fix: dropped не в расписании)
 
 **Файлы:** `apps/web/src/app/api/user/anime/route.ts`, `apps/web/src/lib/services/library-types.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/components/schedule-view.tsx`, `apps/web/tests/library-schedule-import.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.

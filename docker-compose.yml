@@ -3,9 +3,11 @@
 # web / worker / scheduler. Postgres и Redis — внешние Coolify Database
 # (Connect To Predefined Network), только DATABASE_URL и REDIS_URL.
 #
+# Один общий image (anisync-runtime): build только у `web`, иначе Coolify
+# трижды экспортирует один и тот же тяжёлый слой и деплой «зависает» на unpack/provenance.
+#
 # Домен вешается на сервис `web` (порт контейнера 3000).
 # Health checks — в compose (Coolify / Traefik читают Docker health status).
-# Без tsx: Docker HEALTHCHECK CMD часто не резолвит --import tsx → unhealthy → compose up падает.
 
 x-healthcheck-web: &healthcheck-web
   test:
@@ -29,8 +31,12 @@ x-healthcheck-queue: &healthcheck-queue
   retries: 5
   start_period: 45s
 
+x-anisync-image: &anisync-image
+  image: anisync-runtime:local
+
 services:
   web:
+    <<: *anisync-image
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -83,14 +89,7 @@ services:
     healthcheck: *healthcheck-web
 
   worker:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
-        NEXT_PUBLIC_RELEASES_MODULE_ENABLED: ${NEXT_PUBLIC_RELEASES_MODULE_ENABLED:-true}
-        NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: ${NEXT_PUBLIC_TORRENTS_MODULE_ENABLED:-true}
-        NEXT_PUBLIC_REGISTRATION_OPEN: ${NEXT_PUBLIC_REGISTRATION_OPEN:-true}
+    <<: *anisync-image
     restart: unless-stopped
     command: ['node', '--import', 'tsx', 'scripts/worker.ts']
     environment:
@@ -128,14 +127,7 @@ services:
         condition: service_started
 
   scheduler:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
-        NEXT_PUBLIC_RELEASES_MODULE_ENABLED: ${NEXT_PUBLIC_RELEASES_MODULE_ENABLED:-true}
-        NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: ${NEXT_PUBLIC_TORRENTS_MODULE_ENABLED:-true}
-        NEXT_PUBLIC_REGISTRATION_OPEN: ${NEXT_PUBLIC_REGISTRATION_OPEN:-true}
+    <<: *anisync-image
     restart: unless-stopped
     command: ['node', '--import', 'tsx', 'scripts/scheduler.ts']
     environment:
