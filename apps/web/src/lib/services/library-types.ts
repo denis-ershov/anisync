@@ -4,6 +4,8 @@ import type { ProviderServiceLink } from '@/lib/integrations/provider-links';
 export interface LibraryFilters {
   search?: string;
   status?: string;
+  /** Несколько статусов (OR). Если задано вместе с status — оба учитываются. */
+  statuses?: string[];
   studio?: string;
   minRating?: number;
   maxRating?: number;

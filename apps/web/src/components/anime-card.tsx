@@ -286,7 +286,7 @@ export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
                 >
                   {t('notInterested')}
                 </DropdownMenuItem>
-                {outOfSync && (
+                {outOfSync && syncState !== 'pending' && syncState !== 'processing' && (
                   <DropdownMenuItem onClick={retrySync}>
                     {t('retrySync')}
                   </DropdownMenuItem>
@@ -367,7 +367,7 @@ export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
               <span>{t('nextEp', {time: timeUntilNext})}</span>
             </div>
           )}
-          {outOfSync && (
+          {outOfSync && syncState !== 'pending' && syncState !== 'processing' && (
             <Button variant="outline" size="sm" onClick={retrySync} disabled={isUpdating} className="mt-1">
               <RotateCcw className="mr-1.5 h-3 w-3" />
               {t('retrySync')}

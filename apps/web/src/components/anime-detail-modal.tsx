@@ -350,11 +350,19 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate, onRemoved 
               <Separator />
               <div className="space-y-3">
                 {syncBadgeLabel && (
-                  <div className="flex items-center gap-2 rounded-md border border-dashed p-2 text-sm">
-                    <AlertCircle className="h-4 w-4 text-primary" />
-                    <span className="flex-1">{syncBadgeLabel}</span>
-                    {outOfSync && (
-                      <Button variant="outline" size="sm" onClick={retrySync} disabled={isUpdating}>
+                  <div className="flex flex-col gap-2 rounded-md border border-dashed p-2 text-sm sm:flex-row sm:items-center">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="min-w-0 break-words">{syncBadgeLabel}</span>
+                    </div>
+                    {outOfSync && syncState !== 'pending' && syncState !== 'processing' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={retrySync}
+                        disabled={isUpdating}
+                        className="w-full shrink-0 sm:w-auto"
+                      >
                         <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                         {tAnimeCard('retrySync')}
                       </Button>

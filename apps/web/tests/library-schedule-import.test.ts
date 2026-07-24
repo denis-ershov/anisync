@@ -72,6 +72,19 @@ test('watching/rewatching import even outside 14-day window (catching up)', () =
   );
 });
 
+test('dropped/completed/on_hold never enter schedule import', () => {
+  const now = new Date('2026-07-22T12:00:00Z');
+  for (const watchStatus of ['dropped', 'completed', 'on_hold'] as const) {
+    assert.equal(
+      shouldIncludeInScheduleImport(
+        entry({ watchStatus, nextEpisodeDate: '2026-07-23T00:00:00Z' }),
+        now
+      ),
+      false
+    );
+  }
+});
+
 test('planned stays limited to 14-day window', () => {
   const now = new Date('2026-07-22T12:00:00Z');
   assert.equal(

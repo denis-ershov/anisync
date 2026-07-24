@@ -43,7 +43,8 @@ Job: `direction = primary_catalog_push`
 
 ## Загрузка расписания (stale-while-revalidate)
 
-`GET /api/user/anime` → БД сразу; stale → `anime.schedule.refresh`.
+`GET /api/user/anime` → БД сразу (только `watching` / `planned` / `rewatching`); stale → `anime.schedule.refresh`.  
+Статусы `dropped` / `completed` / `on_hold` в расписание не загружаются и не показываются.
 
 ## Mixed-provider schedule import
 

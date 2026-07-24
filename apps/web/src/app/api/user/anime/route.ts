@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCurrentUser } from '@/lib/api/auth';
+import { SCHEDULE_IMPORT_STATUSES } from '@/lib/integrations/library-schedule-import';
 import { LibraryService } from '@/lib/services/library-service';
 import { SyncService } from '@/lib/services/sync-service';
 
@@ -59,9 +60,12 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
+    const statusFilter = searchParams.get('status') || undefined;
     const anime = await LibraryService.listUserLibrary(user.id, {
       search: searchParams.get('search') || undefined,
-      status: searchParams.get('status') || undefined,
+      status: statusFilter,
+      // Расписание: только watching/planned/rewatching (не dropped/completed/on_hold).
+      statuses: statusFilter ? undefined : [...SCHEDULE_IMPORT_STATUSES],
       studio: searchParams.get('studio') || undefined,
       minRating: parseNumber(searchParams.get('minRating')),
       maxRating: parseNumber(searchParams.get('maxRating')),

@@ -8,6 +8,12 @@ export type ProviderServiceLink = {
 
 const SERVICE_ORDER: IntegrationServiceName[] = ['shikimori', 'myanimelist', 'anilist'];
 
+const SERVICE_HOST_MARKERS: Record<IntegrationServiceName, string[]> = {
+  shikimori: ['shikimori.one', 'shikimori.org'],
+  myanimelist: ['myanimelist.net'],
+  anilist: ['anilist.co'],
+};
+
 export function buildProviderAnimeUrl(service: IntegrationServiceName, externalAnimeId: string): string {
   switch (service) {
     case 'shikimori':
@@ -19,6 +25,20 @@ export function buildProviderAnimeUrl(service: IntegrationServiceName, externalA
     default:
       return '#';
   }
+}
+
+export function detectProviderFromUrl(url: string): IntegrationServiceName | null {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    for (const service of SERVICE_ORDER) {
+      if (SERVICE_HOST_MARKERS[service].some((marker) => host === marker || host.endsWith(`.${marker}`))) {
+        return service;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 export function collectProviderServiceLinks(args: {
@@ -50,14 +70,22 @@ export function collectProviderServiceLinks(args: {
     });
   }
 
-  if (
-    args.catalogUrl &&
-    args.sourceService &&
-    args.catalogUrl.startsWith('http') &&
-    byService.has(args.sourceService)
-  ) {
-    const existing = byService.get(args.sourceService)!;
-    byService.set(args.sourceService, { ...existing, url: args.catalogUrl });
+  // catalog.url может быть с другого провайдера — не подменять чужой бейдж.
+  if (args.catalogUrl && args.catalogUrl.startsWith('http')) {
+    const urlService = detectProviderFromUrl(args.catalogUrl);
+    const targetService =
+      urlService && byService.has(urlService)
+        ? urlService
+        : args.sourceService &&
+            byService.has(args.sourceService) &&
+            (!urlService || urlService === args.sourceService)
+          ? args.sourceService
+          : null;
+
+    if (targetService) {
+      const existing = byService.get(targetService)!;
+      byService.set(targetService, { ...existing, url: args.catalogUrl });
+    }
   }
 
   return SERVICE_ORDER.flatMap((service) => {

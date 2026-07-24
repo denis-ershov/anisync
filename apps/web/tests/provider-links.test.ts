@@ -27,3 +27,19 @@ test('collectProviderServiceLinks merges service ids and malId', () => {
   assert.equal(links[1].url, 'https://myanimelist.net/anime/21');
   assert.equal(links[2].externalAnimeId, '200');
 });
+
+test('collectProviderServiceLinks does not put anilist catalog url on shikimori badge', () => {
+  const links = collectProviderServiceLinks({
+    serviceIds: [
+      { serviceName: 'shikimori', externalAnimeId: '58955' },
+      { serviceName: 'anilist', externalAnimeId: '159309' },
+    ],
+    catalogUrl: 'https://anilist.co/anime/159309',
+    sourceService: 'shikimori',
+  });
+
+  const shiki = links.find((link) => link.service === 'shikimori');
+  const al = links.find((link) => link.service === 'anilist');
+  assert.equal(shiki?.url, 'https://shikimori.one/animes/58955');
+  assert.equal(al?.url, 'https://anilist.co/anime/159309');
+});

@@ -694,6 +694,10 @@ export class LibraryService {
       whereClauses.push(eq(userLibraryEntries.watchStatus, filters.status as any));
     }
 
+    if (filters?.statuses?.length) {
+      whereClauses.push(inArray(userLibraryEntries.watchStatus, filters.statuses as any));
+    }
+
     if (filters?.search) {
       const pattern = `%${filters.search}%`;
       whereClauses.push(

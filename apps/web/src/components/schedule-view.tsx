@@ -8,7 +8,11 @@ import { getDay, format, addDays } from "date-fns";
 import { enUS, ru } from 'date-fns/locale';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/auth-context';
-import type { IntegrationServiceName } from '@/lib/integrations/provider-types';
+import type { IntegrationServiceName, LibraryStatus } from '@/lib/integrations/provider-types';
+import {
+  isCatchingUpImportStatus,
+  isScheduleImportStatus,
+} from '@/lib/integrations/library-schedule-import';
 
 interface AnimeData {
   id: string;
@@ -284,8 +288,8 @@ export function ScheduleView() {
     today.setHours(0, 0, 0, 0); // Reset time to start of day
 
     return animeList.filter(anime => {
-      // Only show anime with "watching" status (not "planned")
-      if (anime.watch_status !== 'watching') return false;
+      // Только активный просмотр (не planned / dropped / completed)
+      if (!isCatchingUpImportStatus(anime.watch_status as LibraryStatus)) return false;
 
       // Show anime without next_episode_date (completed series being watched or no schedule)
       if (!anime.next_episode_date) return true;
@@ -315,6 +319,11 @@ export function ScheduleView() {
 
       // Filter anime by release date within the next 7 days
       const animesForDay = animeList.filter(anime => {
+        // dropped / completed / on_hold в расписание не показываем
+        if (!isScheduleImportStatus(anime.watch_status as LibraryStatus)) {
+          return false;
+        }
+
         // For planned anime, use aired_on if next_episode_date is not available
         // For watching anime, must have next_episode_date
         let releaseDate: Date | null = null;

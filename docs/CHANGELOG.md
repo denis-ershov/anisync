@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-07-24 (fix: dropped не в расписании)
+
+**Файлы:** `apps/web/src/app/api/user/anime/route.ts`, `apps/web/src/lib/services/library-types.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/components/schedule-view.tsx`, `apps/web/tests/library-schedule-import.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** `/api/user/anime` по умолчанию отдаёт только schedule-статусы; UI недели/catching-up отсекает `dropped`/`completed`/`on_hold`.
+
+**Обоснование:** тайтлы «Брошено» с датой серии попадали в календарь расписания.
+
+## 2026-07-24 (fix: Shiki badge → AniList URL)
+
+**Файлы:** `apps/web/src/lib/integrations/provider-links.ts`, `apps/web/tests/provider-links.test.ts`.
+
+**Изменения:** `catalog.url` применяется только к бейджу того сервиса, чей хост в URL; чужой URL (например AniList при source=Shikimori) больше не подменяет ссылку Shiki.
+
+**Обоснование:** общий catalog.url с другого провайдера ломал бейдж «Shiki».
+
+## 2026-07-24 (ui: sync badge layout in detail modal)
+
+**Файлы:** `apps/web/src/components/anime-detail-modal.tsx`, `apps/web/src/components/anime-card.tsx`.
+
+**Изменения:** кнопка «Повторить синхронизацию» не показывается при pending/processing; в detail modal блок статуса + кнопка переведены на колонку с переносом, без обрезки текста.
+
+**Обоснование:** при статусе «в очереди» кнопка перекрывала бейдж и обрезалась справа.
+
 ## 2026-07-24 (deploy: авто-миграции при старте web)
 
 **Файлы:** `apps/web/src/lib/db/migrate.ts`, `docs/COOLIFY_DEPLOY.md`, `docs/DB_ARCHITECTURE.md`.
