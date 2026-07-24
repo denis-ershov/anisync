@@ -5,6 +5,7 @@ import {
   isPrimaryWriteUnavailableStatus,
   isProviderHttpError,
 } from '@/lib/integrations/provider-types';
+import { isShikimoriAnimeUsable } from '@/lib/integrations/providers';
 
 test('ProviderHttpError exposes status and body', () => {
   const error = new ProviderHttpError(422, '{"error":"invalid"}', 'https://shikimori.one/api');
@@ -21,4 +22,12 @@ test('isPrimaryWriteUnavailableStatus matches 404 and 422 only', () => {
   assert.equal(isPrimaryWriteUnavailableStatus(401), false);
   assert.equal(isPrimaryWriteUnavailableStatus(500), false);
   assert.equal(isPrimaryWriteUnavailableStatus(200), false);
+});
+
+test('isShikimoriAnimeUsable treats censored as unusable gap', () => {
+  assert.equal(isShikimoriAnimeUsable({ id: '123', isCensored: false }), true);
+  assert.equal(isShikimoriAnimeUsable({ id: '123', isCensored: true }), false);
+  assert.equal(isShikimoriAnimeUsable({ id: 456, censored: true }), false);
+  assert.equal(isShikimoriAnimeUsable(null), false);
+  assert.equal(isShikimoriAnimeUsable({ id: '', isCensored: false }), false);
 });

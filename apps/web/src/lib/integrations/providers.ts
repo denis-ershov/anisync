@@ -1497,8 +1497,30 @@ export function getCanonicalCallbackUrl(serviceName: IntegrationServiceName) {
 }
 
 /**
- * Проверка: аниме ещё видно в GraphQL-каталоге Shikimori.
- * false → каталог скрыт/удалён (кандидат на recovery после 404/422 write).
+ * Аниме на Shikimori можно считать эталоном primary, только если оно видно и не цензурировано.
+ * Цензура: запись в API есть, но list/write фактически недоступны → для sync это gap (secondary).
+ */
+export function isShikimoriAnimeUsable(anime: {
+  id?: string | number | null;
+  isCensored?: boolean | null;
+  censored?: boolean | null;
+} | null | undefined): boolean {
+  if (anime == null) {
+    return false;
+  }
+  const id = anime.id;
+  if (id === null || id === undefined || String(id).trim() === '') {
+    return false;
+  }
+  if (anime.isCensored || anime.censored) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Проверка: аниме usable на Shikimori как primary-эталон.
+ * false → нет в каталоге, скрыто или isCensored (кандидат на gap / recovery).
  */
 export async function probeShikimoriAnimeExists(
   accessToken: string,
@@ -1509,20 +1531,23 @@ export async function probeShikimoriAnimeExists(
     return false;
   }
 
-  const response = await fetchJson<{ data?: { animes?: Array<{ id: string }> } }>(getShikimoriGraphqlUrl(), {
+  const response = await fetchJson<{
+    data?: { animes?: Array<{ id: string; isCensored?: boolean }> };
+  }>(getShikimoriGraphqlUrl(), {
     method: 'POST',
     headers: buildShikimoriHeaders(accessToken),
     body: JSON.stringify({
-      query: `{ animes(ids: "${id}", limit: 1) { id } }`,
+      query: `{ animes(ids: "${id}", limit: 1) { id isCensored } }`,
     }),
   });
 
-  return Boolean(response.data?.animes?.some((anime) => String(anime.id) === id));
+  const anime = response.data?.animes?.find((row) => String(row.id) === id);
+  return isShikimoriAnimeUsable(anime);
 }
 
 /**
- * Найти id аниме на Shikimori по MAL id.
- * null → на Shiki тайтла нет (gap для secondary).
+ * Найти usable id аниме на Shikimori по MAL id.
+ * null → нет на Shiki или цензура (gap для secondary).
  */
 export async function resolveShikimoriIdByMalId(
   accessToken: string,
@@ -1532,7 +1557,7 @@ export async function resolveShikimoriIdByMalId(
     return null;
   }
 
-  const response = await fetchJson<Array<{ id: number; mal_id?: number }>>(
+  const response = await fetchJson<Array<{ id: number; mal_id?: number; censored?: boolean }>>(
     getShikimoriApiUrl(`/api/animes?mal_id=${malId}&limit=1`),
     {
       headers: buildShikimoriHeaders(accessToken),
@@ -1540,7 +1565,13 @@ export async function resolveShikimoriIdByMalId(
   );
 
   const hit = Array.isArray(response) ? response[0] : null;
-  return hit?.id ? String(hit.id) : null;
+  if (!hit?.id) {
+    return null;
+  }
+
+  // REST может отдать цензурный id — подтверждаем GraphQL usable (isCensored).
+  const usable = await probeShikimoriAnimeExists(accessToken, String(hit.id));
+  return usable ? String(hit.id) : null;
 }
 
 /** Batch lookup AniList media ids by MAL ids (Page.media idMal_in). */

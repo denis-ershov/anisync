@@ -1308,8 +1308,8 @@ export class SyncService {
     }
 
     // Кэш: malId / primaryExt → существует ли тайтл на primary-сервисе (не в membership, а в каталоге).
-    const existsOnPrimaryByKey = new Map<string, boolean>();
-    const resolveExistsOnPrimary = async (args: {
+    const usableOnPrimaryByKey = new Map<string, boolean>();
+    const resolveUsableOnPrimary = async (args: {
       primaryExt?: string | null;
       malId?: number | null;
     }): Promise<boolean> => {
@@ -1320,38 +1320,38 @@ export class SyncService {
 
       if (args.primaryExt) {
         const key = `id:${args.primaryExt}`;
-        const cached = existsOnPrimaryByKey.get(key);
+        const cached = usableOnPrimaryByKey.get(key);
         if (cached !== undefined) {
           return cached;
         }
-        let exists = false;
+        let usable = false;
         try {
-          exists = await probeShikimoriAnimeExists(primaryToken, args.primaryExt);
+          usable = await probeShikimoriAnimeExists(primaryToken, args.primaryExt);
         } catch {
-          exists = false;
+          usable = false;
         }
-        existsOnPrimaryByKey.set(key, exists);
-        return exists;
+        usableOnPrimaryByKey.set(key, usable);
+        return usable;
       }
 
       if (typeof args.malId === 'number') {
         const key = `mal:${args.malId}`;
-        const cached = existsOnPrimaryByKey.get(key);
+        const cached = usableOnPrimaryByKey.get(key);
         if (cached !== undefined) {
           return cached;
         }
-        let exists = false;
+        let usable = false;
         try {
           const shikiId = await resolveShikimoriIdByMalId(primaryToken, args.malId);
-          exists = Boolean(shikiId);
+          usable = Boolean(shikiId);
           if (shikiId) {
-            existsOnPrimaryByKey.set(`id:${shikiId}`, true);
+            usableOnPrimaryByKey.set(`id:${shikiId}`, true);
           }
         } catch {
-          exists = false;
+          usable = false;
         }
-        existsOnPrimaryByKey.set(key, exists);
-        return exists;
+        usableOnPrimaryByKey.set(key, usable);
+        return usable;
       }
 
       return false;
@@ -1418,13 +1418,14 @@ export class SyncService {
           }
 
           const primaryExt = primaryExtByAnime.get(animeId) || null;
-          const existsOnPrimary = await resolveExistsOnPrimary({
+          const usableOnPrimary = await resolveUsableOnPrimary({
             primaryExt,
             malId: entry.malId,
           });
 
-          // Тайтл есть на primary, статуса нет → не берём secondary; cascade выровняет удаление.
-          if (existsOnPrimary) {
+          // На primary usable (есть и не цензура), статуса нет → эталон primary, secondary не импортируем.
+          // Цензура / нет в каталоге → gap, берём secondary.
+          if (usableOnPrimary) {
             continue;
           }
 
@@ -1641,49 +1642,49 @@ export class SyncService {
       const malId = malIdByAnime.get(entry.animeId);
 
       if (primaryService === 'shikimori' && primaryToken) {
-        let exists = false;
+        let usable = false;
         if (primaryId) {
           const key = `id:${primaryId}`;
           const cached = existsCache.get(key);
           if (cached !== undefined) {
-            exists = cached;
+            usable = cached;
           } else {
             try {
-              exists = await probeShikimoriAnimeExists(primaryToken, primaryId);
+              usable = await probeShikimoriAnimeExists(primaryToken, primaryId);
             } catch {
-              exists = false;
+              usable = false;
             }
-            existsCache.set(key, exists);
+            existsCache.set(key, usable);
           }
         } else if (malId) {
           const key = `mal:${malId}`;
           const cached = existsCache.get(key);
           if (cached !== undefined) {
-            exists = cached;
+            usable = cached;
           } else {
             try {
               const resolved = await resolveShikimoriIdByMalId(primaryToken, malId);
-              exists = Boolean(resolved);
+              usable = Boolean(resolved);
               if (resolved) {
                 existsCache.set(`id:${resolved}`, true);
                 await LibraryService.ensureServiceIdForAnime(entry.animeId, 'shikimori', resolved);
               }
             } catch {
-              exists = false;
+              usable = false;
             }
-            existsCache.set(key, exists);
+            existsCache.set(key, usable);
           }
         } else {
           // Нет primary id и нет mal — не угадываем; gap/ручное — не удаляем.
           continue;
         }
 
-        if (!exists) {
-          // Физически нет на primary → gap, secondary может держать.
+        if (!usable) {
+          // Нет на primary или цензура → gap, secondary может держать.
           continue;
         }
 
-        // Есть на primary, нет в membership → эталон «без статуса» → удаляем везде.
+        // Usable на primary, нет в membership → эталон «без статуса» → удаляем везде.
         toDelete.add(entry.id);
         continue;
       }

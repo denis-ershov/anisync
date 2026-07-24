@@ -1,6 +1,6 @@
 # Архитектура модуля Anime
 
-> **Версия:** 1.8  
+> **Версия:** 1.9  
 > **Дата:** 2026-07-24  
 > **Контракт:** [MODULE_CONTRACT.md](../MODULE_CONTRACT.md)
 
@@ -18,7 +18,7 @@
 | Роль | Смысл |
 |------|--------|
 | **Primary** | Эталон при **сравнении сервисов**. Статус/наличие в списке primary побеждает secondary. |
-| **Secondary** | Только **gap**: тайтла **физически нет** на primary (цензура / не заведён). |
+| **Secondary** | Только **gap**: тайтла **физически нет** на primary **или** он **цензурирован/unusable** (`isCensored`: в API есть, list/write нельзя). |
 | **AniSync (локальные правки)** | Явные правки пользователя (`manual_update` / `retry_sync`) → outbound на primary и все connected. |
 | Остальные connected | Targets для push состояния эталона. |
 
@@ -28,13 +28,13 @@
 |----------|--------|----------|
 | Тайтл в membership primary | Primary (статус/серии) | Импорт в local (если нет pending правки) → push на остальные |
 | Тайтл **есть** на primary-сервисе, **статуса нет** (нет в membership), на secondary есть статус | Primary («нет в списке») | Не импортировать secondary; cascade delete local + с провайдеров |
-| Тайтла **физически нет** на primary | Secondary | Gap-import; cascade не удаляет |
+| Тайтла **физически нет** на primary **или** `isCensored` | Secondary | Gap-import; cascade не удаляет |
 | Пользователь изменил запись в AniSync | Local (intentional) | `outOfSync` + `user_entry_changes` → push на primary и все; refresh не затирает |
 
 Правила:
 
 1. Primary всегда важнее secondary при сравнении сервисов.
-2. Gap ≠ «нет в membership». Gap = «нет на сервисе primary» (probe / resolve by MAL).
+2. Gap ≠ «нет в membership». Gap = «нет usable на primary» (probe / resolve by MAL; `isCensored` = unusable).
 3. Secondary-импорт **не** создаёт intentional `user_entry_changes` и не должен случайно пушиться как «правка каталога».
 4. Outbound после refresh: (a) состояние primary → others; (b) только intentional pending (`manual_update` / `retry_sync`).
 5. Secondary ≠ primary; при смене primary совпадающий secondary сбрасывается.
@@ -68,6 +68,8 @@ Job: `direction = primary_catalog_push`
 
 `GET /api/user/anime` → БД сразу (только `watching` / `planned` / `rewatching`); stale → `anime.schedule.refresh`.  
 Статусы `dropped` / `completed` / `on_hold` в расписание не загружаются и не показываются.
+
+UI (`schedule-day.ts`): день недели по `next_episode_date` (для planned — `aired_on`). Уже вышедшие **сегодня / за 24ч** остаются в «Сегодня», не уезжают сразу в «Продолжаю смотреть».
 
 ## Mixed-provider schedule import
 

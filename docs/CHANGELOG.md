@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-07-24 (ui: компактные карточки на mobile/PWA)
+
+**Файлы:** `apps/web/src/components/schedule-view.tsx`, `apps/web/src/components/anime-card.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`.
+
+**Изменения:** сетка расписания `grid-cols-2` на мобиле (как Releases); компактные отступы/заголовки/empty state; у карточек на xs скрыты описание и жанры, уменьшены паддинги, touch-target ≥44px для +/− и меню.
+
+**Обоснование:** одна колонка + полный poster делали карточку на весь экран PWA.
+
+## 2026-07-24 (fix: цензура Shiki = gap для secondary)
+
+**Файлы:** `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/tests/provider-http-error.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** `probeShikimoriAnimeExists` / resolve by MAL считают `isCensored` **unusable** (не эталон primary). Такие тайтлы (напр. MAL 46488) импортируются с secondary и не блокируются «есть в API Shiki».
+
+**Обоснование:** цензурный тайтл виден в API, но list/write недоступны — secondary должен закрывать gap.
+
+## 2026-07-24 (fix: вышедшие сегодня не скрываются из «Сегодня»)
+
+**Файлы:** `apps/web/src/lib/integrations/schedule-day.ts`, `apps/web/src/components/schedule-view.tsx`, `apps/web/tests/schedule-day.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** тайтлы с эфиром сегодня / за последние 24ч остаются в блоке «Сегодня», а не пропадают из недели в catching-up из‑за `daysUntilRelease < 0` (уже вышло / сдвиг TZ).
+
+**Обоснование:** после выхода серии расписание выглядело пустым на сегодня.
+
 ## 2026-07-24 (sync: primary эталон при сравнении сервисов)
 
 **Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/lib/integrations/providers.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.

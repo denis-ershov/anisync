@@ -10,9 +10,9 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/auth-context';
 import type { IntegrationServiceName, LibraryStatus } from '@/lib/integrations/provider-types';
 import {
-  isCatchingUpImportStatus,
-  isScheduleImportStatus,
-} from '@/lib/integrations/library-schedule-import';
+  belongsToCatchingUp,
+  belongsToScheduleDay,
+} from '@/lib/integrations/schedule-day';
 
 interface AnimeData {
   id: string;
@@ -284,29 +284,22 @@ export function ScheduleView() {
   };
 
   const getCatchingUpAnime = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time to start of day
-
-    return animeList.filter(anime => {
-      // Только активный просмотр (не planned / dropped / completed)
-      if (!isCatchingUpImportStatus(anime.watch_status as LibraryStatus)) return false;
-
-      // Show anime without next_episode_date (completed series being watched or no schedule)
-      if (!anime.next_episode_date) return true;
-
-      const releaseDate = new Date(anime.next_episode_date);
-      releaseDate.setHours(0, 0, 0, 0);
-      const daysUntilRelease = Math.ceil((releaseDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-      // Show if episode already aired (negative days) or more than 7 days away
-      // This means it's not in the weekly schedule
-      return daysUntilRelease < 0 || daysUntilRelease > 7;
-    });
+    const now = new Date();
+    return animeList.filter((anime) =>
+      belongsToCatchingUp(
+        {
+          watchStatus: anime.watch_status as LibraryStatus,
+          nextEpisodeDate: anime.next_episode_date,
+          airedOn: anime.aired_on,
+        },
+        now
+      )
+    );
   };
 
   const getWeekSchedule = () => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time to start of day
+    today.setHours(0, 0, 0, 0);
     const weekDays = Array.from({ length: 7 }, (_, i) => {
       const date = addDays(today, i);
       date.setHours(0, 0, 0, 0);
@@ -317,41 +310,17 @@ export function ScheduleView() {
       const dayOfWeek = getDay(date);
       const dayName = format(date, "EEEE", { locale: dateLocale });
 
-      // Filter anime by release date within the next 7 days
-      const animesForDay = animeList.filter(anime => {
-        // dropped / completed / on_hold в расписание не показываем
-        if (!isScheduleImportStatus(anime.watch_status as LibraryStatus)) {
-          return false;
-        }
-
-        // For planned anime, use aired_on if next_episode_date is not available
-        // For watching anime, must have next_episode_date
-        let releaseDate: Date | null = null;
-        
-        if (anime.next_episode_date) {
-          releaseDate = new Date(anime.next_episode_date);
-        } else if (anime.watch_status === 'planned' && anime.aired_on) {
-          // For planned anime without next_episode_date, use aired_on (start date)
-          releaseDate = new Date(anime.aired_on);
-        } else {
-          // No date available, skip
-          return false;
-        }
-
-        releaseDate.setHours(0, 0, 0, 0);
-        const releaseDateStr = format(releaseDate, 'yyyy-MM-dd');
-        const checkDateStr = format(date, 'yyyy-MM-dd');
-        const daysUntilRelease = Math.ceil((releaseDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-        // Only show anime if release date exactly matches this day in the schedule
-        // and it's within 7 days from today (0-7 days)
-        // For planned anime, only show if date is in the future (not past releases)
-        if (anime.watch_status === 'planned' && daysUntilRelease < 0) {
-          return false; // Don't show past releases for planned anime
-        }
-        
-        return releaseDateStr === checkDateStr && daysUntilRelease >= 0 && daysUntilRelease <= 7;
-      });
+      const animesForDay = animeList.filter((anime) =>
+        belongsToScheduleDay(
+          {
+            watchStatus: anime.watch_status as LibraryStatus,
+            nextEpisodeDate: anime.next_episode_date,
+            airedOn: anime.aired_on,
+          },
+          index,
+          new Date()
+        )
+      );
 
       let displayDay: string;
       if (index === 0) {
@@ -504,7 +473,7 @@ export function ScheduleView() {
   const catchingUpAnime = getCatchingUpAnime();
 
   const renderAnimeGrid = (animes: AnimeData[]) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 md:gap-6">
       {animes.map((anime) => (
         <AnimeCard
           key={anime.id}
@@ -548,8 +517,8 @@ export function ScheduleView() {
   );
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+    <main className="container mx-auto px-3 py-4 sm:px-4 sm:py-8">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
         <div className="flex min-h-8 items-center gap-2 text-sm">
           {(syncStatus === 'queued' || syncStatus === 'running' || isRefreshing) && (
             <div
@@ -580,7 +549,7 @@ export function ScheduleView() {
             type="button"
             onClick={handleForceRefresh}
             disabled={isRefreshing || syncStatus === 'running' || syncStatus === 'queued'}
-            className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
+            className="min-h-11 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50 sm:min-h-0"
           >
             {isRefreshing || syncStatus === 'running' || syncStatus === 'queued'
               ? t('syncRefreshing')
@@ -588,19 +557,19 @@ export function ScheduleView() {
           </button>
         </div>
       </div>
-      <div className="space-y-12">
+      <div className="space-y-8 sm:space-y-12">
         {/* Weekly Schedule */}
         {weeklySchedule.map(({ day, date, animes }) => (
           <section key={day}>
-            <div className="mb-6">
-              <h2 className="text-3xl font-bold font-headline tracking-tight">{day}</h2>
-              <p className="text-muted-foreground">{date}</p>
+            <div className="mb-3 sm:mb-6">
+              <h2 className="text-xl font-bold font-headline tracking-tight sm:text-3xl">{day}</h2>
+              <p className="text-sm text-muted-foreground sm:text-base">{date}</p>
             </div>
             {animes.length > 0 ? (
               renderAnimeGrid(animes)
             ) : (
-              <div className="flex items-center justify-center h-40 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/20">
-                <p className="text-muted-foreground">{t('noReleases')}</p>
+              <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 sm:h-40 sm:border-2">
+                <p className="px-3 text-center text-sm text-muted-foreground">{t('noReleases')}</p>
               </div>
             )}
           </section>
@@ -608,14 +577,14 @@ export function ScheduleView() {
 
         {/* Catching Up Section - Always last */}
         <section>
-          <div className="mb-6">
-            <h2 className="text-3xl font-bold font-headline tracking-tight">{t('catchingUp')}</h2>
+          <div className="mb-3 sm:mb-6">
+            <h2 className="text-xl font-bold font-headline tracking-tight sm:text-3xl">{t('catchingUp')}</h2>
           </div>
           {catchingUpAnime.length > 0 ? (
             renderAnimeGrid(catchingUpAnime)
           ) : (
-            <div className="flex items-center justify-center h-40 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/20">
-              <p className="text-muted-foreground">{t('noCatchingUp')}</p>
+            <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 sm:h-40 sm:border-2">
+              <p className="px-3 text-center text-sm text-muted-foreground">{t('noCatchingUp')}</p>
             </div>
           )}
         </section>
