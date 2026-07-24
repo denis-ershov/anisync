@@ -92,6 +92,22 @@
     "refreshList": "Refresh list",
     "syncRefreshing": "Updating list…"
   },
+  "AddAnime": {
+    "button": "Add anime",
+    "title": "Add anime to list",
+    "description": "Search on a connected service and add a title with Planned status.",
+    "service": "Service",
+    "servicePlaceholder": "Select a service",
+    "search": "Search",
+    "searchPlaceholder": "Title…",
+    "searching": "Searching…",
+    "noResults": "Nothing found",
+    "searchError": "Search failed",
+    "add": "Add",
+    "adding": "Adding…",
+    "addSuccess": "Added to list and queued for sync",
+    "addError": "Failed to add anime"
+  },
   "AnimeCard": {
     "addToWatchlist": "Add to Watchlist",
     "markAsFavorite": "Mark as Favorite",

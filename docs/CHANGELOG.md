@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-07-24 (anime: outbound upsert-all, cascade delete, search/add)
+
+**Файлы:** `apps/web/src/lib/integrations/provider-types.ts`, `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/app/api/user/anime/search/route.ts`, `apps/web/src/app/api/user/library/route.ts`, `apps/web/src/components/add-anime-dialog.tsx`, `apps/web/src/components/schedule-view.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:**
+- Outbound sync на все connected: create missing (Shikimori POST `user_rates`), порядок primary → MAL → rest.
+- Cascade delete: UI DELETE и детект external delete через `membership` на refresh; soft prune (не удалять по окну 14 дней).
+- После primary refresh — push изменившихся entries на остальные сервисы.
+- `searchAnime` + `GET /api/user/anime/search` + `POST /api/user/library`; UI-диалог добавления на расписании.
+
+**Обоснование:** единая модель sync действий и возможность добавлять тайтлы без ручного импорта всего списка.
+
+## 2026-07-24 (anime: primary владеет метаданными каталога)
+
+**Файлы:** `apps/web/src/lib/services/library-service.ts`, `apps/web/src/lib/services/sync-service.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** secondary (MAL/AniList) больше не перезаписывают обложку/описание тайтлов с primary; порядок fallback для «нет на primary»: MAL → остальные. Режим каталога `fill-gaps` / `link-only`.
+
+**Обоснование:** при primary=Shikimori обложки ошибочно подменялись AniList CDN после mixed import.
+
+## 2026-07-24 (fix: обложки MAL/AniList CDN)
+
+**Файлы:** `apps/web/next.config.ts`.
+
+**Изменения:** в `images.remotePatterns` добавлены `cdn.myanimelist.net`, `api-cdn.myanimelist.net`, `*.anilist.co` и `*.shikimori…` — реальные хосты постеров, которые отдаёт API.
+
+**Обоснование:** Next/Image блокировал обложки (битая картинка), т.к. были разрешены только `myanimelist.net` / `anilist.co`, а CDN — `cdn.myanimelist.net` и `s4.anilist.co`.
+
 ## 2026-07-24 (anime: мгновенная загрузка + смешанный каталог)
 
 **Файлы:** `apps/web/src/app/api/user/anime/route.ts`, `apps/web/src/app/api/internal/schedule-refresh/process/route.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/lib/services/catalog-match.ts`, `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/lib/queue/*`, `apps/web/src/modules/anime/jobs.ts`, `apps/web/src/components/schedule-view.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `apps/web/src/lib/config.ts`, `docs/modules/ANIME_ARCHITECTURE.md`, `docs/PLATFORM_ARCHITECTURE.md`, `apps/web/tests/catalog-match.test.ts`.

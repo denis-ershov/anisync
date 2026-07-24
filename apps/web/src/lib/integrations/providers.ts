@@ -11,6 +11,7 @@ import type {
   ProviderAdapter,
   ProviderAnimeDetails,
   ProviderLibraryEntry,
+  ProviderSearchResult,
   ProviderTokenResponse,
   ProviderDeletePayload,
   ProviderUpdatePayload,
@@ -27,7 +28,14 @@ import {
 } from './provider-utils';
 
 function resolveLibraryScope(options?: FetchLibraryOptions) {
-  return options?.scope === 'full' ? 'full' : 'schedule';
+  if (options?.scope === 'full' || options?.scope === 'membership') {
+    return options.scope;
+  }
+  return 'schedule';
+}
+
+function isFullMembershipScope(scope: string) {
+  return scope === 'full' || scope === 'membership';
 }
 function requireIntegrationToken(integration: UserIntegration) {
   if (!integration.accessToken) {
@@ -472,35 +480,152 @@ const shikimoriProvider: ProviderAdapter = {
     }));
   },
   async updateEntry(integration: UserIntegration, payload: ProviderUpdatePayload): Promise<ProviderUpdateResult> {
-    if (!payload.externalEntryId) {
-      throw new Error('Shikimori updates require external entry id');
-    }
-
     const body: Record<string, unknown> = {};
     if (payload.watchedEpisodes !== undefined) body.episodes = payload.watchedEpisodes;
     if (payload.watchStatus) body.status = payload.watchStatus;
     if (payload.personalRating !== undefined && payload.personalRating !== null) body.score = payload.personalRating;
 
-    const result = await fetchJson<{ id: string; status: ProviderUpdateResult['watchStatus']; episodes: number; score?: number }>(
-      getShikimoriApiUrl(`/api/v2/user_rates/${payload.externalEntryId}`),
+    if (payload.externalEntryId) {
+      const result = await fetchJson<{ id: string; status: ProviderUpdateResult['watchStatus']; episodes: number; score?: number }>(
+        getShikimoriApiUrl(`/api/v2/user_rates/${payload.externalEntryId}`),
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'AniSync',
+            Authorization: `Bearer ${requireIntegrationToken(integration)}`,
+          },
+          body: JSON.stringify({ user_rate: body }),
+        }
+      );
+
+      return {
+        externalEntryId: String(result.id),
+        watchStatus: result.status,
+        watchedEpisodes: result.episodes,
+        personalRating: result.score ?? payload.personalRating ?? null,
+        notes: payload.notes ?? null,
+      };
+    }
+
+    if (!payload.externalAnimeId) {
+      throw new Error('Shikimori create requires external anime id');
+    }
+    if (!integration.userIdExternal) {
+      throw new Error('Shikimori create requires external user id');
+    }
+
+    const result = await fetchJson<{ id: string | number; status: ProviderUpdateResult['watchStatus']; episodes: number; score?: number }>(
+      getShikimoriApiUrl('/api/v2/user_rates'),
       {
-        method: 'PATCH',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'AniSync',
           Authorization: `Bearer ${requireIntegrationToken(integration)}`,
         },
-        body: JSON.stringify({ user_rate: body }),
+        body: JSON.stringify({
+          user_rate: {
+            user_id: Number(integration.userIdExternal),
+            target_id: Number(payload.externalAnimeId),
+            target_type: 'Anime',
+            ...body,
+          },
+        }),
       }
     );
 
     return {
-      externalEntryId: result.id,
-      watchStatus: result.status,
-      watchedEpisodes: result.episodes,
+      externalEntryId: String(result.id),
+      watchStatus: result.status ?? payload.watchStatus,
+      watchedEpisodes: result.episodes ?? payload.watchedEpisodes,
       personalRating: result.score ?? payload.personalRating ?? null,
       notes: payload.notes ?? null,
     };
+  },
+  async searchAnime(
+    integration: UserIntegration,
+    query: string,
+    limit: number = 20
+  ): Promise<ProviderSearchResult[]> {
+    const accessToken = requireIntegrationToken(integration);
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    const gqlQuery = `
+      {
+        animes(search: ${JSON.stringify(trimmed)}, limit: ${Math.min(limit, 50)}) {
+          id
+          malId
+          name
+          russian
+          licenseNameRu
+          english
+          japanese
+          kind
+          rating
+          score
+          status
+          episodes
+          episodesAired
+          duration
+          airedOn
+          releasedOn
+          season
+          url
+          poster { originalUrl mainUrl }
+          isCensored
+          genres { id name russian kind }
+          studios { id name }
+          description
+          descriptionHtml
+        }
+      }
+    `;
+
+    const response = await fetchJson<{ data?: { animes?: any[] } }>(getShikimoriGraphqlUrl(), {
+      method: 'POST',
+      headers: buildShikimoriHeaders(accessToken),
+      body: JSON.stringify({ query: gqlQuery }),
+    });
+
+    return (response.data?.animes || []).map((anime: any) => ({
+      externalAnimeId: String(anime.id),
+      malId: anime.malId ?? null,
+      titleDefault: anime.name || String(anime.id),
+      titleEnglish: getPrimaryLocalizedTitle(anime.english),
+      titleJapanese: getPrimaryLocalizedTitle(anime.japanese),
+      titleRussian: anime.russian || null,
+      licenseNameRu: anime.licenseNameRu || null,
+      synonyms: [],
+      kind: anime.kind || null,
+      rating: anime.rating || null,
+      score: anime.score ? Number(anime.score) : null,
+      status: anime.status || null,
+      episodes: anime.episodes ?? null,
+      episodesAired: anime.episodesAired ?? null,
+      duration: anime.duration ?? null,
+      airedOn: normalizeShikimoriDate(anime.airedOn),
+      releasedOn: normalizeShikimoriDate(anime.releasedOn),
+      season: anime.season || null,
+      url: anime.url || null,
+      coverImage: anime.poster?.originalUrl || anime.poster?.mainUrl || null,
+      nextEpisodeDate: null,
+      isCensored: Boolean(anime.isCensored),
+      genres: (anime.genres || []).map((genre: any) => ({
+        id: String(genre.id),
+        name: genre.russian || genre.name,
+        kind: genre.kind,
+      })),
+      studios: (anime.studios || []).map((studio: any) => ({
+        id: String(studio.id),
+        name: studio.name,
+      })),
+      description: anime.description || null,
+      descriptionHtml: anime.descriptionHtml || null,
+    }));
   },
   async deleteEntry(integration: UserIntegration, payload: ProviderDeletePayload): Promise<void> {
     if (!payload.externalEntryId) {
@@ -745,6 +870,66 @@ const myAnimeListProvider: ProviderAdapter = {
     );
 
     return details;
+  },
+  async searchAnime(
+    integration: UserIntegration,
+    query: string,
+    limit: number = 20
+  ): Promise<ProviderSearchResult[]> {
+    const accessToken = requireIntegrationToken(integration);
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    const url = new URL('/v2/anime', providerBaseUrls.myanimelistApi);
+    url.searchParams.set('q', trimmed.slice(0, 64));
+    url.searchParams.set('limit', String(Math.min(limit, 50)));
+    url.searchParams.set(
+      'fields',
+      'alternative_titles,media_type,num_episodes,mean,status,start_season,start_date,main_picture,synopsis,studios,genres'
+    );
+
+    const response = await fetchJson<{ data?: Array<{ node: any }> }>(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    return (response.data || []).map(({ node }) => ({
+      externalAnimeId: String(node.id),
+      malId: node.id,
+      titleDefault: node.title,
+      titleEnglish: node.alternative_titles?.en || node.title,
+      titleJapanese: node.alternative_titles?.ja || null,
+      titleRussian: null,
+      licenseNameRu: null,
+      synonyms: node.alternative_titles?.synonyms || [],
+      kind: node.media_type || null,
+      rating: null,
+      score: node.mean ?? null,
+      status: node.status || null,
+      episodes: node.num_episodes ?? null,
+      episodesAired: null,
+      duration: null,
+      airedOn: node.start_date || null,
+      releasedOn: node.start_date || null,
+      season: node.start_season ? `${node.start_season.season}_${node.start_season.year}` : null,
+      url: `https://myanimelist.net/anime/${node.id}`,
+      coverImage: node.main_picture?.large || node.main_picture?.medium || null,
+      nextEpisodeDate: null,
+      isCensored: false,
+      genres: (node.genres || []).map((genre: any) => ({
+        id: String(genre.id),
+        name: genre.name,
+      })),
+      studios: (node.studios || []).map((studio: any) => ({
+        id: String(studio.id),
+        name: studio.name,
+      })),
+      description: node.synopsis || null,
+      descriptionHtml: null,
+    }));
   },
   async updateEntry(integration: UserIntegration, payload: ProviderUpdatePayload): Promise<ProviderUpdateResult> {
     const body = new URLSearchParams();
@@ -1061,6 +1246,95 @@ const aniListProvider: ProviderAdapter = {
       url: `https://anilist.co/anime/${media.id}`,
       coverImage: media.coverImage?.extraLarge || media.coverImage?.large || media.coverImage?.medium || null,
       nextEpisodeDate: toIsoOrNull(media.nextAiringEpisode?.airingAt),
+      isCensored: Boolean(media.isAdult),
+      genres: (media.genres || []).map((genre: string, index: number) => ({
+        id: String(index + 1),
+        name: genre,
+      })),
+      studios: (media.studios?.nodes || []).map((studio: any) => ({
+        id: String(studio.id),
+        name: studio.name,
+      })),
+      description: media.description || null,
+      descriptionHtml: media.descriptionHtml || null,
+    }));
+  },
+  async searchAnime(
+    integration: UserIntegration,
+    query: string,
+    limit: number = 20
+  ): Promise<ProviderSearchResult[]> {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    const response = await fetchJson<{ data?: { Page?: { media?: any[] } } }>(
+      providerBaseUrls.anilistGraphql.toString(),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${requireIntegrationToken(integration)}`,
+        },
+        body: JSON.stringify({
+          query: `
+            query ($search: String, $perPage: Int) {
+              Page(page: 1, perPage: $perPage) {
+                media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
+                  id
+                  idMal
+                  title { romaji english native }
+                  synonyms
+                  format
+                  averageScore
+                  status
+                  episodes
+                  duration
+                  season
+                  seasonYear
+                  startDate { year month day }
+                  coverImage { extraLarge large medium }
+                  genres
+                  studios(isMain: true) { nodes { id name } }
+                  description(asHtml: false)
+                  descriptionHtml: description(asHtml: true)
+                  isAdult
+                }
+              }
+            }
+          `,
+          variables: { search: trimmed, perPage: Math.min(limit, 50) },
+        }),
+      }
+    );
+
+    return (response.data?.Page?.media || []).map((media: any) => ({
+      externalAnimeId: String(media.id),
+      malId: media.idMal ?? null,
+      titleDefault: media.title?.romaji || media.title?.english || media.title?.native || String(media.id),
+      titleEnglish: media.title?.english || media.title?.romaji || null,
+      titleJapanese: media.title?.native || null,
+      titleRussian: null,
+      licenseNameRu: null,
+      synonyms: media.synonyms || [],
+      kind: media.format || null,
+      rating: null,
+      score: media.averageScore ? Number(media.averageScore) / 10 : null,
+      status: media.status || null,
+      episodes: media.episodes ?? null,
+      episodesAired: null,
+      duration: media.duration ?? null,
+      airedOn: media.startDate?.year
+        ? `${media.startDate.year}-${String(media.startDate.month || 1).padStart(2, '0')}-${String(media.startDate.day || 1).padStart(2, '0')}`
+        : null,
+      releasedOn: media.startDate?.year
+        ? `${media.startDate.year}-${String(media.startDate.month || 1).padStart(2, '0')}-${String(media.startDate.day || 1).padStart(2, '0')}`
+        : null,
+      season: media.season && media.seasonYear ? `${media.season.toLowerCase()}_${media.seasonYear}` : null,
+      url: `https://anilist.co/anime/${media.id}`,
+      coverImage: media.coverImage?.extraLarge || media.coverImage?.large || media.coverImage?.medium || null,
+      nextEpisodeDate: null,
       isCensored: Boolean(media.isAdult),
       genres: (media.genres || []).map((genre: string, index: number) => ({
         id: String(index + 1),

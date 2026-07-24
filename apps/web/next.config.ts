@@ -70,7 +70,26 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'cdn.myanimelist.net',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'api-cdn.myanimelist.net',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: 'anilist.co',
+        port: '',
+        pathname: '/**',
+      },
+      // CDN обложек AniList (s1–s4.anilist.co и т.п.)
+      {
+        protocol: 'https',
+        hostname: '*.anilist.co',
         port: '',
         pathname: '/**',
       },
@@ -83,6 +102,12 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: shikimoriHost,
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: `*.${shikimoriHost}`,
         port: '',
         pathname: '/**',
       },

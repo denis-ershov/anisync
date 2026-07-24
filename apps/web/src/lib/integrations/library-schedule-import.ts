@@ -13,10 +13,13 @@ export const SCHEDULE_IMPORT_STATUSES: readonly LibraryStatus[] = [
  */
 export const SCHEDULE_IMPORT_WINDOW_DAYS = 14;
 
-export type FetchLibraryScope = 'schedule' | 'full';
+export type FetchLibraryScope = 'schedule' | 'full' | 'membership';
 
 export type FetchLibraryOptions = {
-  /** По умолчанию `schedule` — только статусы расписания и окно эфира. */
+  /**
+   * `schedule` — статусы расписания + окно эфира.
+   * `full` / `membership` — все статусы списка без окна (membership — для детекта удалений).
+   */
   scope?: FetchLibraryScope;
 };
 

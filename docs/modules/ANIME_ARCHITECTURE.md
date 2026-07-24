@@ -1,6 +1,6 @@
 # Архитектура модуля Anime
 
-> **Версия:** 1.1  
+> **Версия:** 1.2  
 > **Дата:** 2026-07-24  
 > **Контракт:** [MODULE_CONTRACT.md](../MODULE_CONTRACT.md)
 
@@ -8,7 +8,7 @@
 
 - Каталог и библиотека аниме (Shikimori / MAL / AniList).
 - Sync jobs, library entries, provider OAuth.
-- API: `/api/anime/*`, `/api/user/library/*`, `/api/integrations/*`.
+- API: `/api/user/anime/*`, `/api/user/library/*`, `/api/integrations/*`.
 - UI: главные страницы платформы (расписание, библиотека).
 
 ## Загрузка расписания (stale-while-revalidate)
@@ -26,11 +26,15 @@ UI показывает кэш сразу; индикатор «Обновлен
 
 `SyncService.refreshScheduleSlice(userId)`:
 
-1. Все интеграции с токеном (не только primary).
-2. Primary: полный upsert library entries.
-3. Secondary: link в `anime_catalog` / `anime_service_ids`; library entry только если тайтла нет на primary.
-4. Prune по **union** animeId всех срезов.
-5. Опционально: обогащение AniList id через `Page.media(idMal_in: …)`.
+1. **Membership cascade delete** — для каждого connected провайдера `fetchLibrary({ scope: 'membership' })`; если локальный тайтл был привязан к сервису и пропал из списка — удаление на всех провайдерах + local.
+2. **Primary** — полный upsert метаданных и library entries (replace progress); фиксация изменившихся `watchStatus` / `watchedEpisodes`.
+3. **MAL** (если подключён) — только тайтлы, которых **нет** на primary; метаданные с MAL.
+4. **Остальные** (AniList и т.д.) — только тайтлы, которых нет ни на primary, ни на MAL.
+5. На уже существующие строки каталога secondary делает `fill-gaps`: **добивает только пустые поля** — **не перезаписывает** primary.
+6. **Soft prune** — `pruneLibraryToScheduleSlice` не удаляет active titles вне schedule-окна; удаления только через cascade (§membership) или UI DELETE.
+7. Для записей с изменившимся progress/status с primary — `requeueEntrySync` + `dispatchEntrySync` (push на остальные сервисы).
+
+Приоритет источника метаданных: `primary → myanimelist → другие`.
 
 ### Сопоставление тайтлов
 
@@ -40,29 +44,49 @@ UI показывает кэш сразу; индикатор «Обновлен
 - MAL: id = mal id
 - AniList: `Media.idMal` (nullable)
 
-Если `malId` нет — fallback по нормализованному названию (+ год); при неоднозначности создаётся отдельная строка каталога.
+Если `malId` нет — fallback по нормализованному названию (+ год).
 
-## Outbound sync
+## Outbound sync (upsert-all)
 
-`syncEntryToProviders`: primary первым (если есть ID), затем `automaticSync` с **per-service** `externalAnimeId` из `anime_service_ids`. Если на primary нет тайтла — sync на провайдеры, где ID есть; при успехе fallback может обновить `sourceService`.
+`syncEntryToProviders`:
+
+- Targets = **все** интеграции с `accessToken` (не только `automaticSync`).
+- Порядок: **primary → myanimelist → остальные**.
+- На каждом target: update если запись есть; иначе **create** с тем же status/episodes/rating.
+- Shikimori: PATCH по `user_rate` id **или POST** `/api/v2/user_rates` (create) по anime id.
+- MAL / AniList: upsert по anime/media id.
+- После успешного create — `ensureServiceId` + обновление `sourceEntryId` для authoritative/primary.
+
+## Поиск и добавление
+
+- `ProviderAdapter.searchAnime` — Shikimori GraphQL, MAL `/v2/anime?q=`, AniList `Page.media(search)`.
+- `GET /api/user/anime/search?q=&service=` — default service = primary.
+- `POST /api/user/library` — `{ service, externalAnimeId, watchStatus?, watchedEpisodes? }`:
+  1. `fetchAnimeDetails` → catalog upsert;
+  2. local library upsert;
+  3. outbound sync через тот же pipeline, что PATCH.
+
+UI: диалог «Добавить аниме» на расписании (`AddAnimeDialog`).
 
 ## Primary import (schedule scope)
 
 По умолчанию `fetchLibrary({ scope: 'schedule' })`:
 
 1. Статусы **watching / planned / rewatching**.
-2. Окно **14 дней** по `nextEpisodeDate` / `airedOn` (planned).
-3. Импорт через `refreshScheduleSlice` (mixed).
+2. Окно **14 дней** по `nextEpisodeDate` / `airedOn` (planned) — только фильтр import/отображения, не DELETE.
+3. Отдельно `scope: 'membership'` — id тайтлов во всех статусах списка (для cascade delete).
 
 ## Удаление статуса (library entry)
 
-`DELETE /api/user/library/[id]`: local delete + best-effort provider delete.
+- `DELETE /api/user/library/[id]`: local delete + cascade на **все** connected провайдеры.
+- External delete (на сайте сервиса): детект на refresh через membership → cascade везде.
 
 ## Код
 
 - Модуль: `apps/web/src/modules/anime/`
 - Сервисы: `sync-service.ts`, `library-service.ts`, `catalog-match.ts`, `providers.ts`
-- Очередь: `anime.schedule.refresh`
+- Очередь: `anime.schedule.refresh`, `anime.sync.entry`
+- UI: `schedule-view.tsx`, `add-anime-dialog.tsx`
 - Манифест: `manifest.ts` → registry
 
 ## Зависимости платформы

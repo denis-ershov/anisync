@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimeCard } from "@/components/anime-card";
+import { AddAnimeDialog } from '@/components/add-anime-dialog';
 import { getDay, format, addDays } from "date-fns";
 import { enUS, ru } from 'date-fns/locale';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/auth-context';
+import type { IntegrationServiceName } from '@/lib/integrations/provider-types';
 
 interface AnimeData {
   id: string;
@@ -62,6 +64,30 @@ interface ApiResponse {
   };
 }
 
+async function reloadSchedule(
+  searchParams: URLSearchParams,
+  setters: {
+    setAnimeList: (anime: AnimeData[]) => void;
+    setSyncStatus: (status: 'idle' | 'queued' | 'running') => void;
+    setPrimaryService?: (service: IntegrationServiceName | null) => void;
+  }
+) {
+  const query = new URLSearchParams(searchParams.toString());
+  const response = await fetch(`/api/user/anime?${query.toString()}`, {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    return;
+  }
+  const data: ApiResponse = await response.json();
+  setters.setAnimeList(data.anime || []);
+  setters.setSyncStatus(data.sync?.status || 'idle');
+  if (setters.setPrimaryService && data.service) {
+    setters.setPrimaryService(data.service as IntegrationServiceName);
+  }
+}
+
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function ScheduleView() {
@@ -77,6 +103,7 @@ export function ScheduleView() {
   const [integrationExpired, setIntegrationExpired] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'queued' | 'running'>('idle');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [primaryService, setPrimaryService] = useState<IntegrationServiceName | null>(null);
   const dateLocale = locale === 'ru' ? ru : enUS;
 
   useEffect(() => {
@@ -179,6 +206,9 @@ export function ScheduleView() {
         const anime = data.anime || [];
         setAnimeList(anime);
         setSyncStatus(data.sync?.status || 'idle');
+        if (data.service) {
+          setPrimaryService(data.service as IntegrationServiceName);
+        }
       } catch (err) {
         console.error('Error fetching anime:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
@@ -209,6 +239,9 @@ export function ScheduleView() {
         const data: ApiResponse = await response.json();
         setAnimeList(data.anime || []);
         setSyncStatus(data.sync?.status || 'idle');
+        if (data.service) {
+          setPrimaryService(data.service as IntegrationServiceName);
+        }
       } catch {
         // best-effort poll
       }
@@ -231,6 +264,9 @@ export function ScheduleView() {
         const data: ApiResponse = await response.json();
         setAnimeList(data.anime || []);
         setSyncStatus(data.sync?.status || 'idle');
+        if (data.service) {
+          setPrimaryService(data.service as IntegrationServiceName);
+        }
       }
     } finally {
       setIsRefreshing(false);
@@ -502,16 +538,28 @@ export function ScheduleView() {
             <span>{t('syncRefreshing')}</span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={handleForceRefresh}
-          disabled={isRefreshing || syncStatus === 'running' || syncStatus === 'queued'}
-          className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
-        >
-          {isRefreshing || syncStatus === 'running' || syncStatus === 'queued'
-            ? t('syncRefreshing')
-            : t('refreshList')}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <AddAnimeDialog
+            primaryService={primaryService}
+            onAdded={() => {
+              void reloadSchedule(new URLSearchParams(searchParams.toString()), {
+                setAnimeList,
+                setSyncStatus,
+                setPrimaryService,
+              });
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleForceRefresh}
+            disabled={isRefreshing || syncStatus === 'running' || syncStatus === 'queued'}
+            className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
+          >
+            {isRefreshing || syncStatus === 'running' || syncStatus === 'queued'
+              ? t('syncRefreshing')
+              : t('refreshList')}
+          </button>
+        </div>
       </div>
       <div className="space-y-12">
         {/* Weekly Schedule */}

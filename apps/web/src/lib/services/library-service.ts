@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, notInArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import {
   animeCatalog,
   animeServiceIds,
@@ -11,7 +11,6 @@ import {
   type AnimeCatalog,
   type UserLibraryEntry,
 } from '@/lib/db';
-import { SCHEDULE_IMPORT_STATUSES } from '@/lib/integrations/library-schedule-import';
 import type { IntegrationServiceName, ProviderAnimeDetails, ProviderLibraryEntry, ProviderUpdatePayload } from '@/lib/integrations/provider-types';
 import { applyLibraryFilters } from '@/lib/services/library-filters';
 import {
@@ -46,8 +45,58 @@ async function getLatestChangeStatusMap(entryIds: number[]) {
   return latestStatusMap;
 }
 
-function toCatalogPayload(details: ProviderAnimeDetails, existing?: AnimeCatalog | null) {
-  const next = {
+function isBlank(value: unknown): boolean {
+  if (value === null || value === undefined) {
+    return true;
+  }
+  if (typeof value === 'string') {
+    return value.trim().length === 0;
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+  return false;
+}
+
+type CatalogMetadataMode = 'replace' | 'fill-gaps' | 'link-only';
+
+function toCatalogPayload(
+  details: ProviderAnimeDetails,
+  existing?: AnimeCatalog | null,
+  mode: Exclude<CatalogMetadataMode, 'link-only'> = 'replace'
+) {
+  if (mode === 'fill-gaps' && existing) {
+    return {
+      malId: existing.malId ?? details.malId ?? null,
+      titleDefault: existing.titleDefault || details.titleDefault || String(details.externalAnimeId),
+      titleEnglish: !isBlank(existing.titleEnglish) ? existing.titleEnglish : details.titleEnglish ?? null,
+      titleJapanese: !isBlank(existing.titleJapanese) ? existing.titleJapanese : details.titleJapanese ?? null,
+      titleRussian: !isBlank(existing.titleRussian) ? existing.titleRussian : details.titleRussian ?? null,
+      licenseNameRu: !isBlank(existing.licenseNameRu) ? existing.licenseNameRu : details.licenseNameRu ?? null,
+      synonyms: existing.synonyms?.length ? existing.synonyms : details.synonyms || [],
+      kind: !isBlank(existing.kind) ? existing.kind : details.kind ?? null,
+      rating: !isBlank(existing.rating) ? existing.rating : details.rating ?? null,
+      score: existing.score ?? details.score ?? null,
+      status: !isBlank(existing.status) ? existing.status : details.status ?? null,
+      episodes: existing.episodes ?? details.episodes ?? null,
+      episodesAired: existing.episodesAired ?? details.episodesAired ?? null,
+      duration: existing.duration ?? details.duration ?? null,
+      airedOn: !isBlank(existing.airedOn) ? existing.airedOn : details.airedOn ?? null,
+      releasedOn: !isBlank(existing.releasedOn) ? existing.releasedOn : details.releasedOn ?? null,
+      season: !isBlank(existing.season) ? existing.season : details.season ?? null,
+      url: !isBlank(existing.url) ? existing.url : details.url ?? null,
+      coverImage: !isBlank(existing.coverImage) ? existing.coverImage : details.coverImage ?? null,
+      nextEpisodeDate: !isBlank(existing.nextEpisodeDate) ? existing.nextEpisodeDate : details.nextEpisodeDate ?? null,
+      isCensored: existing.isCensored || Boolean(details.isCensored),
+      genres: existing.genres?.length ? existing.genres : details.genres || [],
+      studios: existing.studios?.length ? existing.studios : details.studios || [],
+      description: !isBlank(existing.description) ? existing.description : details.description ?? null,
+      descriptionHtml: !isBlank(existing.descriptionHtml) ? existing.descriptionHtml : details.descriptionHtml ?? null,
+      updatedAt: new Date(),
+    };
+  }
+
+  return {
     malId: details.malId ?? existing?.malId ?? null,
     titleDefault: details.titleDefault || existing?.titleDefault || String(details.externalAnimeId),
     titleEnglish: details.titleEnglish ?? existing?.titleEnglish ?? null,
@@ -75,8 +124,6 @@ function toCatalogPayload(details: ProviderAnimeDetails, existing?: AnimeCatalog
     descriptionHtml: details.descriptionHtml ?? existing?.descriptionHtml ?? null,
     updatedAt: new Date(),
   };
-
-  return next;
 }
 
 async function findCatalogByServiceId(serviceName: IntegrationServiceName, externalAnimeId: string) {
@@ -170,7 +217,12 @@ async function ensureServiceId(animeId: number, serviceName: IntegrationServiceN
 }
 
 export class LibraryService {
-  static async upsertCatalogEntry(serviceName: IntegrationServiceName, details: ProviderAnimeDetails): Promise<AnimeCatalog> {
+  static async upsertCatalogEntry(
+    serviceName: IntegrationServiceName,
+    details: ProviderAnimeDetails,
+    options?: { onExisting?: CatalogMetadataMode }
+  ): Promise<AnimeCatalog> {
+    const onExisting: CatalogMetadataMode = options?.onExisting ?? 'replace';
     let catalogEntry: AnimeCatalog | null = null;
 
     if (details.malId) {
@@ -187,9 +239,23 @@ export class LibraryService {
     }
 
     if (catalogEntry) {
+      if (onExisting === 'link-only') {
+        const nextMalId = catalogEntry.malId ?? details.malId ?? null;
+        const [updated] = await db
+          .update(animeCatalog)
+          .set({
+            malId: nextMalId,
+            updatedAt: new Date(),
+          })
+          .where(eq(animeCatalog.id, catalogEntry.id))
+          .returning();
+        await ensureServiceId(updated.id, serviceName, details.externalAnimeId);
+        return updated;
+      }
+
       const [updated] = await db
         .update(animeCatalog)
-        .set(toCatalogPayload(details, catalogEntry))
+        .set(toCatalogPayload(details, catalogEntry, onExisting))
         .where(eq(animeCatalog.id, catalogEntry.id))
         .returning();
       await ensureServiceId(updated.id, serviceName, details.externalAnimeId);
@@ -199,7 +265,7 @@ export class LibraryService {
     const [created] = await db
       .insert(animeCatalog)
       .values({
-        ...toCatalogPayload(details),
+        ...toCatalogPayload(details, null, 'replace'),
         createdAt: new Date(),
       })
       .returning();
@@ -208,15 +274,33 @@ export class LibraryService {
     return created;
   }
 
-  /** Link provider IDs into catalog without touching user_library_entries. */
+  /**
+   * Привязка ID провайдера к каталогу.
+   * Для уже существующих строк — по умолчанию только ID (+ пустые поля), без перезаписи обложки/описания primary.
+   */
   static async linkProviderCatalogEntries(
     serviceName: IntegrationServiceName,
-    entries: ProviderLibraryEntry[]
-  ): Promise<Array<{ animeId: number; entry: ProviderLibraryEntry }>> {
-    const linked: Array<{ animeId: number; entry: ProviderLibraryEntry }> = [];
+    entries: ProviderLibraryEntry[],
+    options?: { onExisting?: CatalogMetadataMode }
+  ): Promise<Array<{ animeId: number; entry: ProviderLibraryEntry; created: boolean }>> {
+    const onExisting: CatalogMetadataMode = options?.onExisting ?? 'fill-gaps';
+    const linked: Array<{ animeId: number; entry: ProviderLibraryEntry; created: boolean }> = [];
+
     for (const entry of entries) {
-      const catalog = await this.upsertCatalogEntry(serviceName, entry);
-      linked.push({ animeId: catalog.id, entry });
+      let existed = false;
+      if (entry.malId) {
+        const [byMal] = await db.select({ id: animeCatalog.id }).from(animeCatalog).where(eq(animeCatalog.malId, entry.malId)).limit(1);
+        existed = Boolean(byMal);
+      }
+      if (!existed) {
+        const byService = await findCatalogByServiceId(serviceName, entry.externalAnimeId);
+        existed = Boolean(byService);
+      }
+
+      const catalog = await this.upsertCatalogEntry(serviceName, entry, {
+        onExisting: existed ? onExisting : 'replace',
+      });
+      linked.push({ animeId: catalog.id, entry, created: !existed });
     }
     return linked;
   }
@@ -259,8 +343,15 @@ export class LibraryService {
     return db.select().from(animeServiceIds).where(inArray(animeServiceIds.animeId, animeIds));
   }
 
-  static async upsertLibraryEntry(userId: number, serviceName: IntegrationServiceName, entry: ProviderLibraryEntry) {
-    const catalogEntry = await this.upsertCatalogEntry(serviceName, entry);
+  static async upsertLibraryEntry(
+    userId: number,
+    serviceName: IntegrationServiceName,
+    entry: ProviderLibraryEntry,
+    options?: { onExistingCatalog?: CatalogMetadataMode }
+  ) {
+    const catalogEntry = await this.upsertCatalogEntry(serviceName, entry, {
+      onExisting: options?.onExistingCatalog ?? 'replace',
+    });
     const [existing] = await db
       .select()
       .from(userLibraryEntries)
@@ -484,39 +575,11 @@ export class LibraryService {
   }
 
   /**
-   * Оставляет в библиотеке пользователя только срез расписания:
-   * удаляет completed/dropped/… и watching/planned вне текущего import.
+   * Soft prune: больше не удаляем watching/planned вне keep-set.
+   * Настоящие удаления — UI DELETE или membership cascade.
    */
-  static async pruneLibraryToScheduleSlice(userId: number, keepAnimeIds: number[]) {
-    const junkStatuses = ['completed', 'on_hold', 'dropped', 'not_interested'] as const;
-    await db
-      .delete(userLibraryEntries)
-      .where(
-        and(eq(userLibraryEntries.userId, userId), inArray(userLibraryEntries.watchStatus, [...junkStatuses]))
-      );
-
-    const scheduleStatuses = [...SCHEDULE_IMPORT_STATUSES];
-    if (!keepAnimeIds.length) {
-      await db
-        .delete(userLibraryEntries)
-        .where(
-          and(
-            eq(userLibraryEntries.userId, userId),
-            inArray(userLibraryEntries.watchStatus, scheduleStatuses)
-          )
-        );
-      return;
-    }
-
-    await db
-      .delete(userLibraryEntries)
-      .where(
-        and(
-          eq(userLibraryEntries.userId, userId),
-          inArray(userLibraryEntries.watchStatus, scheduleStatuses),
-          notInArray(userLibraryEntries.animeId, keepAnimeIds)
-        )
-      );
+  static async pruneLibraryToScheduleSlice(_userId: number, _keepAnimeIds: number[]) {
+    return;
   }
 
   static async mapLibraryEntry(entry: UserLibraryEntry): Promise<LibraryEntryView | null> {

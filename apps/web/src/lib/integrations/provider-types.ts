@@ -104,6 +104,8 @@ export interface ProviderDeletePayload {
   externalAnimeId?: string | null;
 }
 
+export interface ProviderSearchResult extends ProviderAnimeDetails {}
+
 export interface ProviderCapabilities {
   supportsNotes: boolean;
   supportsRating: boolean;
@@ -125,6 +127,11 @@ export interface ProviderAdapter {
     integration: UserIntegration,
     options?: FetchLibraryOptions
   ): Promise<ProviderLibraryEntry[]>;
+  searchAnime(
+    integration: UserIntegration,
+    query: string,
+    limit?: number
+  ): Promise<ProviderSearchResult[]>;
   fetchAnimeDetails(integration: UserIntegration, externalAnimeIds: string[]): Promise<ProviderAnimeDetails[]>;
   updateEntry(integration: UserIntegration, payload: ProviderUpdatePayload): Promise<ProviderUpdateResult>;
   deleteEntry(integration: UserIntegration, payload: ProviderDeletePayload): Promise<void>;
