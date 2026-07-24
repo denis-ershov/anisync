@@ -14,6 +14,11 @@ import {
 import { SCHEDULE_IMPORT_STATUSES } from '@/lib/integrations/library-schedule-import';
 import type { IntegrationServiceName, ProviderAnimeDetails, ProviderLibraryEntry, ProviderUpdatePayload } from '@/lib/integrations/provider-types';
 import { applyLibraryFilters } from '@/lib/services/library-filters';
+import {
+  collectTitleKeys,
+  extractYear,
+  matchCatalogByTitle,
+} from '@/lib/services/catalog-match';
 import type { LibraryEntryView, LibraryFilters } from '@/lib/services/library-types';
 import { removeHtmlTags } from '@/lib/utils/text';
 
@@ -41,35 +46,37 @@ async function getLatestChangeStatusMap(entryIds: number[]) {
   return latestStatusMap;
 }
 
-function toCatalogPayload(details: ProviderAnimeDetails) {
-  return {
-    malId: details.malId ?? null,
-    titleDefault: details.titleDefault,
-    titleEnglish: details.titleEnglish ?? null,
-    titleJapanese: details.titleJapanese ?? null,
-    titleRussian: details.titleRussian ?? null,
-    licenseNameRu: details.licenseNameRu ?? null,
-    synonyms: details.synonyms || [],
-    kind: details.kind ?? null,
-    rating: details.rating ?? null,
-    score: details.score ?? null,
-    status: details.status ?? null,
-    episodes: details.episodes ?? null,
-    episodesAired: details.episodesAired ?? null,
-    duration: details.duration ?? null,
-    airedOn: details.airedOn ?? null,
-    releasedOn: details.releasedOn ?? null,
-    season: details.season ?? null,
-    url: details.url ?? null,
-    coverImage: details.coverImage ?? null,
-    nextEpisodeDate: details.nextEpisodeDate ?? null,
-    isCensored: Boolean(details.isCensored),
-    genres: details.genres || [],
-    studios: details.studios || [],
-    description: details.description ?? null,
-    descriptionHtml: details.descriptionHtml ?? null,
+function toCatalogPayload(details: ProviderAnimeDetails, existing?: AnimeCatalog | null) {
+  const next = {
+    malId: details.malId ?? existing?.malId ?? null,
+    titleDefault: details.titleDefault || existing?.titleDefault || String(details.externalAnimeId),
+    titleEnglish: details.titleEnglish ?? existing?.titleEnglish ?? null,
+    titleJapanese: details.titleJapanese ?? existing?.titleJapanese ?? null,
+    titleRussian: details.titleRussian ?? existing?.titleRussian ?? null,
+    licenseNameRu: details.licenseNameRu ?? existing?.licenseNameRu ?? null,
+    synonyms: details.synonyms?.length ? details.synonyms : existing?.synonyms || [],
+    kind: details.kind ?? existing?.kind ?? null,
+    rating: details.rating ?? existing?.rating ?? null,
+    score: details.score ?? existing?.score ?? null,
+    status: details.status ?? existing?.status ?? null,
+    episodes: details.episodes ?? existing?.episodes ?? null,
+    episodesAired: details.episodesAired ?? existing?.episodesAired ?? null,
+    duration: details.duration ?? existing?.duration ?? null,
+    airedOn: details.airedOn ?? existing?.airedOn ?? null,
+    releasedOn: details.releasedOn ?? existing?.releasedOn ?? null,
+    season: details.season ?? existing?.season ?? null,
+    url: details.url ?? existing?.url ?? null,
+    coverImage: details.coverImage ?? existing?.coverImage ?? null,
+    nextEpisodeDate: details.nextEpisodeDate ?? existing?.nextEpisodeDate ?? null,
+    isCensored: details.isCensored !== undefined ? Boolean(details.isCensored) : Boolean(existing?.isCensored),
+    genres: details.genres?.length ? details.genres : existing?.genres || [],
+    studios: details.studios?.length ? details.studios : existing?.studios || [],
+    description: details.description ?? existing?.description ?? null,
+    descriptionHtml: details.descriptionHtml ?? existing?.descriptionHtml ?? null,
     updatedAt: new Date(),
   };
+
+  return next;
 }
 
 async function findCatalogByServiceId(serviceName: IntegrationServiceName, externalAnimeId: string) {
@@ -84,6 +91,49 @@ async function findCatalogByServiceId(serviceName: IntegrationServiceName, exter
   return record?.anime || null;
 }
 
+async function findCatalogByTitleFallback(details: ProviderAnimeDetails): Promise<AnimeCatalog | null> {
+  const keys = collectTitleKeys(details);
+  if (!keys.size) {
+    return null;
+  }
+
+  const year = extractYear(details);
+  const primaryKey = [...keys][0];
+  const likePattern = `%${primaryKey.split(' ').slice(0, 4).join('%')}%`;
+
+  let candidates: AnimeCatalog[] = [];
+
+  if (year) {
+    candidates = await db
+      .select()
+      .from(animeCatalog)
+      .where(
+        or(
+          ilike(animeCatalog.airedOn, `${year}%`),
+          ilike(animeCatalog.releasedOn, `${year}%`),
+          ilike(animeCatalog.season, `%${year}%`),
+          ilike(animeCatalog.titleDefault, likePattern)
+        )!
+      )
+      .limit(400);
+  } else {
+    candidates = await db
+      .select()
+      .from(animeCatalog)
+      .where(
+        or(
+          ilike(animeCatalog.titleDefault, likePattern),
+          ilike(animeCatalog.titleEnglish, likePattern),
+          ilike(animeCatalog.titleJapanese, likePattern),
+          ilike(animeCatalog.titleRussian, likePattern)
+        )!
+      )
+      .limit(200);
+  }
+
+  return matchCatalogByTitle(details, candidates);
+}
+
 async function ensureServiceId(animeId: number, serviceName: IntegrationServiceName, externalAnimeId: string) {
   const [existing] = await db
     .select()
@@ -91,6 +141,9 @@ async function ensureServiceId(animeId: number, serviceName: IntegrationServiceN
     .where(and(eq(animeServiceIds.serviceName, serviceName), eq(animeServiceIds.externalAnimeId, externalAnimeId)));
 
   if (existing) {
+    if (existing.animeId !== animeId) {
+      return existing;
+    }
     return existing;
   }
 
@@ -101,9 +154,19 @@ async function ensureServiceId(animeId: number, serviceName: IntegrationServiceN
       serviceName,
       externalAnimeId,
     })
+    .onConflictDoNothing()
     .returning();
 
-  return created;
+  if (created) {
+    return created;
+  }
+
+  const [again] = await db
+    .select()
+    .from(animeServiceIds)
+    .where(and(eq(animeServiceIds.serviceName, serviceName), eq(animeServiceIds.externalAnimeId, externalAnimeId)));
+
+  return again || null;
 }
 
 export class LibraryService {
@@ -119,10 +182,14 @@ export class LibraryService {
       catalogEntry = await findCatalogByServiceId(serviceName, details.externalAnimeId);
     }
 
+    if (!catalogEntry && !details.malId) {
+      catalogEntry = await findCatalogByTitleFallback(details);
+    }
+
     if (catalogEntry) {
       const [updated] = await db
         .update(animeCatalog)
-        .set(toCatalogPayload(details))
+        .set(toCatalogPayload(details, catalogEntry))
         .where(eq(animeCatalog.id, catalogEntry.id))
         .returning();
       await ensureServiceId(updated.id, serviceName, details.externalAnimeId);
@@ -139,6 +206,57 @@ export class LibraryService {
 
     await ensureServiceId(created.id, serviceName, details.externalAnimeId);
     return created;
+  }
+
+  /** Link provider IDs into catalog without touching user_library_entries. */
+  static async linkProviderCatalogEntries(
+    serviceName: IntegrationServiceName,
+    entries: ProviderLibraryEntry[]
+  ): Promise<Array<{ animeId: number; entry: ProviderLibraryEntry }>> {
+    const linked: Array<{ animeId: number; entry: ProviderLibraryEntry }> = [];
+    for (const entry of entries) {
+      const catalog = await this.upsertCatalogEntry(serviceName, entry);
+      linked.push({ animeId: catalog.id, entry });
+    }
+    return linked;
+  }
+
+  static async ensureServiceIdForAnime(
+    animeId: number,
+    serviceName: IntegrationServiceName,
+    externalAnimeId: string
+  ) {
+    return ensureServiceId(animeId, serviceName, externalAnimeId);
+  }
+
+  static async getMaxLibrarySyncedAt(userId: number): Promise<Date | null> {
+    const [row] = await db
+      .select({
+        maxSyncedAt: sql<Date | null>`max(${userLibraryEntries.lastSyncedAt})`,
+      })
+      .from(userLibraryEntries)
+      .where(eq(userLibraryEntries.userId, userId));
+
+    const value = row?.maxSyncedAt;
+    if (!value) {
+      return null;
+    }
+    return value instanceof Date ? value : new Date(value);
+  }
+
+  static async getAnimeIdsForUserLibrary(userId: number): Promise<number[]> {
+    const rows = await db
+      .select({ animeId: userLibraryEntries.animeId })
+      .from(userLibraryEntries)
+      .where(eq(userLibraryEntries.userId, userId));
+    return rows.map((row) => row.animeId);
+  }
+
+  static async listServiceIdsForAnime(animeIds: number[]) {
+    if (!animeIds.length) {
+      return [];
+    }
+    return db.select().from(animeServiceIds).where(inArray(animeServiceIds.animeId, animeIds));
   }
 
   static async upsertLibraryEntry(userId: number, serviceName: IntegrationServiceName, entry: ProviderLibraryEntry) {
@@ -216,6 +334,17 @@ export class LibraryService {
       .where(and(eq(animeServiceIds.serviceName, serviceName), inArray(animeServiceIds.externalAnimeId, externalAnimeIds)));
     const catalogByExternalId = new Map(serviceRecords.map((record) => [record.externalAnimeId, record.anime]));
     const catalogByMalId = new Map<number, AnimeCatalog>();
+    const catalogByTitleKey = new Map<string, AnimeCatalog[]>();
+
+    const indexTitles = (catalogEntry: AnimeCatalog) => {
+      for (const key of collectTitleKeys(catalogEntry)) {
+        const list = catalogByTitleKey.get(key) || [];
+        if (!list.some((item) => item.id === catalogEntry.id)) {
+          list.push(catalogEntry);
+          catalogByTitleKey.set(key, list);
+        }
+      }
+    };
 
     if (malIds.length) {
       const catalogRecords = await db.select().from(animeCatalog).where(inArray(animeCatalog.malId, malIds));
@@ -223,7 +352,12 @@ export class LibraryService {
         if (catalogEntry.malId) {
           catalogByMalId.set(catalogEntry.malId, catalogEntry);
         }
+        indexTitles(catalogEntry);
       }
+    }
+
+    for (const catalogEntry of catalogByExternalId.values()) {
+      indexTitles(catalogEntry);
     }
 
     const results: UserLibraryEntry[] = [];
@@ -235,11 +369,31 @@ export class LibraryService {
       const libraryValues = await Promise.all(
         batch.map(async (entry) => {
           const matchedByExternalId = catalogByExternalId.has(entry.externalAnimeId);
-          let catalogEntry = catalogByExternalId.get(entry.externalAnimeId) || (entry.malId ? catalogByMalId.get(entry.malId) : null);
+          let catalogEntry =
+            catalogByExternalId.get(entry.externalAnimeId) || (entry.malId ? catalogByMalId.get(entry.malId) : null) || null;
+
+          if (!catalogEntry && !entry.malId) {
+            const titleKeys = collectTitleKeys(entry);
+            const candidateMap = new Map<number, AnimeCatalog>();
+            for (const key of titleKeys) {
+              for (const candidate of catalogByTitleKey.get(key) || []) {
+                candidateMap.set(candidate.id, candidate);
+              }
+            }
+            catalogEntry = matchCatalogByTitle(entry, [...candidateMap.values()]);
+            if (!catalogEntry) {
+              catalogEntry = await findCatalogByTitleFallback(entry);
+            }
+          }
 
           if (catalogEntry) {
             if (shouldUpdateCatalog(entry, matchedByExternalId)) {
-              await db.update(animeCatalog).set(toCatalogPayload(entry)).where(eq(animeCatalog.id, catalogEntry.id));
+              const [updatedCatalog] = await db
+                .update(animeCatalog)
+                .set(toCatalogPayload(entry, catalogEntry))
+                .where(eq(animeCatalog.id, catalogEntry.id))
+                .returning();
+              catalogEntry = updatedCatalog || catalogEntry;
             }
             await db
               .insert(animeServiceIds)
@@ -269,9 +423,10 @@ export class LibraryService {
           }
 
           catalogByExternalId.set(entry.externalAnimeId, catalogEntry);
-          if (entry.malId) {
-            catalogByMalId.set(entry.malId, catalogEntry);
+          if (entry.malId || catalogEntry.malId) {
+            catalogByMalId.set(entry.malId || catalogEntry.malId!, catalogEntry);
           }
+          indexTitles(catalogEntry);
 
           const payload = {
             sourceService: serviceName,

@@ -56,6 +56,10 @@ interface ApiResponse {
   service: string;
   anime: AnimeData[];
   count: number;
+  sync?: {
+    status: 'idle' | 'queued' | 'running';
+    stale: boolean;
+  };
 }
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -71,6 +75,8 @@ export function ScheduleView() {
   const [error, setError] = useState<string | null>(null);
   const [needsIntegration, setNeedsIntegration] = useState(false);
   const [integrationExpired, setIntegrationExpired] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'queued' | 'running'>('idle');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const dateLocale = locale === 'ru' ? ru : enUS;
 
   useEffect(() => {
@@ -102,12 +108,17 @@ export function ScheduleView() {
       return () => clearTimeout(timeoutId);
     }
 
-    const fetchAnime = async () => {
+    const fetchAnime = async (options?: { force?: boolean; silent?: boolean }) => {
       try {
-        setLoading(true);
+        if (!options?.silent) {
+          setLoading(true);
+        }
         setError(null);
 
         const query = new URLSearchParams(searchParams.toString());
+        if (options?.force) {
+          query.set('force', '1');
+        }
         const response = await fetch(`/api/user/anime?${query.toString()}`, {
           credentials: 'include',
           cache: 'no-store'
@@ -167,16 +178,64 @@ export function ScheduleView() {
         const data: ApiResponse = await response.json();
         const anime = data.anime || [];
         setAnimeList(anime);
+        setSyncStatus(data.sync?.status || 'idle');
       } catch (err) {
         console.error('Error fetching anime:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         setLoading(false);
+        setIsRefreshing(false);
       }
     };
 
     fetchAnime();
   }, [user, authLoading, router, locale, searchParams]);
+
+  useEffect(() => {
+    if (syncStatus !== 'queued' && syncStatus !== 'running') {
+      return;
+    }
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        const query = new URLSearchParams(searchParams.toString());
+        const response = await fetch(`/api/user/anime?${query.toString()}`, {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data: ApiResponse = await response.json();
+        setAnimeList(data.anime || []);
+        setSyncStatus(data.sync?.status || 'idle');
+      } catch {
+        // best-effort poll
+      }
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [syncStatus, searchParams]);
+
+  const handleForceRefresh = async () => {
+    setIsRefreshing(true);
+    setSyncStatus('queued');
+    try {
+      const query = new URLSearchParams(searchParams.toString());
+      query.set('force', '1');
+      const response = await fetch(`/api/user/anime?${query.toString()}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (response.ok) {
+        const data: ApiResponse = await response.json();
+        setAnimeList(data.anime || []);
+        setSyncStatus(data.sync?.status || 'idle');
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const getCatchingUpAnime = () => {
     const today = new Date();
@@ -437,6 +496,23 @@ export function ScheduleView() {
 
   return (
     <main className="container mx-auto px-4 py-8">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-muted-foreground">
+          {(syncStatus === 'queued' || syncStatus === 'running') && (
+            <span>{t('syncRefreshing')}</span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleForceRefresh}
+          disabled={isRefreshing || syncStatus === 'running' || syncStatus === 'queued'}
+          className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-50"
+        >
+          {isRefreshing || syncStatus === 'running' || syncStatus === 'queued'
+            ? t('syncRefreshing')
+            : t('refreshList')}
+        </button>
+      </div>
       <div className="space-y-12">
         {/* Weekly Schedule */}
         {weeklySchedule.map(({ day, date, animes }) => (

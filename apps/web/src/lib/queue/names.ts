@@ -1,6 +1,7 @@
 export const QUEUE_NAMES = {
   animeSyncPrimary: 'anime.sync.primary',
   animeSyncEntry: 'anime.sync.entry',
+  animeScheduleRefresh: 'anime.schedule.refresh',
   maintenanceCleanup: 'maintenance.cleanup',
   releasesPrecompute: 'releases.precompute',
   releasesWatchlistRefresh: 'releases.watchlist.refresh',
@@ -13,6 +14,7 @@ export const JOB_NAMES = {
   processSyncJob: 'process-sync-job',
   processEntrySync: 'process-entry-sync',
   processNextEntrySync: 'process-next-entry-sync',
+  refreshScheduleSlice: 'refresh-schedule-slice',
   runMaintenanceCleanup: 'run-maintenance-cleanup',
   precomputeReleasesCatalog: 'precompute-releases-catalog',
   refreshReleaseWatchlist: 'refresh-release-watchlist',

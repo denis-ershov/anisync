@@ -62,6 +62,44 @@ export async function enqueueEntrySync(payload: { entryId?: number; changeId?: n
   await queue.add(JOB_NAMES.processEntrySync, payload, { jobId });
 }
 
+export function scheduleRefreshJobId(userId: number) {
+  return `schedule-refresh-${userId}`;
+}
+
+export async function enqueueScheduleRefresh(userId: number) {
+  const queue = getQueue(QUEUE_NAMES.animeScheduleRefresh);
+  const jobId = scheduleRefreshJobId(userId);
+
+  const existing = await queue.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (state === 'waiting' || state === 'delayed' || state === 'active' || state === 'prioritized') {
+      return { enqueued: false, state };
+    }
+  }
+
+  await queue.add(
+    JOB_NAMES.refreshScheduleSlice,
+    { userId },
+    {
+      jobId,
+      removeOnComplete: true,
+      removeOnFail: 50,
+    }
+  );
+
+  return { enqueued: true, state: 'waiting' as const };
+}
+
+export async function getScheduleRefreshJobState(userId: number) {
+  const queue = getQueue(QUEUE_NAMES.animeScheduleRefresh);
+  const job = await queue.getJob(scheduleRefreshJobId(userId));
+  if (!job) {
+    return null;
+  }
+  return job.getState();
+}
+
 export async function enqueueMaintenanceCleanup() {
   const queue = getQueue(QUEUE_NAMES.maintenanceCleanup);
   await queue.add(JOB_NAMES.runMaintenanceCleanup, {}, { jobId: `cleanup-${Date.now()}` });

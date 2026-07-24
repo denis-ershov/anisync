@@ -13,14 +13,23 @@ import {
   type UserIntegration,
 } from '@/lib/db';
 import { appConfig, env, isQueuesEnabled } from '@/lib/config';
-import { enqueueEntrySync, enqueuePrimarySyncJob } from '@/lib/queue/queues';
-import { getProvider } from '@/lib/integrations/providers';
+import {
+  enqueueEntrySync,
+  enqueuePrimarySyncJob,
+  enqueueScheduleRefresh,
+  getScheduleRefreshJobState,
+} from '@/lib/queue/queues';
+import { getProvider, resolveAniListIdsByMal } from '@/lib/integrations/providers';
 import type { IntegrationServiceName, ProviderDeletePayload, ProviderUpdatePayload } from '@/lib/integrations/provider-types';
 import { IntegrationService } from '@/lib/services/integration-service';
 import { LibraryService } from '@/lib/services/library-service';
 import { UserSettingsService } from '@/lib/services/user-service';
 
 export const STALE_SYNC_JOB_TIMEOUT_MS = 30 * 60 * 1000;
+
+const scheduleRefreshInFlight = new Set<number>();
+
+export type ScheduleSyncStatus = 'idle' | 'queued' | 'running';
 
 type ClaimedIdRow = { id: number };
 
@@ -327,26 +336,24 @@ export class SyncService {
         throw new Error(`Primary integration ${primaryService} is not connected`);
       }
 
-      const refreshedIntegration = await IntegrationService.refreshTokenIfNeeded(integration);
-      const provider = getProvider(primaryService);
+      await IntegrationService.refreshTokenIfNeeded(integration);
       attempt = await this.startAttempt(job.id, primaryService, { type: 'primary_import' });
-      const library = await provider.fetchLibrary(refreshedIntegration, { scope: 'schedule' });
+      const refreshed = await this.refreshScheduleSlice(userId);
 
-      const upserted = await LibraryService.upsertLibraryEntries(userId, primaryService, library);
-      await LibraryService.pruneLibraryToScheduleSlice(
-        userId,
-        upserted.map((row) => row.animeId)
-      );
-
-      await this.finishAttempt(attempt.id, 'completed', { imported: library.length, scope: 'schedule' });
+      await this.finishAttempt(attempt.id, 'completed', {
+        imported: refreshed.imported,
+        scope: 'schedule',
+        sources: refreshed.sources,
+      });
       await db
         .update(syncJobs)
         .set({
           status: 'completed',
           finishedAt: new Date(),
           summary: {
-            imported: library.length,
+            imported: refreshed.imported,
             scope: 'schedule',
+            sources: refreshed.sources,
           },
         })
         .where(eq(syncJobs.id, job.id));
@@ -354,13 +361,13 @@ export class SyncService {
       await LibraryService.createNotification(userId, {
         type: 'sync_completed',
         title: 'Sync completed',
-        message: `Imported ${library.length} watching/planned titles airing in the next 2 weeks from ${primaryService}.`,
+        message: `Imported ${refreshed.imported} watching/planned titles airing in the next 2 weeks from ${refreshed.sources.join(', ') || primaryService}.`,
       });
 
       return {
         jobId: job.id,
         status: 'completed',
-        imported: library.length,
+        imported: refreshed.imported,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown sync error';
@@ -394,33 +401,90 @@ export class SyncService {
       return null;
     }
 
+    const [anime] = await db
+      .select({ malId: animeCatalog.malId })
+      .from(animeCatalog)
+      .where(eq(animeCatalog.id, entry.animeId))
+      .limit(1);
+
+    const serviceIds = await db
+      .select()
+      .from(animeServiceIds)
+      .where(eq(animeServiceIds.animeId, entry.animeId));
+
+    const externalByService = new Map(
+      serviceIds.map((row) => [row.serviceName, row.externalAnimeId] as const)
+    );
+
     const integrations = await db
       .select()
       .from(userIntegrations)
       .where(eq(userIntegrations.userId, userId));
 
-    const targets = integrations.filter((integration) => {
-      if (!integration.accessToken) {
-        return false;
-      }
-      if (integration.serviceName === settings.primaryService) {
-        return true;
-      }
-
-      return integration.automaticSync;
-    });
+    const targets = integrations
+      .filter((integration) => {
+        if (!integration.accessToken) {
+          return false;
+        }
+        if (integration.serviceName === settings.primaryService) {
+          return true;
+        }
+        return integration.automaticSync;
+      })
+      .sort((a, b) => {
+        if (a.serviceName === settings.primaryService) return -1;
+        if (b.serviceName === settings.primaryService) return 1;
+        return 0;
+      });
 
     const results: Array<{ serviceName: string; status: 'completed' | 'failed' | 'skipped'; entryId?: string | null; error?: string }> = [];
     let hasLocalOnlyNotes = false;
+    let fallbackSource: { serviceName: IntegrationServiceName; entryId: string } | null = null;
 
     for (const integration of targets) {
       const provider = getProvider(integration.serviceName as IntegrationServiceName);
       const refreshed = await IntegrationService.refreshTokenIfNeeded(integration as UserIntegration);
 
+      const externalAnimeId =
+        externalByService.get(integration.serviceName) ||
+        (integration.serviceName === 'myanimelist' && anime?.malId ? String(anime.malId) : null) ||
+        null;
+
+      const externalEntryId =
+        integration.serviceName === entry.sourceService ? entry.sourceEntryId : null;
+
+      if (!externalAnimeId && !(integration.serviceName === 'shikimori' && externalEntryId)) {
+        results.push({
+          serviceName: integration.serviceName,
+          status: 'skipped',
+          error: 'Missing provider identifiers for update',
+        });
+        continue;
+      }
+
+      if (integration.serviceName === 'shikimori' && !externalEntryId && !externalAnimeId) {
+        results.push({
+          serviceName: integration.serviceName,
+          status: 'skipped',
+          error: 'Missing provider identifiers for update',
+        });
+        continue;
+      }
+
+      // Shikimori update requires entry id
+      if (integration.serviceName === 'shikimori' && !externalEntryId) {
+        results.push({
+          serviceName: integration.serviceName,
+          status: 'skipped',
+          error: 'Shikimori update requires external entry id',
+        });
+        continue;
+      }
+
       const requestPayload: ProviderUpdatePayload = {
         ...payload,
-        externalEntryId: integration.serviceName === entry.sourceService ? entry.sourceEntryId : payload.externalEntryId,
-        externalAnimeId: payload.externalAnimeId,
+        externalEntryId,
+        externalAnimeId: externalAnimeId || payload.externalAnimeId,
       };
 
       if (payload.notes && !provider.capabilities.supportsNotes) {
@@ -440,6 +504,31 @@ export class SyncService {
           status: 'completed',
           entryId: result.externalEntryId,
         });
+
+        if (
+          !fallbackSource &&
+          integration.serviceName !== settings.primaryService &&
+          result.externalEntryId
+        ) {
+          fallbackSource = {
+            serviceName: integration.serviceName as IntegrationServiceName,
+            entryId: String(result.externalEntryId),
+          };
+        }
+
+        if (
+          integration.serviceName === entry.sourceService &&
+          result.externalEntryId &&
+          result.externalEntryId !== entry.sourceEntryId
+        ) {
+          await db
+            .update(userLibraryEntries)
+            .set({
+              sourceEntryId: String(result.externalEntryId),
+              updatedAt: new Date(),
+            })
+            .where(eq(userLibraryEntries.id, entry.id));
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown provider sync error';
         results.push({
@@ -450,8 +539,26 @@ export class SyncService {
       }
     }
 
-    const hasFailure = results.some((result) => result.status === 'failed');
-    if (hasFailure) {
+    const primaryResult = results.find((result) => result.serviceName === settings.primaryService);
+    const primaryMissing =
+      !primaryResult || primaryResult.status === 'skipped' || primaryResult.status === 'failed';
+
+    if (primaryMissing && fallbackSource && entry.sourceService === settings.primaryService) {
+      await db
+        .update(userLibraryEntries)
+        .set({
+          sourceService: fallbackSource.serviceName,
+          sourceEntryId: fallbackSource.entryId,
+          updatedAt: new Date(),
+        })
+        .where(eq(userLibraryEntries.id, entry.id));
+    }
+
+    const actionable = results.filter((result) => result.status !== 'skipped');
+    const hasFailure = actionable.some((result) => result.status === 'failed');
+    const hasSuccess = actionable.some((result) => result.status === 'completed');
+
+    if (hasFailure && !hasSuccess) {
       await LibraryService.markEntrySyncFailed(entry.id, false);
       await LibraryService.createNotification(userId, {
         animeId: entry.animeId,
@@ -459,7 +566,7 @@ export class SyncService {
         title: 'Entry sync failed',
         message: 'One or more providers failed to accept the latest library update.',
       });
-    } else {
+    } else if (hasSuccess) {
       await LibraryService.markEntrySynced(entry.id, {
         notesSyncStatus:
           payload.notes !== undefined
@@ -468,6 +575,8 @@ export class SyncService {
               : 'synced'
             : entry.notesSyncStatus,
       }, hasLocalOnlyNotes ? 'local_only' : 'synced');
+    } else if (!actionable.length) {
+      await LibraryService.markEntrySyncFailed(entry.id, false);
     }
 
     return results;
@@ -576,33 +685,195 @@ export class SyncService {
     return this.runPrimaryImport(userId, settings.primaryService);
   }
 
-  static async ensurePrimaryScheduleSliceLoaded(userId: number) {
+  static async isScheduleSliceStale(userId: number): Promise<boolean> {
+    const lastSyncedAt = await LibraryService.getMaxLibrarySyncedAt(userId);
+    if (!lastSyncedAt) {
+      return true;
+    }
+    return Date.now() - lastSyncedAt.getTime() > appConfig.scheduleRefreshTtlMs;
+  }
+
+  static async getScheduleSyncStatus(userId: number): Promise<ScheduleSyncStatus> {
+    if (scheduleRefreshInFlight.has(userId)) {
+      return 'running';
+    }
+
+    if (isQueuesEnabled()) {
+      try {
+        const state = await getScheduleRefreshJobState(userId);
+        if (state === 'active') {
+          return 'running';
+        }
+        if (state === 'waiting' || state === 'delayed' || state === 'prioritized' || state === 'waiting-children') {
+          return 'queued';
+        }
+      } catch {
+        // ignore queue inspection errors
+      }
+    }
+
+    return 'idle';
+  }
+
+  static async requestScheduleRefresh(
+    userId: number,
+    options?: { force?: boolean; origin?: string }
+  ): Promise<{ status: ScheduleSyncStatus; stale: boolean; dispatched: boolean }> {
+    const stale = await this.isScheduleSliceStale(userId);
+    const current = await this.getScheduleSyncStatus(userId);
+
+    if (!options?.force && !stale) {
+      return { status: current, stale, dispatched: false };
+    }
+
+    if (current === 'running' || current === 'queued') {
+      return { status: current, stale, dispatched: false };
+    }
+
+    if (isQueuesEnabled()) {
+      try {
+        const result = await enqueueScheduleRefresh(userId);
+        return {
+          status: result.enqueued ? 'queued' : current === 'idle' ? 'queued' : current,
+          stale,
+          dispatched: result.enqueued,
+        };
+      } catch {
+        // fall through to fire-and-forget
+      }
+    }
+
+    if (!scheduleRefreshInFlight.has(userId)) {
+      scheduleRefreshInFlight.add(userId);
+      void this.refreshScheduleSlice(userId)
+        .catch(() => undefined)
+        .finally(() => {
+          scheduleRefreshInFlight.delete(userId);
+        });
+    }
+
+    return { status: 'running', stale, dispatched: true };
+  }
+
+  /**
+   * Mixed-provider schedule import: primary wins for library fields;
+   * secondaries fill catalog IDs and titles missing on primary.
+   */
+  static async refreshScheduleSlice(userId: number) {
     const settings = await UserSettingsService.getUserSettings(userId);
     if (!settings?.primaryService) {
-      return null;
+      return { imported: 0, sources: [] as IntegrationServiceName[] };
+    }
+
+    const integrations = await db
+      .select()
+      .from(userIntegrations)
+      .where(eq(userIntegrations.userId, userId));
+
+    const connected = integrations.filter((integration) => Boolean(integration.accessToken));
+    if (!connected.length) {
+      return { imported: 0, sources: [] as IntegrationServiceName[] };
+    }
+
+    const primaryService = settings.primaryService;
+    const ordered = [
+      ...connected.filter((integration) => integration.serviceName === primaryService),
+      ...connected.filter((integration) => integration.serviceName !== primaryService),
+    ];
+
+    const keepAnimeIds = new Set<number>();
+    const primaryAnimeIds = new Set<number>();
+    const sources: IntegrationServiceName[] = [];
+
+    for (const integration of ordered) {
+      const serviceName = integration.serviceName as IntegrationServiceName;
+      try {
+        const refreshed = await IntegrationService.refreshTokenIfNeeded(integration as UserIntegration);
+        const provider = getProvider(serviceName);
+        const scheduleEntries = await provider.fetchLibrary(refreshed, { scope: 'schedule' });
+        sources.push(serviceName);
+
+        if (serviceName === primaryService) {
+          const upserted = await LibraryService.upsertLibraryEntries(userId, serviceName, scheduleEntries);
+          for (const row of upserted) {
+            keepAnimeIds.add(row.animeId);
+            primaryAnimeIds.add(row.animeId);
+          }
+        } else {
+          const linked = await LibraryService.linkProviderCatalogEntries(serviceName, scheduleEntries);
+          for (const { animeId, entry } of linked) {
+            keepAnimeIds.add(animeId);
+            if (!primaryAnimeIds.has(animeId)) {
+              await LibraryService.upsertLibraryEntry(userId, serviceName, entry);
+            }
+          }
+        }
+
+        await IntegrationService.updateLastSync(integration.id);
+      } catch {
+        // Best-effort per provider; continue with others.
+      }
+    }
+
+    await this.enrichAniListServiceIds(userId, connected);
+    await LibraryService.pruneLibraryToScheduleSlice(userId, [...keepAnimeIds]);
+
+    return {
+      imported: keepAnimeIds.size,
+      sources,
+    };
+  }
+
+  private static async enrichAniListServiceIds(userId: number, integrations: UserIntegration[]) {
+    const anilist = integrations.find((integration) => integration.serviceName === 'anilist' && integration.accessToken);
+    if (!anilist) {
+      return;
+    }
+
+    const animeIds = await LibraryService.getAnimeIdsForUserLibrary(userId);
+    if (!animeIds.length) {
+      return;
+    }
+
+    const serviceIds = await LibraryService.listServiceIdsForAnime(animeIds);
+    const hasAniList = new Set(
+      serviceIds.filter((row) => row.serviceName === 'anilist').map((row) => row.animeId)
+    );
+
+    const catalogRows = await db
+      .select({ id: animeCatalog.id, malId: animeCatalog.malId })
+      .from(animeCatalog)
+      .where(inArray(animeCatalog.id, animeIds));
+
+    const missing = catalogRows.filter((row) => row.malId && !hasAniList.has(row.id));
+    if (!missing.length) {
+      return;
     }
 
     try {
-      const integration = await IntegrationService.getIntegrationByUserAndService(userId, settings.primaryService);
-      if (!integration) {
-        return null;
+      const refreshed = await IntegrationService.refreshTokenIfNeeded(anilist as UserIntegration);
+      const resolved = await resolveAniListIdsByMal(
+        refreshed.accessToken!,
+        missing.map((row) => row.malId!)
+      );
+      const byMal = new Map(resolved.map((row) => [row.malId, row.anilistId]));
+
+      for (const row of missing) {
+        const anilistId = row.malId ? byMal.get(row.malId) : null;
+        if (anilistId) {
+          await LibraryService.ensureServiceIdForAnime(row.id, 'anilist', anilistId);
+        }
       }
+    } catch {
+      // optional enrichment
+    }
+  }
 
-      const refreshedIntegration = await IntegrationService.refreshTokenIfNeeded(integration);
-      const provider = getProvider(settings.primaryService);
-      const scheduleEntries = await provider.fetchLibrary(refreshedIntegration, { scope: 'schedule' });
-
-      const upserted = await LibraryService.upsertLibraryEntries(
-        userId,
-        settings.primaryService,
-        scheduleEntries
-      );
-      await LibraryService.pruneLibraryToScheduleSlice(
-        userId,
-        upserted.map((row) => row.animeId)
-      );
-
-      return scheduleEntries.length;
+  /** @deprecated use refreshScheduleSlice — kept for call-site compatibility */
+  static async ensurePrimaryScheduleSliceLoaded(userId: number) {
+    try {
+      const result = await this.refreshScheduleSlice(userId);
+      return result.imported;
     } catch {
       return null;
     }
@@ -640,14 +911,32 @@ export class SyncService {
       throw new Error(`Library entry ${entryId} not found`);
     }
 
+    const serviceIds = await db
+      .select()
+      .from(animeServiceIds)
+      .where(eq(animeServiceIds.animeId, entry.animeId));
+
+    const [anime] = await db
+      .select({ malId: animeCatalog.malId })
+      .from(animeCatalog)
+      .where(eq(animeCatalog.id, entry.animeId))
+      .limit(1);
+
     const mappedEntry = await LibraryService.mapLibraryEntry(entry);
-    if (!mappedEntry?.externalAnimeId) {
+    const externalAnimeId =
+      mappedEntry?.externalAnimeId ||
+      serviceIds.find((row) => row.serviceName === entry.sourceService)?.externalAnimeId ||
+      serviceIds[0]?.externalAnimeId ||
+      (anime?.malId ? String(anime.malId) : null);
+
+    if (!externalAnimeId && !entry.sourceEntryId) {
       await LibraryService.markEntrySyncFailed(entry.id, false);
       throw new Error(`Library entry ${entryId} is missing provider anime id`);
     }
 
     const payload: ProviderUpdatePayload = {
-      externalAnimeId: mappedEntry.externalAnimeId,
+      externalAnimeId: externalAnimeId || String(entry.animeId),
+      externalEntryId: entry.sourceEntryId,
       watchedEpisodes: entry.watchedEpisodes,
       watchStatus: entry.watchStatus,
       personalRating: entry.personalRating,

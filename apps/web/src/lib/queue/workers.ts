@@ -61,6 +61,12 @@ async function handleTorrentWatcherScanJob(job: Job) {
   return result;
 }
 
+async function handleScheduleRefreshJob(job: Job<{ userId: number }>) {
+  const result = await SyncService.refreshScheduleSlice(job.data.userId);
+  log.info({ jobId: job.id, userId: job.data.userId, result }, 'Schedule slice refresh finished');
+  return result;
+}
+
 export function startWorkers() {
   const connection = getQueueConnectionOptions();
   const prefix = getBullMqPrefix();
@@ -75,6 +81,11 @@ export function startWorkers() {
       connection,
       prefix,
       concurrency: 4,
+    }),
+    new Worker(QUEUE_NAMES.animeScheduleRefresh, handleScheduleRefreshJob, {
+      connection,
+      prefix,
+      concurrency: 2,
     }),
     new Worker(QUEUE_NAMES.maintenanceCleanup, handleMaintenanceCleanupJob, {
       connection,

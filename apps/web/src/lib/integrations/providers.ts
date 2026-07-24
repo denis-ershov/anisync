@@ -1201,3 +1201,50 @@ export function getProvider(serviceName: IntegrationServiceName) {
 export function getCanonicalCallbackUrl(serviceName: IntegrationServiceName) {
   return getProviderCallbackUrl(serviceName);
 }
+
+/** Batch lookup AniList media ids by MAL ids (Page.media idMal_in). */
+export async function resolveAniListIdsByMal(
+  accessToken: string,
+  malIds: number[]
+): Promise<Array<{ malId: number; anilistId: string }>> {
+  const unique = Array.from(new Set(malIds.filter((id) => Number.isFinite(id))));
+  if (!unique.length) {
+    return [];
+  }
+
+  const results: Array<{ malId: number; anilistId: string }> = [];
+
+  for (let index = 0; index < unique.length; index += 50) {
+    const chunk = unique.slice(index, index + 50);
+    const response = await fetchJson<{
+      data?: { Page?: { media?: Array<{ id: number; idMal?: number | null }> } };
+    }>(providerBaseUrls.anilistGraphql.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        query: `
+          query ($ids: [Int]) {
+            Page(page: 1, perPage: 50) {
+              media(idMal_in: $ids, type: ANIME) {
+                id
+                idMal
+              }
+            }
+          }
+        `,
+        variables: { ids: chunk },
+      }),
+    });
+
+    for (const media of response.data?.Page?.media || []) {
+      if (media.idMal) {
+        results.push({ malId: media.idMal, anilistId: String(media.id) });
+      }
+    }
+  }
+
+  return results;
+}

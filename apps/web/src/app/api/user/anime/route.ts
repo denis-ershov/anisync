@@ -39,8 +39,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    await SyncService.ensurePrimaryLibraryLoaded(user.id);
-    await SyncService.ensurePrimaryScheduleSliceLoaded(user.id);
+    const force = request.nextUrl.searchParams.get('force') === '1';
+
+    // Cold start: empty library must wait for first import.
+    const existingIds = await LibraryService.getAnimeIdsForUserLibrary(user.id);
+    if (!existingIds.length) {
+      await SyncService.ensurePrimaryLibraryLoaded(user.id);
+    } else {
+      await SyncService.requestScheduleRefresh(user.id, {
+        force,
+        origin: request.nextUrl.origin,
+      });
+    }
 
     const searchParams = request.nextUrl.searchParams;
     const anime = await LibraryService.listUserLibrary(user.id, {
@@ -57,10 +67,17 @@ export async function GET(request: NextRequest) {
       types: parseList(searchParams.get('types')),
     });
 
+    const stale = await SyncService.isScheduleSliceStale(user.id);
+    const syncStatus = await SyncService.getScheduleSyncStatus(user.id);
+
     return NextResponse.json({
       service: user.settings.primaryService,
       anime,
       count: anime.length,
+      sync: {
+        status: syncStatus,
+        stale,
+      },
     });
   } catch (error) {
     return NextResponse.json(

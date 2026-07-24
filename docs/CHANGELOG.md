@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-24 (anime: мгновенная загрузка + смешанный каталог)
+
+**Файлы:** `apps/web/src/app/api/user/anime/route.ts`, `apps/web/src/app/api/internal/schedule-refresh/process/route.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/lib/services/catalog-match.ts`, `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/lib/queue/*`, `apps/web/src/modules/anime/jobs.ts`, `apps/web/src/components/schedule-view.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `apps/web/src/lib/config.ts`, `docs/modules/ANIME_ARCHITECTURE.md`, `docs/PLATFORM_ARCHITECTURE.md`, `apps/web/tests/catalog-match.test.ts`.
+
+**Изменения:** `/api/user/anime` отдаёт БД сразу, фоновый `anime.schedule.refresh` (TTL 15м); import со всех подключённых провайдеров с матчем по `mal_id` / AniList `idMal` и title-fallback; outbound sync с per-service ID и primary-first.
+
+**Обоснование:** F5 больше не ждёт внешний fetch; цензурные/отсутствующие на Shikimori тайтлы подтягиваются из MAL/AniList и синкаются туда, где они есть.
+
 ## 2026-07-22 (anime: удаление статуса из списка)
 
 **Файлы:** `apps/web/src/app/api/user/library/[id]/route.ts`, `apps/web/src/lib/services/library-service.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/lib/integrations/provider-types.ts`, `apps/web/src/lib/integrations/providers.ts`, `apps/web/src/components/anime-card.tsx`, `apps/web/src/components/anime-detail-modal.tsx`, `apps/web/src/components/schedule-view.tsx`, `apps/web/messages/ru.json`, `apps/web/messages/en.json`, `docs/modules/ANIME_ARCHITECTURE.md`.

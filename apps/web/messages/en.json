@@ -88,7 +88,9 @@
     "welcomeTitle": "Welcome to AniSync!",
     "welcomeMessage": "To get started, connect your anime tracking service account. This will allow us to sync your anime list and provide personalized recommendations.",
     "supportedServices": "Supported Services",
-    "connectService": "Connect Service"
+    "connectService": "Connect Service",
+    "refreshList": "Refresh list",
+    "syncRefreshing": "Updating list…"
   },
   "AnimeCard": {
     "addToWatchlist": "Add to Watchlist",

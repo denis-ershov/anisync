@@ -162,6 +162,8 @@ export const appConfig = {
   get bullmqPrefix() {
     return getEnv().BULLMQ_PREFIX;
   },
+  /** TTL свежести среза расписания перед фоновым refresh (15 мин). */
+  scheduleRefreshTtlMs: 15 * 60 * 1000,
 } as const;
 
 export function getProviderCallbackUrl(service: 'shikimori' | 'myanimelist' | 'anilist') {

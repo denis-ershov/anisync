@@ -102,7 +102,7 @@ PostgreSQL и Redis — **внешние** Coolify Database + Connect To Predefi
 |-------|----------|----------|---------------|
 | `anime.sync.primary` | OAuth callback, manual sync | worker | `runPrimaryImport(userId)` |
 | `anime.sync.entry` | library PATCH | worker | `syncEntryToProviders(entryId)` |
-| `anime.schedule.refresh` | scheduler (daily) | worker | refresh airing slice |
+| `anime.schedule.refresh` | GET /api/user/anime (stale/force), cold start via refreshScheduleSlice | worker | `refreshScheduleSlice(userId)` |
 | `releases.tmdb.upcoming` | API cache miss | worker | `buildUpcomingPage(page, filters)` |
 | `releases.watchlist.refresh` | scheduler / on-demand | worker | batch TMDB для shows |
 | `notifications.dispatch` | любой модуль | worker | in-app + Telegram |
