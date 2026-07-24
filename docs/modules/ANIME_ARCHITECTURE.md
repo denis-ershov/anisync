@@ -69,7 +69,7 @@ Job: `direction = primary_catalog_push`
 `GET /api/user/anime` → БД сразу (только `watching` / `planned` / `rewatching`); stale → `anime.schedule.refresh`.  
 Статусы `dropped` / `completed` / `on_hold` в расписание не загружаются и не показываются.
 
-UI (`schedule-day.ts`): день недели по `next_episode_date` (для planned — `aired_on`). Уже вышедшие **сегодня / за 24ч** остаются в «Сегодня», не уезжают сразу в «Продолжаю смотреть».
+UI (`schedule-day.ts`): день недели по `next_episode_date` (для planned — `aired_on`). После эфира Shiki двигает `next` на +7д — UI восстанавливает предыдущий слот и держит тайтл в «Сегодня» (не прячет и не теряет в «дырке» ровно +7 дней).
 
 ## Mixed-provider schedule import
 

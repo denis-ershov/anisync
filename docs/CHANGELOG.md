@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-24 (fix: «Сегодня» после сдвига next_episode на +7д)
+
+**Файлы:** `apps/web/src/lib/integrations/schedule-day.ts`, `apps/web/tests/schedule-day.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:** если Shiki уже переставил `nextEpisodeAt` на следующую неделю (+7д), UI восстанавливает предыдущий слот (`next − 7`) и держит тайтл в «Сегодня». Иначе пятничные эфиры пропадали из недели (ровно +7 не в гриде 0..6 и не в catching-up).
+
+**Обоснование:** live БД — у пятничных тайтлов `next` уже 31.07, «Сегодня» пустое при вышедших сегодня сериях.
+
 ## 2026-07-24 (fix: MAL NSFW list + broken Shiki mal_id lookup)
 
 **Файлы:** `apps/web/src/lib/integrations/providers.ts`, `apps/web/scripts/diag-mal-46488*.mjs`, `apps/web/scripts/verify-mal-46488-import.mjs`, `docs/modules/ANIME_ARCHITECTURE.md`.
