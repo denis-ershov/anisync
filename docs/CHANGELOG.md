@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-07-24 (fix: MAL NSFW list + broken Shiki mal_id lookup)
+
+**Файлы:** `apps/web/src/lib/integrations/providers.ts`, `apps/web/scripts/diag-mal-46488*.mjs`, `apps/web/scripts/verify-mal-46488-import.mjs`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:**
+- MAL `fetchLibrary` всегда запрашивает `nsfw=true` — иначе API скрывает NSFW/часть Girls Love (MAL 46488: watching есть, в list без nsfw — нет).
+- `resolveShikimoriIdByMalId`: убран REST `?mal_id=` (параметр игнорируется, брался чужой `response[0]`); lookup через GraphQL `ids` + проверка `malId` / `isCensored`.
+
+**Обоснование:** 46488 в `anime_catalog` (censored), в MAL watching, но не попадал в `user_library_entries` — secondary gap не видел тайтл в schedule fetch.
+
+## 2026-07-24 (fix: застрявшие pending правки тайтлов)
+
+**Файлы:** `apps/web/src/lib/queue/queues.ts`, `workers.ts`, `scheduler.ts`, `names.ts`, `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/app/api/user/integrations/sync/queue/route.ts`, `apps/web/src/components/sync-queue-panel.tsx`, `apps/web/messages/*`, `docs/modules/ANIME_ARCHITECTURE.md`.
+
+**Изменения:**
+- `enqueueEntrySync` больше не блокируется старым completed/failed `jobId` — снимает и ставит заново; `removeOnComplete: true`.
+- Минутный drain pending через scheduler + job `process-entry-sync-drain`.
+- Кнопка «Запустить обработку» + `POST /api/user/integrations/sync/queue` (`flushPendingEntrySyncs`).
+- Счётчики pending/processing/failed через `COUNT(*)`, не из лимита 40 строк.
+
+**Обоснование:** 40 правок висели в pending при processing=0 — повторный enqueue с тем же BullMQ jobId тихо падал, drain не было.
+
 ## 2026-07-24 (ui: очередь синхронизации на интеграциях)
 
 **Файлы:** `apps/web/src/lib/services/sync-service.ts`, `apps/web/src/app/api/user/integrations/sync/queue/route.ts`, `apps/web/src/components/sync-queue-panel.tsx`, `apps/web/src/[locale]/settings/integrations/page.tsx`, `apps/web/messages/*`, `docs/modules/ANIME_ARCHITECTURE.md`.

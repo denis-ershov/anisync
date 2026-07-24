@@ -14,6 +14,8 @@ export const JOB_NAMES = {
   processSyncJob: 'process-sync-job',
   processEntrySync: 'process-entry-sync',
   processNextEntrySync: 'process-next-entry-sync',
+  /** Пакетная обработка застрявших pending в user_entry_changes. */
+  processEntrySyncDrain: 'process-entry-sync-drain',
   refreshScheduleSlice: 'refresh-schedule-slice',
   runMaintenanceCleanup: 'run-maintenance-cleanup',
   precomputeReleasesCatalog: 'precompute-releases-catalog',

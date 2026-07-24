@@ -15,10 +15,12 @@ import {
 import { appConfig, env, isQueuesEnabled } from '@/lib/config';
 import {
   enqueueEntrySync,
+  enqueueEntrySyncDrain,
   enqueuePrimarySyncJob,
   enqueueScheduleRefresh,
   getScheduleRefreshJobState,
 } from '@/lib/queue/queues';
+import { createLogger } from '@/lib/observability/logger';
 import { getProvider, probeShikimoriAnimeExists, resolveAniListIdsByMal, resolveShikimoriIdByMalId } from '@/lib/integrations/providers';
 import { filterLibraryForPrimaryAuthoritativeImport } from '@/lib/integrations/library-schedule-import';
 import type {
@@ -39,6 +41,7 @@ import { UserSettingsService } from '@/lib/services/user-service';
 
 export const STALE_SYNC_JOB_TIMEOUT_MS = 30 * 60 * 1000;
 
+const log = createLogger('sync-service');
 const scheduleRefreshInFlight = new Set<number>();
 
 export type ScheduleSyncStatus = 'idle' | 'queued' | 'running';
@@ -227,13 +230,25 @@ export class SyncService {
       .select({ count: sql<number>`count(*)::int` })
       .from(syncJobs)
       .where(and(eq(syncJobs.userId, userId), eq(syncJobs.status, 'running')));
+    const [entryPendingRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userEntryChanges)
+      .where(and(eq(userEntryChanges.userId, userId), eq(userEntryChanges.status, 'pending')));
+    const [entryProcessingRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userEntryChanges)
+      .where(and(eq(userEntryChanges.userId, userId), eq(userEntryChanges.status, 'processing')));
+    const [entryFailedRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userEntryChanges)
+      .where(and(eq(userEntryChanges.userId, userId), eq(userEntryChanges.status, 'failed')));
 
     const counts = {
       jobsPending: Number(jobsPendingRow?.count || 0),
       jobsRunning: Number(jobsRunningRow?.count || 0),
-      entryPending: activeEntryRows.filter((row) => row.status === 'pending').length,
-      entryProcessing: activeEntryRows.filter((row) => row.status === 'processing').length,
-      entryFailed: activeEntryRows.filter((row) => row.status === 'failed').length,
+      entryPending: Number(entryPendingRow?.count || 0),
+      entryProcessing: Number(entryProcessingRow?.count || 0),
+      entryFailed: Number(entryFailedRow?.count || 0),
       outOfSync: Number(outOfSyncCountRow?.count || 0),
     };
 
@@ -362,7 +377,8 @@ export class SyncService {
       try {
         await enqueueEntrySync(entryId ? { entryId } : {});
         return true;
-      } catch {
+      } catch (error) {
+        log.error({ err: error, entryId }, 'Failed to enqueue entry sync');
         return false;
       }
     }
@@ -385,9 +401,85 @@ export class SyncService {
         cache: 'no-store',
       });
       return response.ok;
-    } catch {
+    } catch (error) {
+      log.error({ err: error, entryId }, 'Failed to dispatch entry sync via HTTP');
       return false;
     }
+  }
+
+  /**
+   * Перепоставить в очередь все pending/failed правки пользователя
+   * (или глобальный drain, если userId не задан).
+   */
+  static async flushPendingEntrySyncs(userId?: number, origin?: string) {
+    if (userId) {
+      const pending = await db
+        .select({
+          id: userEntryChanges.id,
+          libraryEntryId: userEntryChanges.libraryEntryId,
+          status: userEntryChanges.status,
+        })
+        .from(userEntryChanges)
+        .where(
+          and(
+            eq(userEntryChanges.userId, userId),
+            inArray(userEntryChanges.status, ['pending', 'failed', 'processing'])
+          )
+        )
+        .orderBy(asc(userEntryChanges.createdAt))
+        .limit(200);
+
+      // Застрявшие processing → снова pending перед enqueue
+      const stuckProcessingIds = pending.filter((row) => row.status === 'processing').map((row) => row.id);
+      if (stuckProcessingIds.length) {
+        await db
+          .update(userEntryChanges)
+          .set({ status: 'pending' })
+          .where(inArray(userEntryChanges.id, stuckProcessingIds));
+      }
+
+      const failedIds = pending.filter((row) => row.status === 'failed').map((row) => row.id);
+      if (failedIds.length) {
+        await db
+          .update(userEntryChanges)
+          .set({ status: 'pending', syncedAt: null })
+          .where(inArray(userEntryChanges.id, failedIds));
+      }
+
+      let dispatched = 0;
+      const seenEntries = new Set<number>();
+      for (const row of pending) {
+        if (seenEntries.has(row.libraryEntryId)) {
+          continue;
+        }
+        seenEntries.add(row.libraryEntryId);
+        const ok = await this.dispatchEntrySync(row.libraryEntryId, origin);
+        if (ok) {
+          dispatched += 1;
+        }
+      }
+
+      // Подстраховка: пакетный drain на случай пропущенных change rows
+      if (isQueuesEnabled()) {
+        await enqueueEntrySyncDrain(Math.min(Math.max(pending.length, 10), 50));
+      } else {
+        await this.dispatchEntrySync(undefined, origin);
+      }
+
+      return {
+        found: pending.length,
+        uniqueEntries: seenEntries.size,
+        dispatched,
+      };
+    }
+
+    if (isQueuesEnabled()) {
+      await enqueueEntrySyncDrain(50);
+      return { found: null, uniqueEntries: null, dispatched: 1 };
+    }
+
+    await this.dispatchEntrySync(undefined, origin);
+    return { found: null, uniqueEntries: null, dispatched: 1 };
   }
 
   static async processJob(jobId: number) {

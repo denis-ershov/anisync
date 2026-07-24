@@ -762,10 +762,12 @@ const myAnimeListProvider: ProviderAdapter = {
 
     for (const status of statusParams) {
       let nextUrl: URL | null = new URL(
-        '/v2/users/@me/animelist?fields=list_status,alternative_titles,media_type,num_episodes,mean,status,start_season,start_date,main_picture,synopsis,studios,genres,my_list_status',
+        '/v2/users/@me/animelist?fields=list_status,alternative_titles,media_type,num_episodes,mean,status,start_season,start_date,main_picture,synopsis,studios,genres,my_list_status,nsfw',
         providerBaseUrls.myanimelistApi
       );
       nextUrl.searchParams.set('limit', '100');
+      // Без nsfw=true MAL скрывает NSFW/18+ и часть Girls Love — gap-тайтлы (напр. 46488) не импортируются.
+      nextUrl.searchParams.set('nsfw', 'true');
       if (status) {
         nextUrl.searchParams.set('status', status);
       }
@@ -1548,6 +1550,9 @@ export async function probeShikimoriAnimeExists(
 /**
  * Найти usable id аниме на Shikimori по MAL id.
  * null → нет на Shiki или цензура (gap для secondary).
+ *
+ * Важно: REST `GET /api/animes?mal_id=` на Shikimori **игнорирует** mal_id и отдаёт
+ * произвольный список — нельзя брать response[0]. Обычно shiki id == mal id; подтверждаем через GraphQL `malId`.
  */
 export async function resolveShikimoriIdByMalId(
   accessToken: string,
@@ -1557,21 +1562,27 @@ export async function resolveShikimoriIdByMalId(
     return null;
   }
 
-  const response = await fetchJson<Array<{ id: number; mal_id?: number; censored?: boolean }>>(
-    getShikimoriApiUrl(`/api/animes?mal_id=${malId}&limit=1`),
-    {
-      headers: buildShikimoriHeaders(accessToken),
-    }
-  );
+  const response = await fetchJson<{
+    data?: { animes?: Array<{ id: string; malId?: string | number | null; isCensored?: boolean }> };
+  }>(getShikimoriGraphqlUrl(), {
+    method: 'POST',
+    headers: buildShikimoriHeaders(accessToken),
+    body: JSON.stringify({
+      query: `{ animes(ids: "${malId}", limit: 1) { id malId isCensored } }`,
+    }),
+  });
 
-  const hit = Array.isArray(response) ? response[0] : null;
-  if (!hit?.id) {
+  const anime = response.data?.animes?.[0];
+  if (!anime?.id) {
     return null;
   }
 
-  // REST может отдать цензурный id — подтверждаем GraphQL usable (isCensored).
-  const usable = await probeShikimoriAnimeExists(accessToken, String(hit.id));
-  return usable ? String(hit.id) : null;
+  // Защита от ложного совпадения id, если когда-нибудь shiki id ≠ mal id.
+  if (anime.malId != null && String(anime.malId) !== String(malId)) {
+    return null;
+  }
+
+  return isShikimoriAnimeUsable(anime) ? String(anime.id) : null;
 }
 
 /** Batch lookup AniList media ids by MAL ids (Page.media idMal_in). */

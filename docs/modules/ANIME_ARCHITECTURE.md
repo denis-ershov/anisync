@@ -18,7 +18,7 @@
 | Роль | Смысл |
 |------|--------|
 | **Primary** | Эталон при **сравнении сервисов**. Статус/наличие в списке primary побеждает secondary. |
-| **Secondary** | Только **gap**: тайтла **физически нет** на primary **или** он **цензурирован/unusable** (`isCensored`: в API есть, list/write нельзя). |
+| **Secondary** | Только **gap**: тайтла **физически нет** на primary **или** он **цензурирован/unusable** (`isCensored`: в API есть, list/write нельзя). MAL schedule fetch обязан с `nsfw=true`, иначе NSFW/GL gaps не видны. |
 | **AniSync (локальные правки)** | Явные правки пользователя (`manual_update` / `retry_sync`) → outbound на primary и все connected. |
 | Остальные connected | Targets для push состояния эталона. |
 
@@ -89,7 +89,13 @@ UI (`schedule-day.ts`): день недели по `next_episode_date` (для p
 - Retry → `retry_sync`;
 - Schedule refresh → push эталона primary (не secondary-import).
 
-Обзор очереди: `GET /api/user/integrations/sync/queue` + панель на `/settings/integrations` (`SyncQueuePanel`).
+Очередь BullMQ `anime.sync.entry`:
+
+- `enqueueEntrySync` — dedupe по `jobId`; completed/failed снимаются, иначе повторный enqueue блокировался.
+- Scheduler каждую минуту: `process-entry-sync-drain` (до 25 pending).
+- UI: `GET|POST /api/user/integrations/sync/queue` — обзор и «Запустить обработку» (`flushPendingEntrySyncs`).
+
+Обзор очереди: панель на `/settings/integrations` (`SyncQueuePanel`).
 
 ## Документы / код
 

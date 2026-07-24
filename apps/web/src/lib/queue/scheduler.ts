@@ -78,9 +78,34 @@ export async function registerRepeatableJobs() {
     }
   );
 
+  // Подхват застрявших pending правок (если enqueue с jobId не сработал / worker был down)
+  const entrySyncQueue = new Queue(QUEUE_NAMES.animeSyncEntry, {
+    connection,
+    prefix,
+  });
+
+  await entrySyncQueue.add(
+    JOB_NAMES.processEntrySyncDrain,
+    { batchSize: 25 },
+    {
+      repeat: {
+        every: 60_000,
+      },
+      jobId: 'entry-sync-drain-minutely',
+      removeOnComplete: true,
+      removeOnFail: 50,
+    }
+  );
+
   // Не закрываем очереди: иначе нет активных Redis-хендлов и Node сразу exit 0
   // (Docker restart loop). Repeatable jobs уже в Redis; соединения держат процесс живым.
-  keepAliveQueues = [cleanupQueue, precomputeQueue, watchlistRefreshQueue, torrentWatcherQueue];
+  keepAliveQueues = [
+    cleanupQueue,
+    precomputeQueue,
+    watchlistRefreshQueue,
+    torrentWatcherQueue,
+    entrySyncQueue,
+  ];
 
   log.info('Repeatable scheduler jobs registered');
 }

@@ -23,3 +23,25 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+/** Перепоставить pending/failed правки пользователя в BullMQ / HTTP process. */
+export async function POST(request: NextRequest) {
+  const userId = await requireCurrentUserId(request);
+  if (!userId) {
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+
+  try {
+    const flush = await SyncService.flushPendingEntrySyncs(userId, request.nextUrl.origin);
+    const queue = await SyncService.getSyncQueueOverview(userId);
+    return NextResponse.json({ flush, queue });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: 'Failed to flush sync queue',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}

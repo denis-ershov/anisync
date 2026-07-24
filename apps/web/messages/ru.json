@@ -302,6 +302,8 @@
       "title": "Очередь и задачи",
       "description": "Что сейчас в очереди синхронизации: jobs (расписание/каталог) и правки отдельных тайтлов.",
       "refresh": "Обновить",
+      "flush": "Запустить обработку",
+      "flushResult": "В очередь поставлено {dispatched} из {found} правок. Worker должен начать processing.",
       "loading": "Загрузка очереди…",
       "queuesEnabled": "Очереди BullMQ включены (Redis)",
       "queuesDisabled": "Очереди через HTTP (без Redis) — worker/внутренние process-роуты",

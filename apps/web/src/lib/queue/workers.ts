@@ -19,7 +19,25 @@ async function handlePrimarySyncJob(job: Job<{ jobId: number }>) {
   return result;
 }
 
-async function handleEntrySyncJob(job: Job<{ entryId?: number; changeId?: number }>) {
+async function handleEntrySyncDrainJob(job: Job<{ batchSize?: number }>) {
+  const batchSize = Math.max(1, Math.min(Number(job.data?.batchSize) || 25, 100));
+  let processed = 0;
+  for (let i = 0; i < batchSize; i += 1) {
+    const result = await SyncService.processNextPendingEntrySync();
+    if (!result) {
+      break;
+    }
+    processed += 1;
+  }
+  log.info({ jobId: job.id, processed, batchSize }, 'Entry sync drain finished');
+  return { processed, batchSize };
+}
+
+async function handleEntrySyncJob(job: Job<{ entryId?: number; changeId?: number; batchSize?: number }>) {
+  if (job.name === JOB_NAMES.processEntrySyncDrain) {
+    return handleEntrySyncDrainJob(job);
+  }
+
   if (job.data.changeId) {
     const result = await SyncService.processEntryChange(job.data.changeId);
     log.info({ jobId: job.id, changeId: job.data.changeId }, 'Entry change processed');

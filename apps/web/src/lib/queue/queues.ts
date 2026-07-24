@@ -59,7 +59,38 @@ export async function enqueueEntrySync(payload: { entryId?: number; changeId?: n
       ? `entry-sync-change-${payload.changeId}`
       : `entry-sync-next-${Date.now()}`;
 
-  await queue.add(JOB_NAMES.processEntrySync, payload, { jobId });
+  const existing = await queue.getJob(jobId);
+  if (existing) {
+    const state = await existing.getState();
+    if (state === 'waiting' || state === 'delayed' || state === 'active' || state === 'prioritized') {
+      return { enqueued: false, state };
+    }
+    // completed/failed с тем же jobId блокируют queue.add — снимаем и ставим заново
+    await existing.remove().catch(() => undefined);
+  }
+
+  await queue.add(JOB_NAMES.processEntrySync, payload, {
+    jobId,
+    removeOnComplete: true,
+    removeOnFail: 100,
+  });
+
+  return { enqueued: true, state: 'waiting' as const };
+}
+
+/** Один drain-job: worker заберёт до batchSize pending из БД. */
+export async function enqueueEntrySyncDrain(batchSize: number = 25) {
+  const queue = getQueue(QUEUE_NAMES.animeSyncEntry);
+  await queue.add(
+    JOB_NAMES.processEntrySyncDrain,
+    { batchSize },
+    {
+      jobId: `entry-sync-drain-${Date.now()}`,
+      removeOnComplete: true,
+      removeOnFail: 50,
+    }
+  );
+  return { enqueued: true };
 }
 
 export function scheduleRefreshJobId(userId: number) {

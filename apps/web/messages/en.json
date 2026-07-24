@@ -302,6 +302,8 @@
       "title": "Queue & tasks",
       "description": "What is currently in the sync queue: jobs (schedule/catalog) and per-title entry changes.",
       "refresh": "Refresh",
+      "flush": "Process queue",
+      "flushResult": "Enqueued {dispatched} of {found} entry changes. Worker should start processing.",
       "loading": "Loading queue…",
       "queuesEnabled": "BullMQ queues enabled (Redis)",
       "queuesDisabled": "HTTP fallback queues (no Redis) — worker/internal process routes",

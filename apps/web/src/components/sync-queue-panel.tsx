@@ -67,7 +67,9 @@ export function SyncQueuePanel() {
   const t = useTranslations('SettingsIntegrations.SyncQueue');
   const [queue, setQueue] = useState<SyncQueueOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFlushing, setIsFlushing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [flushMessage, setFlushMessage] = useState<string | null>(null);
 
   const loadQueue = useCallback(async () => {
     try {
@@ -84,6 +86,30 @@ export function SyncQueuePanel() {
       setIsLoading(false);
     }
   }, []);
+
+  const flushQueue = useCallback(async () => {
+    setIsFlushing(true);
+    setFlushMessage(null);
+    try {
+      const response = await fetch('/api/user/integrations/sync/queue', {
+        method: 'POST',
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to flush queue');
+      }
+      const data = await response.json();
+      setQueue(data.queue);
+      const dispatched = Number(data.flush?.dispatched || 0);
+      const found = Number(data.flush?.found || 0);
+      setFlushMessage(t('flushResult', { dispatched, found }));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to flush queue');
+    } finally {
+      setIsFlushing(false);
+    }
+  }, [t]);
 
   useEffect(() => {
     void loadQueue();
@@ -126,6 +152,9 @@ export function SyncQueuePanel() {
     return map[status] || status;
   };
 
+  const hasStuckEntries =
+    (queue?.counts.entryPending || 0) + (queue?.counts.entryProcessing || 0) + (queue?.counts.entryFailed || 0) > 0;
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
@@ -136,23 +165,38 @@ export function SyncQueuePanel() {
           </CardTitle>
           <CardDescription>{t('description')}</CardDescription>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="min-h-9 shrink-0 cursor-pointer"
-          onClick={() => {
-            setIsLoading(true);
-            void loadQueue();
-          }}
-          disabled={isLoading}
-        >
-          <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && 'animate-spin')} />
-          {t('refresh')}
-        </Button>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {hasStuckEntries && (
+            <Button
+              type="button"
+              size="sm"
+              className="min-h-9 cursor-pointer"
+              onClick={() => void flushQueue()}
+              disabled={isLoading || isFlushing}
+            >
+              <RefreshCw className={cn('mr-2 h-4 w-4', isFlushing && 'animate-spin')} />
+              {t('flush')}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-h-9 cursor-pointer"
+            onClick={() => {
+              setIsLoading(true);
+              void loadQueue();
+            }}
+            disabled={isLoading || isFlushing}
+          >
+            <RefreshCw className={cn('mr-2 h-4 w-4', isLoading && !isFlushing && 'animate-spin')} />
+            {t('refresh')}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-5">
         {error && <p className="text-sm text-destructive">{error}</p>}
+        {flushMessage && <p className="text-sm text-muted-foreground">{flushMessage}</p>}
 
         {queue && (
           <>
