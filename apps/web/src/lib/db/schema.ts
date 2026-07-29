@@ -80,6 +80,8 @@ export const userSettings = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     theme: text('theme', { enum: ['light', 'dark'] }).default('dark').notNull(),
     language: text('language', { enum: ['en', 'ru'] }).default('en').notNull(),
+    /** IANA timezone for schedule grouping / display. Instants in DB remain UTC. */
+    timezone: text('timezone').default('Europe/Moscow').notNull(),
     primaryService: text('primary_service', {
       enum: integrationServices,
     }),

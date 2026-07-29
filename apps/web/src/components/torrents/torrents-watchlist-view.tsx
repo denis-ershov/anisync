@@ -28,9 +28,9 @@ export function TorrentsWatchlistView() {
       </section>
 
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {Array.from({ length: 6 }).map((_, index) => (
-            <Skeleton key={index} className="h-64 w-full rounded-xl" />
+            <Skeleton key={index} className="aspect-[2/3] w-full rounded-xl" />
           ))}
         </div>
       ) : errorMessage ? (
@@ -43,7 +43,7 @@ export function TorrentsWatchlistView() {
           <p className="mt-1 text-sm text-muted-foreground">{t('empty.description')}</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {items.map((item) => (
             <TorrentWatchlistCard key={item.id} item={item} />
           ))}

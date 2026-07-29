@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 
 import { ReleaseScheduleItem } from '@/components/releases/release-schedule-item';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/contexts/auth-context';
 import { useReleaseWatchlist } from '@/lib/releases/hooks';
 import { buildWeekSchedule, formatShortDate } from '@/lib/releases/utils';
 import { cn } from '@/lib/utils';
@@ -15,10 +16,12 @@ export function ReleasesDashboardView() {
   const locale = useLocale();
   const t = useTranslations('Releases');
   const lang = locale === 'ru' ? 'ru' : 'en';
+  const { user } = useAuth();
+  const timeZone = user?.settings?.timezone;
 
   const { data: items = [], isLoading, error } = useReleaseWatchlist(lang);
 
-  const schedule = useMemo(() => buildWeekSchedule(items), [items]);
+  const schedule = useMemo(() => buildWeekSchedule(items, new Date(), timeZone), [items, timeZone]);
   const errorMessage = error instanceof Error ? error.message : error ? t('errors.loadFailed') : null;
 
   if (isLoading) {

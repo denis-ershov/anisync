@@ -1,21 +1,21 @@
 import type { ReleaseCatalogItem, ReleaseWatchlistItem, ReleaseWatchlistStatus } from '@/lib/releases/types';
+import { addDaysToDateKey, resolveTimeZone, zonedDateKey } from '@/lib/timezone';
 
-export function localDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+/** @deprecated Prefer zonedDateKey — kept for callers/tests without explicit TZ. */
+export function localDateKey(date: Date, timeZone?: string | null): string {
+  return zonedDateKey(date, timeZone);
 }
 
 export function dateFromKey(dateKey: string): Date {
   const [year, month, day] = dateKey.split('-').map(Number);
-  return new Date(year, (month ?? 1) - 1, day ?? 1);
+  return new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1, 12));
 }
 
 export function formatShortDate(dateKey: string, locale: string) {
   return dateFromKey(dateKey).toLocaleDateString(locale === 'ru' ? 'ru-RU' : 'en-US', {
     day: 'numeric',
     month: 'short',
+    timeZone: 'UTC',
   });
 }
 
@@ -24,25 +24,27 @@ export function formatFullDate(dateKey: string, locale: string) {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+    timeZone: 'UTC',
   });
 }
 
-export function scheduleDateOf(item: ReleaseWatchlistItem): string | null {
+export function scheduleDateOf(
+  item: ReleaseWatchlistItem,
+  timeZone?: string | null
+): string | null {
   const raw = item.type === 'show' ? item.nextEpisodeDate : item.releaseDate;
   if (!raw) {
     return null;
   }
 
-  // ISO instant (with time) → календарный день в локальной TZ браузера
   if (raw.includes('T') || raw.endsWith('Z')) {
     const date = new Date(raw);
     if (Number.isNaN(date.getTime())) {
       return null;
     }
-    return localDateKey(date);
+    return zonedDateKey(date, timeZone);
   }
 
-  // Уже YYYY-MM-DD
   return raw.slice(0, 10);
 }
 
@@ -88,24 +90,31 @@ export function watchlistItemToCatalogItem(item: ReleaseWatchlistItem): ReleaseC
   };
 }
 
-export function buildWeekSchedule(items: ReleaseWatchlistItem[], today = new Date()) {
-  const scheduleItems = items.filter(isScheduleSource).filter((item) => Boolean(scheduleDateOf(item)));
-  const todayKey = localDateKey(today);
+export function buildWeekSchedule(
+  items: ReleaseWatchlistItem[],
+  today = new Date(),
+  timeZone?: string | null
+) {
+  const tz = resolveTimeZone(timeZone);
+  const scheduleItems = items
+    .filter(isScheduleSource)
+    .filter((item) => Boolean(scheduleDateOf(item, tz)));
+  const todayKey = zonedDateKey(today, tz);
 
   const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() + index);
-    const dateKey = localDateKey(date);
+    const dateKey = addDaysToDateKey(todayKey, index);
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const labelDate = new Date(Date.UTC(y, m - 1, d, 12));
 
     return {
       dateKey,
-      weekday: date.getDay(),
+      weekday: labelDate.getUTCDay(),
       isToday: dateKey === todayKey,
-      items: scheduleItems.filter((item) => scheduleDateOf(item) === dateKey),
+      items: scheduleItems.filter((item) => scheduleDateOf(item, tz) === dateKey),
     };
   });
 
-  const todayItems = scheduleItems.filter((item) => scheduleDateOf(item) === todayKey);
+  const todayItems = scheduleItems.filter((item) => scheduleDateOf(item, tz) === todayKey);
 
   return { days, todayItems, scheduleItems };
 }

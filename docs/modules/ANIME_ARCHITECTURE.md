@@ -69,7 +69,7 @@ Job: `direction = primary_catalog_push`
 `GET /api/user/anime` → БД сразу (только `watching` / `planned` / `rewatching`); stale → `anime.schedule.refresh`.  
 Статусы `dropped` / `completed` / `on_hold` в расписание не загружаются и не показываются.
 
-UI (`schedule-day.ts`): день недели по `next_episode_date` (для planned — `aired_on`). После эфира Shiki двигает `next` на +7д — UI восстанавливает предыдущий слот и держит тайтл в «Сегодня» (не прячет и не теряет в «дырке» ровно +7 дней). Отображение времени — в локальной TZ браузера (`new Date(iso)`).
+UI (`schedule-day.ts`): день недели по `next_episode_date` (для planned — `aired_on`) в **IANA timezone** пользователя (`user_settings.timezone`, по умолчанию `Europe/Moscow`). «Сегодня» = календарная дата в этой TZ (не rolling 24h). После эфира Shiki двигает `next` на +7д — UI восстанавливает предыдущий слот и держит тайтл в «Сегодня». Отображение времени — в TZ пользователя (`formatNextEpisodeShort` / `formatZonedTime`). Instants в БД — UTC/ISO.
 
 ### AniList и `next_episode_date`
 

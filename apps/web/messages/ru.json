@@ -13,6 +13,10 @@
       "title": "Язык",
       "description": "Выберите язык приложения."
     },
+    "Timezone": {
+      "title": "Часовой пояс",
+      "description": "Даты эфиров и «Сегодня» считаются по этому поясу. В базе время хранится в UTC."
+    },
     "Sync": {
       "title": "Синхронизация",
       "description": "Настройте параметры синхронизации.",
@@ -127,7 +131,7 @@
     "syncQueued": "Синхронизация поставлена в очередь",
     "syncQueuedDescription": "Изменение сохранено локально и поставлено в очередь на синхронизацию с сервисом.",
     "syncRetryError": "Не удалось повторно поставить синхронизацию в очередь",
-    "nextEp": "След. серия {time}",
+    "nextEp": "След. {time}",
     "watchStatus": {
       "watching": "Смотрю",
       "planned": "Запланировано",
@@ -200,7 +204,9 @@
     "episodes": "Эпизоды",
     "notes": "Заметки",
     "notesPlaceholder": "Ваши личные заметки об этом аниме...",
-    "onServices": "На сервисах"
+    "onServices": "На сервисах",
+    "nextEpisode": "Следующая серия",
+    "nextEpisodeAt": "{datetime}"
   },
   "Profile": {
     "joined": "Присоединился {date}",
@@ -566,7 +572,25 @@
       "pause": "Пауза",
       "resume": "Возобновить",
       "remove": "Удалить",
-      "deleteConfirm": "Удалить «{title}» из watchlist?"
+      "deleteConfirm": "Удалить «{title}» из watchlist?",
+      "openDetail": "Подробнее"
+    },
+    "type": {
+      "movie": "Фильм",
+      "tv": "Сериал"
+    },
+    "detail": {
+      "imdb": "IMDb",
+      "yearGenre": "Год и жанр",
+      "pinned": "Закреплённая раздача",
+      "noPinned": "Не выбрана",
+      "latestRelease": "Последний релиз",
+      "episode": "Эп. {current} / {total}",
+      "preferences": "Фильтры мониторинга",
+      "releases": "Все релизы",
+      "yes": "Да",
+      "no": "Нет",
+      "intervalMinutes": "{count} мин"
     },
     "preferences": {
       "action": "Настройки",

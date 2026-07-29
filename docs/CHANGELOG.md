@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-07-29 (ui: torrent watchlist cards + detail modal)
+
+**Файлы:** `torrent-watchlist-card.tsx`, `torrent-watchlist-detail-modal.tsx`, `torrents-watchlist-view.tsx`, `torrent-preferences-dialog.tsx`, messages.
+
+**Изменения:** карточки с постером 2:3, бейджи и метаданные; клик открывает модалку с фильтрами, релизами и действиями; Trakt/TVmaze enrich остаётся на backend.
+
+**Обоснование:** постеры и инфо были нечитаемы на маленьких thumbnail.
+
+## 2026-07-29 (feat: user timezone + schedule Today + Releases posters)
+
+**Файлы:** `timezone.ts`, `schedule-day.ts`, `drizzle/0008_user_timezone.sql`, `user-service`/`schema`/`types`, `appearance/page.tsx`, `anime-card.tsx`, `anime-detail-modal.tsx`, `schedule-view.tsx`, `release-catalog-aggregator.ts`, messages, tests, docs.
+
+**Изменения:**
+- Настройка IANA timezone в профиле (Внешний вид); даты в БД остаются UTC.
+- «Сегодня» = календарный день в TZ пользователя (убран rolling 24h через границу суток); implied Shiki +7d сохранён.
+- Короткий таймер «След. через N мин/ч/дн.» на карточке и в модалке.
+- Releases: Trakt/TVmaze обогащаются через TMDB (`getContentDetail`), dedup по tmdbId+imdb, карточки без постера отфильтровываются.
+
+**Обоснование:** корректное «Сегодня» и читаемый countdown; Discover без пустых дублей.
+
 ## 2026-07-29 (fix: Trakt calendars auth headers + streaming = movies)
 
 **Файлы:** `integrations/trakt/client.ts`, `release-catalog-aggregator.ts`, `.env.example`, `docs/modules/RELEASES_ARCHITECTURE.md`.

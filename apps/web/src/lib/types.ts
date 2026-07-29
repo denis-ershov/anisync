@@ -34,6 +34,8 @@ export interface UserSettings {
   userId: number;
   theme: 'light' | 'dark';
   language: 'en' | 'ru';
+  /** IANA timezone (e.g. Europe/Moscow). Dates in DB are UTC. */
+  timezone: string;
   primaryService?: IntegrationServiceName | null;
   secondaryService?: IntegrationServiceName | null;
   enabledModules: PlatformModule[];
@@ -59,6 +61,7 @@ export interface UpdateUserData {
 export interface UpdateUserSettingsData {
   theme?: 'light' | 'dark';
   language?: 'en' | 'ru';
+  timezone?: string;
   primaryService?: IntegrationServiceName | null;
   secondaryService?: IntegrationServiceName | null;
   enabledModules?: PlatformModule[];

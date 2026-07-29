@@ -13,6 +13,10 @@
       "title": "Language",
       "description": "Select the language for the application."
     },
+    "Timezone": {
+      "title": "Time zone",
+      "description": "Air dates and “Today” use this zone. All timestamps are stored in UTC."
+    },
     "Sync": {
       "title": "Synchronization",
       "description": "Configure synchronization settings.",
@@ -127,7 +131,7 @@
     "syncQueued": "Sync queued",
     "syncQueuedDescription": "The change was saved locally and queued for provider sync.",
     "syncRetryError": "Failed to requeue sync",
-    "nextEp": "Next ep. {time}",
+    "nextEp": "Next {time}",
     "watchStatus": {
       "watching": "Watching",
       "planned": "Planned",
@@ -200,7 +204,9 @@
     "episodes": "Episodes",
     "notes": "Notes",
     "notesPlaceholder": "Your private notes about this anime...",
-    "onServices": "On services"
+    "onServices": "On services",
+    "nextEpisode": "Next episode",
+    "nextEpisodeAt": "{datetime}"
   },
   "Profile": {
     "joined": "Joined on {date}",
@@ -566,7 +572,25 @@
       "pause": "Pause",
       "resume": "Resume",
       "remove": "Remove",
-      "deleteConfirm": "Remove “{title}” from the watchlist?"
+      "deleteConfirm": "Remove “{title}” from the watchlist?",
+      "openDetail": "Details"
+    },
+    "type": {
+      "movie": "Movie",
+      "tv": "Series"
+    },
+    "detail": {
+      "imdb": "IMDb",
+      "yearGenre": "Year & genre",
+      "pinned": "Pinned release",
+      "noPinned": "None selected",
+      "latestRelease": "Latest release",
+      "episode": "Ep. {current} / {total}",
+      "preferences": "Monitoring filters",
+      "releases": "All releases",
+      "yes": "Yes",
+      "no": "No",
+      "intervalMinutes": "{count} min"
     },
     "preferences": {
       "action": "Settings",

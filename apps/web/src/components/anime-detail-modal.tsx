@@ -6,6 +6,7 @@ import {
   Bookmark,
   CalendarDays,
   Clapperboard,
+  Clock,
   Heart,
   NotebookText,
   Star,
@@ -16,8 +17,12 @@ import {
   RotateCcw,
 } from "lucide-react";
 import React from "react";
+import { parseISO } from "date-fns";
+import { useLocale, useTranslations } from "next-intl";
 
 import type { Anime } from "@/lib/types";
+import { formatNextEpisodeShort, formatZonedTime, zonedDateKey } from "@/lib/timezone";
+import { useAuth } from "@/contexts/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,7 +44,6 @@ import { Separator } from "./ui/separator";
 import { Textarea } from "./ui/textarea";
 import { Slider } from "./ui/slider";
 import { ProviderServiceLinks, ServiceSourceBadge } from "@/components/provider-service-links";
-import { useTranslations } from "next-intl";
 import { useToast } from "@/hooks/use-toast";
 
 interface AnimeDetailModalProps {
@@ -72,6 +76,8 @@ const getAnimeStatusKey = (status: string) => {
 export function AnimeDetailModal({ anime, children, onEpisodesUpdate, onRemoved }: AnimeDetailModalProps) {
   const t = useTranslations('AnimeDetailModal');
   const tAnimeCard = useTranslations('AnimeCard');
+  const locale = useLocale();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [isFavorite, setIsFavorite] = React.useState(Boolean(anime.isFavorite));
   const [watchStatus, setWatchStatus] = React.useState<string>(anime.watchStatus);
@@ -82,9 +88,24 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate, onRemoved 
   const [outOfSync, setOutOfSync] = React.useState(Boolean(anime.outOfSync));
   const [syncState, setSyncState] = React.useState(anime.syncState || (anime.outOfSync ? 'failed' : 'synced'));
   const [open, setOpen] = React.useState(false);
+  const [nowTick, setNowTick] = React.useState(() => Date.now());
   const primaryTitle = anime.titleRussian || anime.titleRomaji;
   const secondaryTitle = anime.titleRomaji && anime.titleRomaji !== primaryTitle ? anime.titleRomaji : null;
   const animeStatusKey = getAnimeStatusKey(anime.status);
+  const timeZone = user?.settings?.timezone;
+  const nextEpisodeAt = anime.nextEpisodeDate ? parseISO(anime.nextEpisodeDate) : null;
+  const nextEpisodeShort = nextEpisodeAt
+    ? formatNextEpisodeShort(nextEpisodeAt, new Date(nowTick), { timeZone, locale })
+    : null;
+  const nextEpisodeAbsolute = nextEpisodeAt
+    ? `${zonedDateKey(nextEpisodeAt, timeZone)} ${formatZonedTime(nextEpisodeAt, timeZone, locale)}`
+    : null;
+
+  React.useEffect(() => {
+    if (!nextEpisodeAt || !open) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, [nextEpisodeAt, open]);
 
   // Use lowercase with underscores to match API values from Shikimori
   const statuses = ['watching', 'planned', 'completed', 'on_hold', 'dropped', 'rewatching'];
@@ -400,6 +421,18 @@ export function AnimeDetailModal({ anime, children, onEpisodesUpdate, onRemoved 
                   <span className="text-muted-foreground flex-1">{t('year')}:</span>
                   <span className="font-semibold">{anime.releaseYear}</span>
                 </div>
+                {nextEpisodeShort && (
+                  <div className="flex items-start text-sm">
+                    <Clock className="mt-0.5 h-4 w-4 mr-3 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-muted-foreground">{t('nextEpisode')}</div>
+                      <div className="font-semibold">{tAnimeCard('nextEp', { time: nextEpisodeShort })}</div>
+                      {nextEpisodeAbsolute && (
+                        <div className="text-xs text-muted-foreground">{nextEpisodeAbsolute}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             

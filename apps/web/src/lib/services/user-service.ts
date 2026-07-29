@@ -33,6 +33,7 @@ function toAuthUser(user: User, settings: UserSettings): AuthUser {
       userId: settings.userId,
       theme: settings.theme,
       language: settings.language,
+      timezone: settings.timezone || 'Europe/Moscow',
       primaryService: settings.primaryService || undefined,
       secondaryService: settings.secondaryService || undefined,
       enabledModules: settings.enabledModules ?? ['anime'],
@@ -223,6 +224,12 @@ export class UserSettingsService {
 
     if (settingsData.theme) updateData.theme = settingsData.theme;
     if (settingsData.language) updateData.language = settingsData.language;
+    if (settingsData.timezone !== undefined) {
+      const { isValidTimeZone, DEFAULT_TIMEZONE } = await import('@/lib/timezone');
+      updateData.timezone = isValidTimeZone(settingsData.timezone)
+        ? settingsData.timezone
+        : DEFAULT_TIMEZONE;
+    }
     if (settingsData.primaryService !== undefined) updateData.primaryService = settingsData.primaryService;
     if (settingsData.secondaryService !== undefined) updateData.secondaryService = settingsData.secondaryService;
     if (settingsData.enabledModules) updateData.enabledModules = settingsData.enabledModules;

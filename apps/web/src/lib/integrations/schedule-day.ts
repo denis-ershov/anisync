@@ -1,8 +1,11 @@
 import type { LibraryStatus } from '@/lib/integrations/provider-types';
 import { isCatchingUpImportStatus, isScheduleImportStatus } from '@/lib/integrations/library-schedule-import';
-
-/** Серия, вышедшая недавно, ещё показывается в «Сегодня» (не уезжает в catching-up). */
-export const RECENTLY_AIRED_TODAY_HOURS = 24;
+import {
+  addDaysToDateKey,
+  diffDateKeys,
+  resolveTimeZone,
+  zonedDateKey,
+} from '@/lib/timezone';
 
 export type ScheduleAnimeDateFields = {
   watchStatus: LibraryStatus;
@@ -10,40 +13,52 @@ export type ScheduleAnimeDateFields = {
   airedOn?: string | null;
 };
 
-function startOfLocalDay(value: Date): Date {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
+export type ScheduleDayOptions = {
+  /** IANA timezone. Defaults to Europe/Moscow when omitted. */
+  timeZone?: string | null;
+};
+
+function zone(options?: ScheduleDayOptions): string {
+  return resolveTimeZone(options?.timeZone);
 }
 
-function toDateKey(value: Date): string {
-  const y = value.getFullYear();
-  const m = String(value.getMonth() + 1).padStart(2, '0');
-  const d = String(value.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-/** Календарный день эфира в локальной TZ (next episode, для planned — aired_on). */
-export function getScheduleReleaseDate(
+/** Календарный день эфира (YYYY-MM-DD) в TZ пользователя. */
+export function getScheduleReleaseDateKey(
   anime: ScheduleAnimeDateFields,
-  now: Date = new Date()
-): Date | null {
-  void now;
+  options?: ScheduleDayOptions
+): string | null {
+  const tz = zone(options);
   if (anime.nextEpisodeDate) {
     const date = new Date(anime.nextEpisodeDate);
     if (!Number.isNaN(date.getTime())) {
-      return startOfLocalDay(date);
+      return zonedDateKey(date, tz);
     }
   }
 
   if (anime.watchStatus === 'planned' && anime.airedOn) {
     const date = new Date(anime.airedOn);
     if (!Number.isNaN(date.getTime())) {
-      return startOfLocalDay(date);
+      return zonedDateKey(date, tz);
     }
   }
 
   return null;
+}
+
+/**
+ * @deprecated Prefer getScheduleReleaseDateKey — kept for callers that need a Date.
+ * Returns UTC midnight of the calendar day key (for day arithmetic only).
+ */
+export function getScheduleReleaseDate(
+  anime: ScheduleAnimeDateFields,
+  now: Date = new Date(),
+  options?: ScheduleDayOptions
+): Date | null {
+  void now;
+  const key = getScheduleReleaseDateKey(anime, options);
+  if (!key) return null;
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
 }
 
 export function getRawScheduleInstant(anime: ScheduleAnimeDateFields): Date | null {
@@ -67,113 +82,106 @@ export function getRawScheduleInstant(anime: ScheduleAnimeDateFields): Date | nu
  */
 export function getLatestAiredInstant(
   anime: ScheduleAnimeDateFields,
-  now: Date = new Date()
+  now: Date = new Date(),
+  options?: ScheduleDayOptions
 ): Date | null {
+  const tz = zone(options);
   const next = getRawScheduleInstant(anime);
   if (!next) {
     return null;
   }
 
-  // next ещё указывает на уже прошедший эфир
   if (next.getTime() <= now.getTime()) {
     return next;
   }
 
-  const today = startOfLocalDay(now);
-  const nextDay = startOfLocalDay(next);
-  const daysUntil = Math.round((nextDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const todayKey = zonedDateKey(now, tz);
+  const nextKey = zonedDateKey(next, tz);
+  const daysUntil = diffDateKeys(todayKey, nextKey);
 
-  // Типичный TV weekly: next уже на следующей неделе в тот же weekday
   if (daysUntil >= 5 && daysUntil <= 9) {
     const previous = new Date(next);
-    previous.setDate(previous.getDate() - 7);
+    previous.setTime(previous.getTime() - 7 * 24 * 60 * 60 * 1000);
     return previous;
   }
 
-  // Реже: biweekly
   if (daysUntil >= 12 && daysUntil <= 16) {
     const previous = new Date(next);
-    previous.setDate(previous.getDate() - 14);
+    previous.setTime(previous.getTime() - 14 * 24 * 60 * 60 * 1000);
     return previous;
   }
 
   return null;
 }
 
-/** Эфир уже был сегодня / за окно часов (в т.ч. после сдвига next на +7д). */
+/**
+ * Эфир привязан к календарному «сегодня» в TZ пользователя
+ * (в т.ч. после сдвига next на +7д, если implied previous — сегодня).
+ * Не использует rolling 24h через границу суток.
+ */
 export function isRecentlyAiredForToday(
   anime: ScheduleAnimeDateFields,
   now: Date = new Date(),
-  windowHours: number = RECENTLY_AIRED_TODAY_HOURS
+  options?: ScheduleDayOptions
 ): boolean {
-  const instant = getLatestAiredInstant(anime, now);
+  const tz = zone(options);
+  const instant = getLatestAiredInstant(anime, now, options);
   if (!instant) {
     return false;
   }
 
-  const todayKey = toDateKey(startOfLocalDay(now));
-  if (toDateKey(startOfLocalDay(instant)) === todayKey) {
-    return true;
-  }
-
-  const hoursAgo = (now.getTime() - instant.getTime()) / (1000 * 60 * 60);
-  return hoursAgo >= 0 && hoursAgo < windowHours;
+  return zonedDateKey(instant, tz) === zonedDateKey(now, tz);
 }
 
 /**
  * Попадает ли тайтл в день недели schedule (0 = сегодня … 6).
- * Уже вышедшие сегодня остаются в «Сегодня», даже если next уже на +7 дней.
+ * «Сегодня» = календарная дата в TZ пользователя, не окно 24 часа.
  */
 export function belongsToScheduleDay(
   anime: ScheduleAnimeDateFields,
   dayIndex: number,
-  now: Date = new Date()
+  now: Date = new Date(),
+  options?: ScheduleDayOptions
 ): boolean {
   if (!isScheduleImportStatus(anime.watchStatus)) {
     return false;
   }
 
-  const today = startOfLocalDay(now);
-  const dayDate = new Date(today);
-  dayDate.setDate(today.getDate() + dayIndex);
+  const tz = zone(options);
+  const todayKey = zonedDateKey(now, tz);
+  const dayKey = addDaysToDateKey(todayKey, dayIndex);
+  const releaseKey = getScheduleReleaseDateKey(anime, options);
 
-  const releaseDate = getScheduleReleaseDate(anime, now);
-  const dayKey = toDateKey(dayDate);
-
-  if (releaseDate && toDateKey(releaseDate) === dayKey) {
-    const daysUntil = Math.round((releaseDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    // Будущие дни недели (0..6). Ровно +7 — это уже «следующая неделя», не этот грид;
-    // такой слот обрабатывается через implied previous → «Сегодня».
+  if (releaseKey && releaseKey === dayKey) {
+    const daysUntil = diffDateKeys(todayKey, releaseKey);
     if (daysUntil >= 0 && daysUntil <= 6) {
       return true;
     }
   }
 
-  // Сегодня: эфир был (в т.ч. next уже прыгнул на следующую неделю).
-  if (dayIndex === 0 && isRecentlyAiredForToday(anime, now)) {
+  if (dayIndex === 0 && isRecentlyAiredForToday(anime, now, options)) {
     return true;
   }
 
   return false;
 }
 
-/** Catching-up: watching без слота в ближайшие 7 дней и не «только что вышло». */
+/** Catching-up: watching без слота в ближайшие 7 дней и не «сегодня». */
 export function belongsToCatchingUp(
   anime: ScheduleAnimeDateFields,
-  now: Date = new Date()
+  now: Date = new Date(),
+  options?: ScheduleDayOptions
 ): boolean {
   if (!isCatchingUpImportStatus(anime.watchStatus)) {
     return false;
   }
 
-  // Уже в «Сегодня» как недавно вышедшее — не дублируем.
-  if (isRecentlyAiredForToday(anime, now) || belongsToScheduleDay(anime, 0, now)) {
+  if (isRecentlyAiredForToday(anime, now, options) || belongsToScheduleDay(anime, 0, now, options)) {
     return false;
   }
 
-  // Есть слот в гриде недели (завтра…+6) — не catching-up.
   for (let dayIndex = 1; dayIndex <= 6; dayIndex += 1) {
-    if (belongsToScheduleDay(anime, dayIndex, now)) {
+    if (belongsToScheduleDay(anime, dayIndex, now, options)) {
       return false;
     }
   }
@@ -182,14 +190,13 @@ export function belongsToCatchingUp(
     return true;
   }
 
-  const releaseDate = getScheduleReleaseDate(anime, now);
-  if (!releaseDate) {
+  const releaseKey = getScheduleReleaseDateKey(anime, options);
+  if (!releaseKey) {
     return true;
   }
 
-  const today = startOfLocalDay(now);
-  const daysUntil = Math.round((releaseDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const todayKey = zonedDateKey(now, zone(options));
+  const daysUntil = diffDateKeys(todayKey, releaseKey);
 
-  // Прошлые эфиры или next на следующей неделе и дальше (не попали в грид 0..6).
   return daysUntil < 0 || daysUntil >= 7;
 }

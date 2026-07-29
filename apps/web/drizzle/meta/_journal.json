@@ -57,6 +57,13 @@
       "when": 1765201535770,
       "tag": "0007_secondary_service",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1765201535771,
+      "tag": "0008_user_timezone",
+      "breakpoints": true
     }
   ]
 }

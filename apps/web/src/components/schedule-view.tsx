@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AnimeCard } from "@/components/anime-card";
 import { AddAnimeDialog } from '@/components/add-anime-dialog';
-import { getDay, format, addDays } from "date-fns";
-import { enUS, ru } from 'date-fns/locale';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/auth-context';
 import type { IntegrationServiceName, LibraryStatus } from '@/lib/integrations/provider-types';
@@ -13,6 +11,7 @@ import {
   belongsToCatchingUp,
   belongsToScheduleDay,
 } from '@/lib/integrations/schedule-day';
+import { addDaysToDateKey, resolveTimeZone, zonedDateKey } from '@/lib/timezone';
 
 interface AnimeData {
   id: string;
@@ -114,7 +113,6 @@ export function ScheduleView() {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'queued' | 'running'>('idle');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [primaryService, setPrimaryService] = useState<IntegrationServiceName | null>(null);
-  const dateLocale = locale === 'ru' ? ru : enUS;
 
   useEffect(() => {
     // Wait for auth to load
@@ -285,6 +283,7 @@ export function ScheduleView() {
 
   const getCatchingUpAnime = () => {
     const now = new Date();
+    const timeZone = user?.settings?.timezone;
     return animeList.filter((anime) =>
       belongsToCatchingUp(
         {
@@ -292,23 +291,22 @@ export function ScheduleView() {
           nextEpisodeDate: anime.next_episode_date,
           airedOn: anime.aired_on,
         },
-        now
+        now,
+        { timeZone }
       )
     );
   };
 
   const getWeekSchedule = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const weekDays = Array.from({ length: 7 }, (_, i) => {
-      const date = addDays(today, i);
-      date.setHours(0, 0, 0, 0);
-      return date;
-    });
+    const now = new Date();
+    const timeZone = resolveTimeZone(user?.settings?.timezone);
+    const todayKey = zonedDateKey(now, timeZone);
 
-    return weekDays.map((date, index) => {
-      const dayOfWeek = getDay(date);
-      const dayName = format(date, "EEEE", { locale: dateLocale });
+    return Array.from({ length: 7 }, (_, index) => {
+      const dayKey = addDaysToDateKey(todayKey, index);
+      const [y, m, d] = dayKey.split('-').map(Number);
+      // Noon UTC avoids DST edge when formatting calendar labels
+      const labelDate = new Date(Date.UTC(y, m - 1, d, 12));
 
       const animesForDay = animeList.filter((anime) =>
         belongsToScheduleDay(
@@ -318,9 +316,15 @@ export function ScheduleView() {
             airedOn: anime.aired_on,
           },
           index,
-          new Date()
+          now,
+          { timeZone }
         )
       );
+
+      const dayName = new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : 'en-US', {
+        weekday: 'long',
+        timeZone: 'UTC',
+      }).format(labelDate);
 
       let displayDay: string;
       if (index === 0) {
@@ -331,9 +335,15 @@ export function ScheduleView() {
         displayDay = capitalize(dayName);
       }
 
+      const dateLabel = new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : 'en-US', {
+        day: 'numeric',
+        month: 'long',
+        timeZone: 'UTC',
+      }).format(labelDate);
+
       return {
         day: displayDay,
-        date: format(date, "d MMMM", { locale: dateLocale }),
+        date: dateLabel,
         animes: animesForDay,
       };
     });

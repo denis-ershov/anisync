@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import { Clock, MoreVertical, Plus, Minus, RotateCcw, Star, Trash2 } from "lucide-react";
-import { formatDistanceToNow, parseISO } from 'date-fns';
-import { enUS, ru } from 'date-fns/locale';
+import { parseISO } from 'date-fns';
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 import type { Anime } from "@/lib/types";
+import { formatNextEpisodeShort } from "@/lib/timezone";
+import { useAuth } from "@/contexts/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -31,7 +32,7 @@ interface AnimeCardProps {
 export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
   const t = useTranslations('AnimeCard');
   const locale = useLocale();
-  const dateLocale = locale === 'ru' ? ru : enUS;
+  const { user } = useAuth();
   const { toast } = useToast();
 
   const [watchedEpisodes, setWatchedEpisodes] = useState(anime.watchedEpisodes);
@@ -40,11 +41,23 @@ export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
   const [isNotInterested, setIsNotInterested] = useState(Boolean(anime.isNotInterested));
   const [outOfSync, setOutOfSync] = useState(Boolean(anime.outOfSync));
   const [syncState, setSyncState] = useState(anime.syncState || (anime.outOfSync ? 'failed' : 'synced'));
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const primaryTitle = anime.titleRussian || anime.titleRomaji;
   const secondaryTitle = anime.titleRomaji && anime.titleRomaji !== primaryTitle ? anime.titleRomaji : null;
 
   const nextEpisodeDate = anime.nextEpisodeDate ? parseISO(anime.nextEpisodeDate) : null;
-  const timeUntilNext = nextEpisodeDate ? formatDistanceToNow(nextEpisodeDate, { addSuffix: true, locale: dateLocale }) : null;
+  const timeUntilNext = nextEpisodeDate
+    ? formatNextEpisodeShort(nextEpisodeDate, new Date(nowTick), {
+        timeZone: user?.settings?.timezone,
+        locale,
+      })
+    : null;
+
+  useEffect(() => {
+    if (!nextEpisodeDate) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, [nextEpisodeDate]);
 
   // Show "?" if total episodes is unknown (0 or null)
   const totalEpisodesDisplay = anime.totalEpisodes > 0 ? anime.totalEpisodes : '?';
@@ -377,9 +390,11 @@ export function AnimeCard({ anime, onRemoved }: AnimeCardProps) {
           </div>
 
           {timeUntilNext && (
-            <div className="flex items-center text-[11px] text-accent-foreground/80 sm:text-xs">
-              <Clock className="mr-1 h-3 w-3 shrink-0 text-accent sm:mr-1.5" />
-              <span className="line-clamp-1">{t('nextEp', {time: timeUntilNext})}</span>
+            <div className="flex min-w-0 items-center gap-1 text-[11px] text-accent-foreground/80 sm:text-xs">
+              <Clock className="h-3 w-3 shrink-0 text-accent" />
+              <span className="truncate" title={t('nextEp', { time: timeUntilNext })}>
+                {t('nextEp', { time: timeUntilNext })}
+              </span>
             </div>
           )}
           {outOfSync && syncState !== 'pending' && syncState !== 'processing' && (

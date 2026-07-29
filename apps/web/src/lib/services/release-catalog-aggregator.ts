@@ -4,6 +4,7 @@ import {
   getUpcoming,
   getScheduleWindow,
   findContentByImdb,
+  getContentDetail,
   paginateCatalogItems,
 } from '@/lib/integrations/tmdb';
 import { getWebSchedule, getBroadcastSchedule } from '@/lib/integrations/tvmaze/client';
@@ -21,8 +22,9 @@ const log = createLogger('services:release-catalog-aggregator');
 const MERGED_CACHE_TTL_MS = Number.parseInt(process.env.RELEASES_MERGED_CATALOG_TTL_MS ?? '1800000', 10);
 const TVMAZE_COUNTRY = process.env.TVMAZE_SCHEDULE_COUNTRY ?? 'RU';
 const CATALOG_DAYS = Number.parseInt(process.env.RELEASES_CATALOG_WINDOW_DAYS ?? '14', 10);
+const TMDB_ENRICH_CONCURRENCY = 6;
 
-type NormalizedItem = UpcomingCatalogResult['items'][number];
+type NormalizedItem = UpcomingCatalogResult['items'][number] & { imdbId?: string | null };
 
 function dateOnly(date: Date): string {
   const year = date.getFullYear();
@@ -71,6 +73,60 @@ function compareCatalogItems(sort: NonNullable<CatalogOptions['sort']>) {
   };
 }
 
+async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await fn(items[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
+async function resolveFromTmdbId(
+  tmdbId: number,
+  type: 'movie' | 'show',
+  lang: string,
+  schedule: Pick<NormalizedItem, 'releaseDate' | 'nextEpisode'>,
+  imdbId?: string | null
+): Promise<NormalizedItem | null> {
+  const detail = await getContentDetail(tmdbId, type, lang).catch(() => null);
+  if (!detail) {
+    return null;
+  }
+
+  if (imdbId || detail.imdbId) {
+    await MediaExternalIdsService.upsert({
+      mediaType: type,
+      tmdbId: String(detail.tmdbId),
+      imdbId: imdbId ?? detail.imdbId ?? undefined,
+    }).catch(() => undefined);
+  }
+
+  return {
+    tmdbId: detail.tmdbId,
+    type,
+    title: detail.title,
+    titleRu: detail.titleRu,
+    originalTitle: detail.originalTitle,
+    rating: detail.rating,
+    popularity: detail.popularity,
+    posterPath: detail.posterPath,
+    genre: detail.genre,
+    genreRu: detail.genreRu,
+    year: detail.year,
+    overview: detail.overview,
+    releaseDate: schedule.releaseDate ?? detail.releaseDate,
+    nextEpisode: schedule.nextEpisode ?? detail.nextEpisode,
+    imdbId: imdbId ?? detail.imdbId ?? null,
+  };
+}
+
 async function resolveFromImdb(
   imdbId: string,
   lang: string,
@@ -109,6 +165,7 @@ async function resolveFromImdb(
     overview: found.plot,
     releaseDate: null,
     nextEpisode: null,
+    imdbId,
   };
 }
 
@@ -147,6 +204,7 @@ async function collectTvmazeItems(lang: string, from: string, days: number): Pro
         },
         popularity: show?.weight ?? resolved.popularity,
         rating: show?.rating?.average ?? resolved.rating,
+        imdbId: imdb,
       });
     }
   }
@@ -159,8 +217,34 @@ async function collectTraktItems(lang: string, from: string, days: number): Prom
     return [];
   }
 
-  const results: NormalizedItem[] = [];
   const seen = new Set<string>();
+  const jobs: Array<() => Promise<NormalizedItem | null>> = [];
+
+  const enqueueMovie = (
+    movie: { title?: string; year?: number; ids?: { imdb?: string | null; tmdb?: number | null } } | undefined,
+    released: string | null
+  ) => {
+    const imdb = movie?.ids?.imdb ?? null;
+    const tmdb = movie?.ids?.tmdb;
+    if (tmdb) {
+      const key = `movie:${tmdb}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      jobs.push(() =>
+        resolveFromTmdbId(tmdb, 'movie', lang, { releaseDate: released, nextEpisode: null }, imdb)
+      );
+      return;
+    }
+    if (imdb) {
+      const key = `imdb:${imdb}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      jobs.push(async () => {
+        const resolved = await resolveFromImdb(imdb, lang, 'movie');
+        return resolved ? { ...resolved, releaseDate: released ?? resolved.releaseDate } : null;
+      });
+    }
+  };
 
   const [movies, shows, streaming] = await Promise.all([
     getMoviesCalendar(from, days),
@@ -168,57 +252,18 @@ async function collectTraktItems(lang: string, from: string, days: number): Prom
     getStreamingCalendar(from, days),
   ]);
 
-  const pushMovie = async (
-    movie: { title?: string; year?: number; ids?: { imdb?: string | null; tmdb?: number | null } } | undefined,
-    released: string | null
-  ) => {
-    const imdb = movie?.ids?.imdb;
-    const tmdb = movie?.ids?.tmdb;
-    if (tmdb) {
-      const key = `movie:${tmdb}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      results.push({
-        tmdbId: tmdb,
-        type: 'movie',
-        title: movie?.title || String(tmdb),
-        titleRu: null,
-        originalTitle: movie?.title ?? null,
-        rating: 0,
-        popularity: 0,
-        posterPath: null,
-        genre: null,
-        genreRu: null,
-        year: movie?.year ?? null,
-        overview: null,
-        releaseDate: released,
-        nextEpisode: null,
-      });
-      return;
-    }
-    if (imdb) {
-      const resolved = await resolveFromImdb(imdb, lang, 'movie');
-      if (!resolved) return;
-      const key = itemKey(resolved);
-      if (seen.has(key)) return;
-      seen.add(key);
-      results.push({ ...resolved, releaseDate: released ?? resolved.releaseDate });
-    }
-  };
-
   for (const entry of movies) {
-    await pushMovie(entry.movie, entry.released?.slice(0, 10) ?? null);
+    enqueueMovie(entry.movie, entry.released?.slice(0, 10) ?? null);
   }
-
-  // Streaming calendar = digital movie releases (not shows).
   for (const entry of streaming) {
-    const released =
-      entry.released?.slice(0, 10) ?? entry.first_aired?.slice(0, 10) ?? null;
-    await pushMovie(entry.movie, released);
+    enqueueMovie(
+      entry.movie,
+      entry.released?.slice(0, 10) ?? entry.first_aired?.slice(0, 10) ?? null
+    );
   }
 
   for (const entry of shows) {
-    const imdb = entry.show?.ids?.imdb;
+    const imdb = entry.show?.ids?.imdb ?? null;
     const tmdb = entry.show?.ids?.tmdb;
     const airDate = entry.first_aired?.slice(0, 10) ?? null;
     const nextEpisode =
@@ -235,40 +280,30 @@ async function collectTraktItems(lang: string, from: string, days: number): Prom
       const key = `show:${tmdb}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      results.push({
-        tmdbId: tmdb,
-        type: 'show',
-        title: entry.show?.title || String(tmdb),
-        titleRu: null,
-        originalTitle: entry.show?.title ?? null,
-        rating: 0,
-        popularity: 0,
-        posterPath: null,
-        genre: null,
-        genreRu: null,
-        year: entry.show?.year ?? null,
-        overview: null,
-        releaseDate: airDate,
-        nextEpisode,
-      });
+      jobs.push(() =>
+        resolveFromTmdbId(tmdb, 'show', lang, { releaseDate: airDate, nextEpisode }, imdb)
+      );
       continue;
     }
 
     if (imdb) {
-      const resolved = await resolveFromImdb(imdb, lang, 'show');
-      if (!resolved) continue;
-      const key = itemKey(resolved);
+      const key = `imdb:${imdb}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      results.push({
-        ...resolved,
-        releaseDate: airDate ?? resolved.releaseDate,
-        nextEpisode: nextEpisode ?? resolved.nextEpisode,
+      jobs.push(async () => {
+        const resolved = await resolveFromImdb(imdb, lang, 'show');
+        if (!resolved) return null;
+        return {
+          ...resolved,
+          releaseDate: airDate ?? resolved.releaseDate,
+          nextEpisode: nextEpisode ?? resolved.nextEpisode,
+        };
       });
     }
   }
 
-  return results;
+  const resolved = await mapPool(jobs, TMDB_ENRICH_CONCURRENCY, (job) => job());
+  return resolved.filter((item): item is NormalizedItem => Boolean(item?.tmdbId && item.posterPath));
 }
 
 function enrichTmdbFromExternal(base: NormalizedItem, extra: NormalizedItem): NormalizedItem {
@@ -277,13 +312,59 @@ function enrichTmdbFromExternal(base: NormalizedItem, extra: NormalizedItem): No
     releaseDate: base.releaseDate ?? extra.releaseDate,
     nextEpisode: base.nextEpisode ?? extra.nextEpisode,
     posterPath: base.posterPath ?? extra.posterPath,
-    rating: base.rating || extra.rating,
+    rating: base.rating && base.rating > 0 ? base.rating : extra.rating ?? base.rating,
     popularity: Math.max(base.popularity ?? 0, extra.popularity ?? 0),
     genre: base.genre ?? extra.genre,
     genreRu: base.genreRu ?? extra.genreRu,
     overview: base.overview ?? extra.overview,
     titleRu: base.titleRu ?? extra.titleRu,
+    imdbId: base.imdbId ?? extra.imdbId ?? null,
   };
+}
+
+/** Prefer richer metadata when the same IMDb id maps to conflicting TMDB ids. */
+function mergeByImdb(items: NormalizedItem[]): NormalizedItem[] {
+  const byKey = new Map<string, NormalizedItem>();
+  const imdbOwner = new Map<string, string>();
+
+  for (const item of items) {
+    const key = itemKey(item);
+    const existing = byKey.get(key);
+    if (existing) {
+      byKey.set(key, enrichTmdbFromExternal(existing, item));
+    } else {
+      byKey.set(key, item);
+    }
+
+    const imdb = item.imdbId;
+    if (!imdb) continue;
+    const ownerKey = imdbOwner.get(imdb);
+    if (!ownerKey) {
+      imdbOwner.set(imdb, key);
+      continue;
+    }
+    if (ownerKey === key) continue;
+
+    const owner = byKey.get(ownerKey);
+    const current = byKey.get(key);
+    if (!owner || !current) continue;
+
+    const preferCurrent =
+      (current.posterPath && !owner.posterPath) ||
+      (current.popularity ?? 0) > (owner.popularity ?? 0) ||
+      ((current.rating ?? 0) > (owner.rating ?? 0) && Boolean(current.posterPath));
+
+    if (preferCurrent) {
+      byKey.set(key, enrichTmdbFromExternal(current, owner));
+      byKey.delete(ownerKey);
+      imdbOwner.set(imdb, key);
+    } else {
+      byKey.set(ownerKey, enrichTmdbFromExternal(owner, current));
+      byKey.delete(key);
+    }
+  }
+
+  return [...byKey.values()];
 }
 
 export class ReleaseCatalogAggregator {
@@ -295,13 +376,12 @@ export class ReleaseCatalogAggregator {
     const genreId = options.genreId && options.genreId > 0 ? Math.floor(options.genreId) : null;
 
     const { from, toExclusive, days } = rollingWindow();
-    const cacheKey = `releases:catalog:merged:${lang}:${type}:${sort}:${genreId ?? 0}:${page}:${pageSize}:${from}:${toExclusive}`;
+    const cacheKey = `releases:catalog:merged:v2:${lang}:${type}:${sort}:${genreId ?? 0}:${page}:${pageSize}:${from}:${toExclusive}`;
     const cached = await cacheRead<UpcomingCatalogResult>(cacheKey);
     if (cached) {
       return cached;
     }
 
-    // Fetch enough TMDB pages for merge (same as before for the requested page)
     const tmdb = await getUpcoming(lang, {
       page: 1,
       pageSize: Math.max(pageSize * page, 50),
@@ -335,31 +415,47 @@ export class ReleaseCatalogAggregator {
       const existing = map.get(key);
       if (existing) {
         map.set(key, enrichTmdbFromExternal(existing, item));
-      } else {
+      } else if (item.posterPath) {
         map.set(key, item);
       }
     }
 
-    let merged = [...map.values()];
+    const needsPoster = [...map.values()].filter((item) => !item.posterPath);
+    if (needsPoster.length > 0) {
+      const enriched = await mapPool(needsPoster, TMDB_ENRICH_CONCURRENCY, async (item) => {
+        const detail = await resolveFromTmdbId(
+          item.tmdbId,
+          item.type,
+          lang,
+          { releaseDate: item.releaseDate, nextEpisode: item.nextEpisode },
+          item.imdbId
+        );
+        return detail ? enrichTmdbFromExternal(detail, item) : item;
+      });
+      for (const item of enriched) {
+        map.set(itemKey(item), item);
+      }
+    }
 
-    // Keep items with schedule-relevant dates in rolling window when possible
+    let merged = mergeByImdb([...map.values()]);
+
     merged = merged.filter((item) => {
+      if (!item.posterPath) {
+        return false;
+      }
       const date = item.type === 'show' ? item.nextEpisode?.airDate ?? item.releaseDate : item.releaseDate;
       if (!date) {
-        // Keep TMDB-sourced items without date (discover still useful)
-        return Boolean(item.posterPath || item.popularity);
+        return Boolean(item.popularity);
       }
       return date >= from && date < toExclusive;
     });
 
-    if (genreId) {
-      // Genre filter already applied on TMDB side; external items without genre pass through
-      merged = merged.filter((item) => !item.genre || true);
-    }
-
     merged.sort(compareCatalogItems(sort));
 
-    const pageItems = paginateCatalogItems(merged, page, pageSize);
+    const pageItems = paginateCatalogItems(merged, page, pageSize).map((item) => {
+      const { imdbId: _imdb, ...rest } = item;
+      return rest;
+    });
     const pageEnd = page * pageSize;
     const hasNextPage = merged.length > pageEnd;
     const hasPreviousPage = page > 1;

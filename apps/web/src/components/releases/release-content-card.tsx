@@ -94,7 +94,7 @@ export function ReleaseContentCard({
           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <Star className="h-3.5 w-3.5 text-amber-400" />
-              {item.rating?.toFixed(1) ?? '—'}
+              {item.rating && item.rating > 0 ? item.rating.toFixed(1) : '—'}
             </span>
             <span>{item.year ?? '—'}</span>
           </div>

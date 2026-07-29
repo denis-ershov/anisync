@@ -5,13 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { usePathname, useRouter } from "@/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
+import { DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from "@/lib/timezone";
 
-interface UserSettings {
+interface AppearanceSettings {
   theme: 'light' | 'dark';
   language: 'en' | 'ru';
+  timezone: string;
 }
 
 export default function AppearancePage() {
@@ -20,10 +30,12 @@ export default function AppearancePage() {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
+  const { user, updateUser, checkAuth } = useAuth();
   
-  const [settings, setSettings] = useState<UserSettings>({
+  const [settings, setSettings] = useState<AppearanceSettings>({
     theme: 'dark',
-    language: 'en'
+    language: 'en',
+    timezone: DEFAULT_TIMEZONE,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -37,7 +49,11 @@ export default function AppearancePage() {
       if (response.ok) {
         const data = await response.json();
         if (data.user?.settings) {
-          setSettings(data.user.settings);
+          setSettings({
+            theme: data.user.settings.theme ?? 'dark',
+            language: data.user.settings.language ?? 'en',
+            timezone: data.user.settings.timezone ?? DEFAULT_TIMEZONE,
+          });
         }
       }
     } catch (error) {
@@ -47,7 +63,7 @@ export default function AppearancePage() {
     }
   };
 
-  const updateSettings = async (newSettings: Partial<UserSettings>) => {
+  const updateSettings = async (newSettings: Partial<AppearanceSettings>) => {
     try {
       const response = await fetch('/api/user/settings', {
         method: 'PUT',
@@ -59,7 +75,26 @@ export default function AppearancePage() {
 
       if (response.ok) {
         const result = await response.json();
-        setSettings(prev => ({ ...prev, ...newSettings }));
+        setSettings((prev) => ({ ...prev, ...newSettings }));
+        if (result.settings && user) {
+          updateUser({
+            ...user,
+            settings: {
+              ...user.settings,
+              ...result.settings,
+              createdAt:
+                typeof result.settings.createdAt === 'string'
+                  ? result.settings.createdAt
+                  : user.settings.createdAt,
+              updatedAt:
+                typeof result.settings.updatedAt === 'string'
+                  ? result.settings.updatedAt
+                  : new Date().toISOString(),
+            },
+          });
+        } else {
+          await checkAuth();
+        }
         toast({
           title: t('settingsUpdated'),
           description: t('settingsUpdatedDescription'),
@@ -85,7 +120,14 @@ export default function AppearancePage() {
     router.replace(pathname, {locale: language});
   };
 
-  
+  const handleTimezoneChange = (timezone: string) => {
+    updateSettings({ timezone });
+  };
+
+  if (isLoading) {
+    return null;
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -182,6 +224,29 @@ export default function AppearancePage() {
               </div>
             </Label>
           </RadioGroup>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Timezone.title')}</CardTitle>
+          <CardDescription>
+            {t('Timezone.description')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="max-w-md">
+          <Select value={settings.timezone} onValueChange={handleTimezoneChange}>
+            <SelectTrigger>
+              <SelectValue placeholder={DEFAULT_TIMEZONE} />
+            </SelectTrigger>
+            <SelectContent>
+              {TIMEZONE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
     </div>

@@ -265,7 +265,11 @@ export function TorrentPreferencesDialog({ item }: { item: TorrentWatchlistItem 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="min-h-11 flex-1 sm:flex-none">
+        <Button
+          variant="outline"
+          className="min-h-11 flex-1 sm:flex-none"
+          onClick={(e) => e.stopPropagation()}
+        >
           <Settings2 className="size-4" aria-hidden />
           <span className="ml-2">{t('action')}</span>
         </Button>
