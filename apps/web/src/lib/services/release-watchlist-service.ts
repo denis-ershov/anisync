@@ -3,6 +3,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { db, releaseWatchlistEntries, type ReleaseContentType, type ReleaseWatchlistEntry, type ReleaseWatchlistStatus } from '@/lib/db';
 import { isQueuesEnabled } from '@/lib/config';
 import { enqueueReleaseWatchlistRefresh } from '@/lib/queue/queues';
+import { ReleaseScheduleDateService } from '@/lib/services/release-schedule-date-service';
 import { ReleaseWatchlistRefreshService } from '@/lib/services/release-watchlist-refresh-service';
 
 export type ReleaseWatchlistItemDto = {
@@ -124,6 +125,8 @@ export class ReleaseWatchlistService {
       return { conflict: true as const, item: null };
     }
 
+    const slot = await ReleaseScheduleDateService.resolve(data.tmdbId, data.type, 'ru').catch(() => null);
+
     const [inserted] = await db
       .insert(releaseWatchlistEntries)
       .values({
@@ -139,14 +142,23 @@ export class ReleaseWatchlistService {
         genre: data.genre ?? null,
         genreRu: data.genreRu ?? null,
         year: data.year ?? null,
-        releaseDate: data.releaseDate ?? null,
-        nextEpisodeSeason: data.nextEpisodeSeason ?? null,
-        nextEpisodeNumber: data.nextEpisodeNumber ?? null,
-        nextEpisodeDate: data.nextEpisodeDate ?? null,
+        releaseDate:
+          data.type === 'movie'
+            ? (slot?.calendarDate ?? data.releaseDate ?? null)
+            : (data.releaseDate ?? null),
+        nextEpisodeSeason:
+          data.type === 'show' ? (slot?.season ?? data.nextEpisodeSeason ?? null) : (data.nextEpisodeSeason ?? null),
+        nextEpisodeNumber:
+          data.type === 'show' ? (slot?.episode ?? data.nextEpisodeNumber ?? null) : (data.nextEpisodeNumber ?? null),
+        nextEpisodeDate:
+          data.type === 'show'
+            ? (slot?.instant ?? slot?.calendarDate ?? data.nextEpisodeDate ?? null)
+            : (data.nextEpisodeDate ?? null),
+        scheduleUpdatedAt: slot ? new Date() : null,
       })
       .returning();
 
-    if (inserted?.type === 'show' && isQueuesEnabled()) {
+    if (inserted && isQueuesEnabled()) {
       await enqueueReleaseWatchlistRefresh().catch(() => undefined);
     }
 

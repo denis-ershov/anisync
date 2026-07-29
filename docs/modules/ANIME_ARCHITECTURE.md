@@ -1,7 +1,7 @@
 # Архитектура модуля Anime
 
-> **Версия:** 1.9  
-> **Дата:** 2026-07-24  
+> **Версия:** 1.10  
+> **Дата:** 2026-07-29  
 > **Контракт:** [MODULE_CONTRACT.md](../MODULE_CONTRACT.md)
 
 ## Границы
@@ -69,7 +69,16 @@ Job: `direction = primary_catalog_push`
 `GET /api/user/anime` → БД сразу (только `watching` / `planned` / `rewatching`); stale → `anime.schedule.refresh`.  
 Статусы `dropped` / `completed` / `on_hold` в расписание не загружаются и не показываются.
 
-UI (`schedule-day.ts`): день недели по `next_episode_date` (для planned — `aired_on`). После эфира Shiki двигает `next` на +7д — UI восстанавливает предыдущий слот и держит тайтл в «Сегодня» (не прячет и не теряет в «дырке» ровно +7 дней).
+UI (`schedule-day.ts`): день недели по `next_episode_date` (для planned — `aired_on`). После эфира Shiki двигает `next` на +7д — UI восстанавливает предыдущий слот и держит тайтл в «Сегодня» (не прячет и не теряет в «дырке» ровно +7 дней). Отображение времени — в локальной TZ браузера (`new Date(iso)`).
+
+### AniList и `next_episode_date`
+
+При импорте/линке каталога с `serviceName === 'anilist'` используется режим слияния `fill-gaps-next-date` (`library-service` / `catalog-next-episode.ts`):
+
+- **перезаписывается только** `nextEpisodeDate` из AniList (`nextAiringEpisode.airingAt` → ISO);
+- остальные поля каталога — как в `fill-gaps` (не затирают уже заполненные).
+
+Так secondary AniList может обновить дату эфира поверх Shikimori/MAL без полной перезаписи метаданных.
 
 ## Mixed-provider schedule import
 

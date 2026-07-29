@@ -1,8 +1,8 @@
 import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 
 import { db, releaseWatchlistEntries } from '@/lib/db';
-import { getShowScheduleEpisode } from '@/lib/integrations/tmdb';
 import { createLogger } from '@/lib/observability/logger';
+import { ReleaseScheduleDateService } from '@/lib/services/release-schedule-date-service';
 
 const log = createLogger('services:release-watchlist-refresh');
 
@@ -37,7 +37,6 @@ export class ReleaseWatchlistRefreshService {
       .from(releaseWatchlistEntries)
       .where(
         and(
-          eq(releaseWatchlistEntries.type, 'show'),
           or(
             eq(releaseWatchlistEntries.status, 'watching'),
             eq(releaseWatchlistEntries.status, 'plan')
@@ -53,52 +52,80 @@ export class ReleaseWatchlistRefreshService {
     return rows.length > 0;
   }
 
-  static async refreshShowSchedules() {
+  static async refreshSchedules() {
     const rows = await db
-      .select({ tmdbId: releaseWatchlistEntries.tmdbId })
+      .select({
+        tmdbId: releaseWatchlistEntries.tmdbId,
+        type: releaseWatchlistEntries.type,
+      })
       .from(releaseWatchlistEntries)
       .where(
-        and(
-          eq(releaseWatchlistEntries.type, 'show'),
-          or(
-            eq(releaseWatchlistEntries.status, 'watching'),
-            eq(releaseWatchlistEntries.status, 'plan')
-          )
+        or(
+          eq(releaseWatchlistEntries.status, 'watching'),
+          eq(releaseWatchlistEntries.status, 'plan')
         )
       );
 
-    const uniqueIds = [...new Set(rows.map((row) => row.tmdbId))];
-    let updatedEntries = 0;
+    const unique = new Map<string, { tmdbId: number; type: 'movie' | 'show' }>();
+    for (const row of rows) {
+      unique.set(`${row.type}:${row.tmdbId}`, { tmdbId: row.tmdbId, type: row.type });
+    }
 
-    for (const batch of chunk(uniqueIds, Math.max(1, REFRESH_CONCURRENCY))) {
+    let updatedEntries = 0;
+    const items = [...unique.values()];
+
+    for (const batch of chunk(items, Math.max(1, REFRESH_CONCURRENCY))) {
       await Promise.all(
-        batch.map(async (tmdbId) => {
-          const episode = await getShowScheduleEpisode(tmdbId, 'ru').catch(() => null);
+        batch.map(async ({ tmdbId, type }) => {
+          const slot = await ReleaseScheduleDateService.resolve(tmdbId, type, 'ru').catch(() => null);
           const refreshedAt = new Date();
+
+          if (type === 'show') {
+            const updated = await db
+              .update(releaseWatchlistEntries)
+              .set({
+                nextEpisodeSeason: slot?.season ?? null,
+                nextEpisodeNumber: slot?.episode ?? null,
+                nextEpisodeDate: slot?.instant ?? slot?.calendarDate ?? null,
+                scheduleUpdatedAt: refreshedAt,
+              })
+              .where(
+                and(
+                  eq(releaseWatchlistEntries.tmdbId, tmdbId),
+                  eq(releaseWatchlistEntries.type, 'show'),
+                  inArray(releaseWatchlistEntries.status, ['watching', 'plan'])
+                )
+              )
+              .returning({ id: releaseWatchlistEntries.id });
+            updatedEntries += updated.length;
+            return;
+          }
 
           const updated = await db
             .update(releaseWatchlistEntries)
             .set({
-              nextEpisodeSeason: episode?.season ?? null,
-              nextEpisodeNumber: episode?.episode ?? null,
-              nextEpisodeDate: episode?.airDate ?? null,
+              releaseDate: slot?.calendarDate ?? null,
               scheduleUpdatedAt: refreshedAt,
             })
             .where(
               and(
                 eq(releaseWatchlistEntries.tmdbId, tmdbId),
-                eq(releaseWatchlistEntries.type, 'show'),
+                eq(releaseWatchlistEntries.type, 'movie'),
                 inArray(releaseWatchlistEntries.status, ['watching', 'plan'])
               )
             )
             .returning({ id: releaseWatchlistEntries.id });
-
           updatedEntries += updated.length;
         })
       );
     }
 
-    log.info({ shows: uniqueIds.length, updatedEntries }, 'Release watchlist schedules refreshed');
-    return { shows: uniqueIds.length, updatedEntries };
+    log.info({ items: items.length, updatedEntries }, 'Release watchlist schedules refreshed');
+    return { shows: items.filter((i) => i.type === 'show').length, movies: items.filter((i) => i.type === 'movie').length, updatedEntries };
+  }
+
+  /** @deprecated use refreshSchedules */
+  static async refreshShowSchedules() {
+    return this.refreshSchedules();
   }
 }

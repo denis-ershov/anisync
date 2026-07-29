@@ -150,6 +150,9 @@ export function ReleaseDetailModal() {
           genreRu: display.genreRu,
           year: display.year,
           releaseDate: display.releaseDate,
+          nextEpisodeSeason: display.nextEpisode?.season ?? null,
+          nextEpisodeNumber: display.nextEpisode?.episode ?? null,
+          nextEpisodeDate: display.nextEpisode?.airDate ?? null,
         });
       }
 

@@ -1,6 +1,7 @@
-import { getGenres, getUpcoming } from '@/lib/integrations/tmdb';
+import { getGenres } from '@/lib/integrations/tmdb';
 import { UPCOMING_PRECOMPUTE_COMBOS } from '@/lib/integrations/tmdb/cache-keys';
 import { createLogger } from '@/lib/observability/logger';
+import { ReleaseCatalogAggregator } from '@/lib/services/release-catalog-aggregator';
 
 const log = createLogger('services:releases-precompute');
 
@@ -11,7 +12,7 @@ export class ReleasesPrecomputeService {
     let warmed = 0;
 
     for (const combo of UPCOMING_PRECOMPUTE_COMBOS) {
-      await getUpcoming(combo.lang, {
+      await ReleaseCatalogAggregator.getUpcoming(combo.lang, {
         page: 1,
         pageSize,
         type: combo.type,

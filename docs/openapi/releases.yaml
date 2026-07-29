@@ -1,8 +1,11 @@
 openapi: 3.1.0
 info:
   title: AniSync Releases API
-  version: 0.1.0
-  description: Releases module — TMDB catalog and personal watchlist (ported from OnTrash / NextScene)
+  version: 0.2.0
+  description: >
+    Releases module — multi-source catalog (TMDB + TVmaze + optional Trakt)
+    and personal watchlist with digital/episode schedule dates
+    (TMDB + TVmaze + optional Watchmode).
 servers:
   - url: /api
     description: Next.js App Router API base path
@@ -10,7 +13,7 @@ tags:
   - name: health
     description: Platform and module health
   - name: releases-content
-    description: Movie and TV show content from TMDB
+    description: Movie and TV show content (merged catalog; metadata primarily from TMDB)
   - name: releases-watchlist
     description: Personal release watchlist (authenticated)
   - name: auth
@@ -69,7 +72,11 @@ paths:
     get:
       operationId: getReleasesUpcoming
       tags: [releases-content]
-      summary: Digital movie releases and active TV shows (current + next month)
+      summary: Upcoming digital movies and shows (merged TMDB + TVmaze + optional Trakt)
+      description: >
+        Returns CatalogPage. Sources are merged and deduplicated by type+tmdbId.
+        Optional TRAKT_CLIENT_ID enriches streaming calendars; without it, TMDB+TVmaze only.
+        Contract is unchanged from the TMDB-only MVP.
       parameters:
         - $ref: "#/components/parameters/lang"
         - name: page

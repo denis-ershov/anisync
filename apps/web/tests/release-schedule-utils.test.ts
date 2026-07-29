@@ -42,6 +42,21 @@ test('uses release date for movies and next episode date for shows', () => {
   assert.equal(scheduleDateOf(show), '2026-06-18');
 });
 
+test('converts ISO instant nextEpisodeDate to local calendar day', () => {
+  const show = makeItem({
+    id: 2,
+    type: 'show',
+    releaseDate: null,
+    nextEpisodeSeason: 1,
+    nextEpisodeNumber: 1,
+    // 2026-06-17 21:00 UTC → depends on local TZ; parse and compare via localDateKey
+    nextEpisodeDate: '2026-06-17T21:00:00.000Z',
+  });
+
+  const expected = localDateKey(new Date('2026-06-17T21:00:00.000Z'));
+  assert.equal(scheduleDateOf(show), expected);
+});
+
 test('builds a 7-day schedule from watchlist items', () => {
   const today = new Date(2026, 5, 16);
   const todayKey = localDateKey(today);

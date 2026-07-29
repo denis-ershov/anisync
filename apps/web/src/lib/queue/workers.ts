@@ -68,7 +68,7 @@ async function handleReleasesPrecomputeJob(job: Job) {
 }
 
 async function handleReleaseWatchlistRefreshJob(job: Job) {
-  const result = await ReleaseWatchlistRefreshService.refreshShowSchedules();
+  const result = await ReleaseWatchlistRefreshService.refreshSchedules();
   log.info({ jobId: job.id, result }, 'Release watchlist refresh finished');
   return result;
 }

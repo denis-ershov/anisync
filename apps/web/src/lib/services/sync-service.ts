@@ -1614,8 +1614,9 @@ export class SyncService {
         const scheduleEntries = await provider.fetchLibrary(refreshedIntegration, { scope: 'schedule' });
         sources.push(serviceName);
 
+        const catalogMode = serviceName === 'anilist' ? 'fill-gaps-next-date' : 'fill-gaps';
         const linked = await LibraryService.linkProviderCatalogEntries(serviceName, scheduleEntries, {
-          onExisting: 'fill-gaps',
+          onExisting: catalogMode,
         });
 
         const linkedAnimeIds = linked.map((row) => row.animeId);
@@ -1678,7 +1679,7 @@ export class SyncService {
 
           if (isConfiguredSecondary || isMalFallback) {
             await LibraryService.upsertLibraryEntry(userId, serviceName, entry, {
-              onExistingCatalog: 'fill-gaps',
+              onExistingCatalog: catalogMode,
               onExistingLibrary: 'keep',
             });
             if (serviceName === 'myanimelist' || isConfiguredSecondary) {
@@ -1692,7 +1693,7 @@ export class SyncService {
           }
 
           await LibraryService.upsertLibraryEntry(userId, serviceName, entry, {
-            onExistingCatalog: 'fill-gaps',
+            onExistingCatalog: catalogMode,
             onExistingLibrary: 'keep',
           });
         }

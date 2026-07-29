@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isReleasesModuleEnabled, releasesModuleDisabledResponse } from '@/lib/api/releases-module';
 import { getLang, parseCatalogOptions } from '@/lib/api/releases-request';
 import { withSloRoute } from '@/lib/api/with-slo';
-import { getUpcoming } from '@/lib/integrations/tmdb';
+import { ReleaseCatalogAggregator } from '@/lib/services/release-catalog-aggregator';
 
 async function getHandler(request: NextRequest) {
   if (!isReleasesModuleEnabled()) {
@@ -11,7 +11,7 @@ async function getHandler(request: NextRequest) {
   }
 
   try {
-    const data = await getUpcoming(getLang(request), parseCatalogOptions(request));
+    const data = await ReleaseCatalogAggregator.getUpcoming(getLang(request), parseCatalogOptions(request));
     return NextResponse.json(data);
   } catch (error) {
     return NextResponse.json(

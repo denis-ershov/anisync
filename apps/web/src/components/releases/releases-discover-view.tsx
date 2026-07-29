@@ -206,6 +206,9 @@ export function ReleasesDiscoverView() {
           genreRu: item.genreRu,
           year: item.year,
           releaseDate: item.releaseDate,
+          nextEpisodeSeason: item.nextEpisode?.season ?? null,
+          nextEpisodeNumber: item.nextEpisode?.episode ?? null,
+          nextEpisodeDate: item.nextEpisode?.airDate ?? null,
         });
       }
     } catch (actionErr) {

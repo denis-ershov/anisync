@@ -28,11 +28,22 @@ export function formatFullDate(dateKey: string, locale: string) {
 }
 
 export function scheduleDateOf(item: ReleaseWatchlistItem): string | null {
-  if (item.type === 'show') {
-    return item.nextEpisodeDate ?? null;
+  const raw = item.type === 'show' ? item.nextEpisodeDate : item.releaseDate;
+  if (!raw) {
+    return null;
   }
 
-  return item.releaseDate ?? null;
+  // ISO instant (with time) → календарный день в локальной TZ браузера
+  if (raw.includes('T') || raw.endsWith('Z')) {
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    return localDateKey(date);
+  }
+
+  // Уже YYYY-MM-DD
+  return raw.slice(0, 10);
 }
 
 export function getNextWatchlistStatus(current: ReleaseWatchlistStatus | null): ReleaseWatchlistStatus | null {

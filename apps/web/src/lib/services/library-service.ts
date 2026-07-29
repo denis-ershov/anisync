@@ -19,6 +19,7 @@ import {
   extractYear,
   matchCatalogByTitle,
 } from '@/lib/services/catalog-match';
+import { resolveNextEpisodeDate } from '@/lib/services/catalog-next-episode';
 import type { LibraryEntryView, LibraryFilters } from '@/lib/services/library-types';
 import { removeHtmlTags } from '@/lib/utils/text';
 
@@ -59,14 +60,14 @@ function isBlank(value: unknown): boolean {
   return false;
 }
 
-type CatalogMetadataMode = 'replace' | 'fill-gaps' | 'link-only';
+export type CatalogMetadataMode = 'replace' | 'fill-gaps' | 'fill-gaps-next-date' | 'link-only';
 
 function toCatalogPayload(
   details: ProviderAnimeDetails,
   existing?: AnimeCatalog | null,
   mode: Exclude<CatalogMetadataMode, 'link-only'> = 'replace'
 ) {
-  if (mode === 'fill-gaps' && existing) {
+  if ((mode === 'fill-gaps' || mode === 'fill-gaps-next-date') && existing) {
     return {
       malId: existing.malId ?? details.malId ?? null,
       titleDefault: existing.titleDefault || details.titleDefault || String(details.externalAnimeId),
@@ -87,7 +88,7 @@ function toCatalogPayload(
       season: !isBlank(existing.season) ? existing.season : details.season ?? null,
       url: !isBlank(existing.url) ? existing.url : details.url ?? null,
       coverImage: !isBlank(existing.coverImage) ? existing.coverImage : details.coverImage ?? null,
-      nextEpisodeDate: !isBlank(existing.nextEpisodeDate) ? existing.nextEpisodeDate : details.nextEpisodeDate ?? null,
+      nextEpisodeDate: resolveNextEpisodeDate(existing.nextEpisodeDate, details.nextEpisodeDate, mode),
       isCensored: existing.isCensored || Boolean(details.isCensored),
       genres: existing.genres?.length ? existing.genres : details.genres || [],
       studios: existing.studios?.length ? existing.studios : details.studios || [],
@@ -117,7 +118,7 @@ function toCatalogPayload(
     season: details.season ?? existing?.season ?? null,
     url: details.url ?? existing?.url ?? null,
     coverImage: details.coverImage ?? existing?.coverImage ?? null,
-    nextEpisodeDate: details.nextEpisodeDate ?? existing?.nextEpisodeDate ?? null,
+    nextEpisodeDate: resolveNextEpisodeDate(existing?.nextEpisodeDate, details.nextEpisodeDate, mode),
     isCensored: details.isCensored !== undefined ? Boolean(details.isCensored) : Boolean(existing?.isCensored),
     genres: details.genres?.length ? details.genres : existing?.genres || [],
     studios: details.studios?.length ? details.studios : existing?.studios || [],

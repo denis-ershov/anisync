@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-07-29 (fix: Trakt calendars auth headers + streaming = movies)
+
+**Файлы:** `integrations/trakt/client.ts`, `release-catalog-aggregator.ts`, `.env.example`, `docs/modules/RELEASES_ARCHITECTURE.md`.
+
+**Изменения:** для публичных `/calendars/all/*` достаточно Client ID (`trakt-api-key`) + `User-Agent` / `trakt-api-version`; OAuth Bearer не используется. Streaming-календарь мержится как digital movies, не shows.
+
+**Обоснование:** по docs Trakt OAuth нужен для `/calendars/my/*`; без User-Agent API может отклонять запросы.
+
+## 2026-07-29 (feat: AniList next_episode + multi-source Releases)
+
+**Файлы:** `catalog-next-episode.ts`, `library-service.ts`, `sync-service.ts`, `release-catalog-aggregator.ts`, `release-schedule-date-service.ts`, `release-watchlist-*.ts`, `releases-precompute-service.ts`, `integrations/{tvmaze,trakt,watchmode}/`, `modules/releases/utils.ts`, `docs/modules/{ANIME,RELEASES}_ARCHITECTURE.md`, `docs/openapi/releases.yaml`, `.env.example`, тесты.
+
+**Изменения:**
+- AniList: режим `fill-gaps-next-date` — при sync перезаписывается только `nextEpisodeDate`.
+- Releases Discover: aggregator TMDB + TVmaze (+ Trakt при `TRAKT_CLIENT_ID`).
+- Releases schedule: `ReleaseScheduleDateService` (TMDB digital / TVmaze episodes / Watchmode fallback); dates при add и batch refresh (movies + shows).
+- Dashboard TZ: ISO-instant → `localDateKey` в локали браузера.
+- Precompute прогревает merged catalog; env `TRAKT_CLIENT_ID`, `WATCHMODE_API_KEY`.
+
+**Обоснование:** secondary AniList даёт актуальные эфиры; Discover и 7-дневное расписание покрывают стриминг/digital, а не только theatrical TMDB.
+
 ## 2026-07-24 (fix: «Сегодня» после сдвига next_episode на +7д)
 
 **Файлы:** `apps/web/src/lib/integrations/schedule-day.ts`, `apps/web/tests/schedule-day.test.ts`, `docs/modules/ANIME_ARCHITECTURE.md`.

@@ -303,7 +303,7 @@ export function pickDigitalReleaseDate(payload: TmdbMovieReleaseDates, from: str
   return inDateRange(canonicalDate, from, toExclusive) ? canonicalDate : null;
 }
 
-async function getMovieDigitalReleaseDate(movieId: number, from: string, toExclusive: string): Promise<string | null> {
+export async function getMovieDigitalReleaseDate(movieId: number, from: string, toExclusive: string): Promise<string | null> {
   const key = buildMovieReleaseDateCacheKey(movieId, from, toExclusive);
   const cached = await cacheRead<{ value: string | null }>(key);
   if (cached) {
