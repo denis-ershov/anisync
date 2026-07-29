@@ -35,6 +35,7 @@ import {
   useTorrentReleases,
 } from '@/lib/torrents/hooks';
 import type { TorrentWatchlistItem } from '@/lib/torrents/types';
+import { getTorrentScheduleDetail } from '@/lib/torrents/schedule-label';
 
 type TorrentWatchlistDetailModalProps = {
   item: TorrentWatchlistItem;
@@ -71,6 +72,7 @@ export function TorrentWatchlistDetailModal({
   const busy = toggleMutation.isPending || deleteMutation.isPending;
   const secondaryTitle =
     item.originalTitle && item.originalTitle !== item.title ? item.originalTitle : null;
+  const scheduleDetail = getTorrentScheduleDetail(item, locale);
 
   const handleToggle = async () => {
     try {
@@ -142,6 +144,12 @@ export function TorrentWatchlistDetailModal({
         <ScrollArea className="max-h-[calc(92vh-13rem)]">
           <div className="space-y-6 p-4 sm:p-6">
             <section className="grid gap-3 sm:grid-cols-2">
+              {scheduleDetail ? (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm sm:col-span-2">
+                  <p className="text-xs font-medium text-muted-foreground">{t(scheduleDetail.titleKey)}</p>
+                  <p className="mt-1 font-medium">{scheduleDetail.line}</p>
+                </div>
+              ) : null}
               <div className="rounded-lg border bg-card/60 p-3 text-sm">
                 <p className="text-xs font-medium text-muted-foreground">{t('detail.imdb')}</p>
                 <p className="mt-1 font-mono">{item.imdbId}</p>

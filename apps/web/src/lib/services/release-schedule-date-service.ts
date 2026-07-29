@@ -1,12 +1,11 @@
 import { cacheRead, cacheWrite } from '@/lib/cache/store';
+import { MovieDigitalReleaseDateService } from '@/lib/services/movie-digital-release-date-service';
 import {
-  getMovieDigitalReleaseDate,
+  findContentByImdb,
   getScheduleWindow,
   getShowScheduleEpisode,
-  findContentByImdb,
 } from '@/lib/integrations/tmdb';
 import { getNextEpisodeInRange } from '@/lib/integrations/tvmaze/client';
-import { getMovieReleaseDateByTmdb, isWatchmodeEnabled } from '@/lib/integrations/watchmode/client';
 import { createLogger } from '@/lib/observability/logger';
 import type { ReleaseContentType, ReleaseScheduleSlot } from '@/lib/releases/schedule-types';
 import { MediaExternalIdsService } from '@/lib/services/media-external-ids-service';
@@ -49,14 +48,9 @@ export class ReleaseScheduleDateService {
 
     let slot: ReleaseScheduleSlot | null = null;
 
-    const digital = await getMovieDigitalReleaseDate(tmdbId, from, toExclusive);
-    if (digital) {
-      slot = { calendarDate: digital, source: 'tmdb' };
-    } else if (isWatchmodeEnabled()) {
-      const wm = await getMovieReleaseDateByTmdb(tmdbId);
-      if (wm && wm >= from && wm < toExclusive) {
-        slot = { calendarDate: wm, source: 'watchmode' };
-      }
+    const aggregated = await MovieDigitalReleaseDateService.resolveInWindow(tmdbId, from, toExclusive);
+    if (aggregated) {
+      slot = { calendarDate: aggregated.date, source: aggregated.source };
     }
 
     await cacheWrite(cacheKey, { value: slot }, SCHEDULE_CACHE_TTL_MS);

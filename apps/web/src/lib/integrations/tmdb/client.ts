@@ -1,6 +1,7 @@
 import { env } from '@/lib/config';
 import { cacheRead, cacheWrite } from '@/lib/cache/store';
 import { createLogger } from '@/lib/observability/logger';
+import { MovieDigitalReleaseDateService } from '@/lib/services/movie-digital-release-date-service';
 import { MediaExternalIdsService } from '@/lib/services/media-external-ids-service';
 import {
   buildDetailCacheKey,
@@ -8,6 +9,13 @@ import {
   buildShowScheduleCacheKey,
   buildUpcomingCacheKey,
 } from '@/lib/integrations/tmdb/cache-keys';
+import {
+  pickCanonicalDigitalReleaseDate,
+  pickDigitalReleaseDate,
+  type TmdbMovieReleaseDates,
+} from '@/lib/integrations/tmdb/digital-release-dates';
+
+export { pickCanonicalDigitalReleaseDate, pickDigitalReleaseDate } from '@/lib/integrations/tmdb/digital-release-dates';
 
 const log = createLogger('integrations:tmdb');
 
@@ -163,19 +171,6 @@ interface TmdbExternalIds {
   imdb_id?: string | null;
 }
 
-interface TmdbReleaseDateEntry {
-  release_date: string;
-  type: number;
-}
-
-interface TmdbMovieReleaseDates {
-  id: number;
-  results: Array<{
-    iso_3166_1: string;
-    release_dates: TmdbReleaseDateEntry[];
-  }>;
-}
-
 const genreMapEn: Record<number, string> = {};
 const genreMapRu: Record<number, string> = {};
 let genresLoadedAt = 0;
@@ -218,7 +213,6 @@ function inDateRange(value: string | null | undefined, from: string, toExclusive
   return Boolean(value && value >= from && value < toExclusive);
 }
 
-const DIGITAL_RELEASE_TYPE = 4;
 const EXCLUDED_MOVIE_GENRE_IDS = new Set([16, 99, 10402, 10770]);
 const EXCLUDED_SHOW_GENRE_IDS = new Set([16, 99, 10762, 10763, 10764, 10766, 10767]);
 const EXCLUDED_CATALOG_GENRE_IDS = new Set([
@@ -275,32 +269,13 @@ export function mappedGenreIdForType(type: "movie" | "show", genreId: number | n
   return showToMovie[genreId] ?? genreId;
 }
 
-function digitalDatesForRegion(
-  payload: TmdbMovieReleaseDates,
-  region: string,
-): string[] {
-  return (payload.results
-    .find(entry => entry.iso_3166_1 === region)
-    ?.release_dates ?? [])
-    .filter(item => item.type === DIGITAL_RELEASE_TYPE)
-    .map(item => toDateOnly(item.release_date))
-    .filter((date): date is string => Boolean(date))
-    .sort((a, b) => a.localeCompare(b));
-}
-
-export function pickDigitalReleaseDate(payload: TmdbMovieReleaseDates, from: string, toExclusive: string): string | null {
-  const canonicalDate =
-    digitalDatesForRegion(payload, "US")[0] ??
-    digitalDatesForRegion(payload, "RU")[0] ??
-    payload.results
-      .flatMap(entry => entry.release_dates ?? [])
-      .filter(item => item.type === DIGITAL_RELEASE_TYPE)
-      .map(item => toDateOnly(item.release_date))
-      .filter((date): date is string => Boolean(date))
-      .sort((a, b) => a.localeCompare(b))[0] ??
-    null;
-
-  return inDateRange(canonicalDate, from, toExclusive) ? canonicalDate : null;
+export async function fetchMovieReleaseDatesPayload(movieId: number): Promise<TmdbMovieReleaseDates | null> {
+  try {
+    return await get<TmdbMovieReleaseDates>(`/movie/${movieId}/release_dates`);
+  } catch (e) {
+    log.error({ err: e, tmdbId: movieId }, 'Failed to load movie release dates payload');
+    return null;
+  }
 }
 
 export async function getMovieDigitalReleaseDate(movieId: number, from: string, toExclusive: string): Promise<string | null> {
@@ -311,12 +286,29 @@ export async function getMovieDigitalReleaseDate(movieId: number, from: string, 
   }
 
   try {
-    const payload = await get<TmdbMovieReleaseDates>(`/movie/${movieId}/release_dates`);
-    const digitalDate = pickDigitalReleaseDate(payload, from, toExclusive);
+    const result = await MovieDigitalReleaseDateService.resolveInWindow(movieId, from, toExclusive);
+    const digitalDate = result?.date ?? null;
     await cacheWrite(key, { value: digitalDate }, RELEASE_DATES_CACHE_TTL_MS);
     return digitalDate;
   } catch (e) {
     log.error({ err: e, tmdbId: movieId }, "Failed to load movie release dates");
+    return null;
+  }
+}
+
+export async function getMovieDigitalReleaseDateDisplay(movieId: number): Promise<string | null> {
+  const key = `tmdb:movie:${movieId}:digital_display_v3`;
+  const cached = await cacheRead<{ value: string | null }>(key);
+  if (cached) {
+    return cached.value;
+  }
+
+  try {
+    const value = await MovieDigitalReleaseDateService.resolveDisplay(movieId);
+    await cacheWrite(key, { value }, RELEASE_DATES_CACHE_TTL_MS);
+    return value;
+  } catch (e) {
+    log.error({ err: e, tmdbId: movieId }, 'Failed to load movie digital release date for display');
     return null;
   }
 }
@@ -687,6 +679,34 @@ export function getScheduleWindow(now = new Date()) {
     toInclusive: dateOnly(toInclusiveDate),
     toExclusive: dateOnly(toExclusiveDate),
   };
+}
+
+/** Окно для UI (карточки torrent/releases): −30…+120 дней от сегодня. */
+export function getDisplayScheduleWindow(now = new Date()) {
+  const fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  fromDate.setDate(fromDate.getDate() - 30);
+  const toExclusiveDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  toExclusiveDate.setDate(toExclusiveDate.getDate() + 120);
+
+  return {
+    from: dateOnly(fromDate),
+    toExclusive: dateOnly(toExclusiveDate),
+  };
+}
+
+export async function getShowEpisodeForDisplay(tmdbId: number, lang = 'en') {
+  const cacheKey = `tmdb:show:${tmdbId}:${lang}:display_episode`;
+  const cached = await cacheRead<{ value: EpisodeWindowMatch | null }>(cacheKey);
+  if (cached) {
+    return cached.value;
+  }
+
+  const tmdbLang = lang === 'ru' ? 'ru-RU' : 'en-US';
+  const detail = await getCachedShowDetail(tmdbId, tmdbLang);
+  const { from, toExclusive } = getDisplayScheduleWindow();
+  const episode = await getShowEpisodeInRange(tmdbId, detail, lang, from, toExclusive);
+  await cacheWrite(cacheKey, { value: episode }, SCHEDULE_CACHE_TTL_MS);
+  return episode;
 }
 
 export async function getGenres(lang = "en") {

@@ -25,6 +25,7 @@ import {
   useToggleTorrentWatchlistItem,
 } from '@/lib/torrents/hooks';
 import type { TorrentWatchlistItem } from '@/lib/torrents/types';
+import { getTorrentScheduleLine } from '@/lib/torrents/schedule-label';
 import { cn } from '@/lib/utils';
 
 type TorrentWatchlistCardProps = {
@@ -55,6 +56,7 @@ export function TorrentWatchlistCard({ item }: TorrentWatchlistCardProps) {
   const secondaryTitle =
     item.originalTitle && item.originalTitle !== item.title ? item.originalTitle : null;
   const lastCheckedLabel = formatDate(item.lastChecked, locale);
+  const scheduleLabel = getTorrentScheduleLine(item, locale, t);
 
   const handleToggleEnabled = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -142,6 +144,12 @@ export function TorrentWatchlistCard({ item }: TorrentWatchlistCardProps) {
             </div>
 
             <div className="flex flex-wrap gap-2 text-xs">
+              {scheduleLabel ? (
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-primary">
+                  <Calendar className="h-3 w-3" aria-hidden />
+                  {scheduleLabel}
+                </span>
+              ) : null}
               <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-muted-foreground">
                 <HardDrive className="h-3 w-3" aria-hidden />
                 {t('card.releasesCount', { count: item.releasesCount })}

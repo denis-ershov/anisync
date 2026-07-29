@@ -10,7 +10,7 @@ export function buildDetailCacheKey(tmdbId: number, tmdbLang: string) {
 }
 
 export function buildMovieReleaseDateCacheKey(movieId: number, from: string, toExclusive: string) {
-  return `tmdb:movie-release:${movieId}:${from}:${toExclusive}`;
+  return `tmdb:movie-release:v3:${movieId}:${from}:${toExclusive}`;
 }
 
 export function buildShowScheduleCacheKey(tmdbId: number, lang: string) {

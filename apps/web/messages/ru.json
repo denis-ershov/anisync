@@ -583,7 +583,10 @@
       "resume": "Возобновить",
       "remove": "Удалить",
       "deleteConfirm": "Удалить «{title}» из watchlist?",
-      "openDetail": "Подробнее"
+      "openDetail": "Подробнее",
+      "digitalRelease": "Цифровой · {date}",
+      "seasonPremiere": "S{season} премьера · {date}",
+      "nextEpisode": "S{season}E{episode} · {date}"
     },
     "type": {
       "movie": "Фильм",
@@ -600,7 +603,10 @@
       "releases": "Все релизы",
       "yes": "Да",
       "no": "Нет",
-      "intervalMinutes": "{count} мин"
+      "intervalMinutes": "{count} мин",
+      "digitalRelease": "Цифровой релиз",
+      "seasonPremiere": "Премьера сезона",
+      "nextEpisode": "Следующий эпизод"
     },
     "preferences": {
       "action": "Настройки",

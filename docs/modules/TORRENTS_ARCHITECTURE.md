@@ -17,7 +17,7 @@
 | Слой | Путь | Ответственность |
 |------|------|-----------------|
 | Facade API | `apps/web/src/app/api/torrents/*` | Auth → `torrent-facade` |
-| Local store | `torrent-local-store.ts` | CRUD `torrent_watchlist` / `torrent_releases` |
+| Local store | `torrent-local-store.ts` | CRUD `torrent_watchlist` / `torrent_releases`; enrich digital/premiere dates via TMDB |
 | **TS Watcher** | `torrent-watcher-service.ts` | Scan due items → Prowlarr → filters → DB → notify |
 | Prowlarr | `integrations/prowlarr/client.ts` | searchByImdb / searchByQuery / download link |
 | Filters | `lib/torrents/watcher/*` | identity, parsers, quality/audio/season |

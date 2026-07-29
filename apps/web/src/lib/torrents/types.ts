@@ -42,6 +42,10 @@ export type TorrentWatchlistItem = TorrentWatchlistPreferences & {
     currentEpisode: number | null;
     totalEpisodes: number | null;
   } | null;
+  digitalReleaseDate: string | null;
+  nextEpisodeSeason: number | null;
+  nextEpisodeNumber: number | null;
+  nextEpisodeDate: string | null;
 };
 
 export type TorrentReleaseItem = {

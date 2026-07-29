@@ -583,7 +583,10 @@
       "resume": "Resume",
       "remove": "Remove",
       "deleteConfirm": "Remove “{title}” from the watchlist?",
-      "openDetail": "Details"
+      "openDetail": "Details",
+      "digitalRelease": "Digital · {date}",
+      "seasonPremiere": "S{season} premiere · {date}",
+      "nextEpisode": "S{season}E{episode} · {date}"
     },
     "type": {
       "movie": "Movie",
@@ -600,7 +603,10 @@
       "releases": "All releases",
       "yes": "Yes",
       "no": "No",
-      "intervalMinutes": "{count} min"
+      "intervalMinutes": "{count} min",
+      "digitalRelease": "Digital release",
+      "seasonPremiere": "Season premiere",
+      "nextEpisode": "Next episode"
     },
     "preferences": {
       "action": "Settings",

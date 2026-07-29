@@ -1,13 +1,94 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { db, torrentReleases, torrentWatchlist } from '@/lib/db';
-import { findContentByImdb } from '@/lib/integrations/tmdb/client';
+import { MovieDigitalReleaseDateService } from '@/lib/services/movie-digital-release-date-service';
+import {
+  findContentByImdb,
+  getShowEpisodeForDisplay,
+} from '@/lib/integrations/tmdb/client';
 import type {
   TorrentHealthSnapshot,
   TorrentReleaseItem,
   TorrentWatchlistItem,
   TorrentWatchlistUpdateInput,
 } from '@/lib/torrents/types';
+
+const SCHEDULE_ENRICH_CONCURRENCY = 4;
+
+type TorrentScheduleMeta = Pick<
+  TorrentWatchlistItem,
+  'digitalReleaseDate' | 'nextEpisodeSeason' | 'nextEpisodeNumber' | 'nextEpisodeDate'
+>;
+
+async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const current = index;
+      index += 1;
+      results[current] = await fn(items[current]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
+async function resolveTmdbId(row: typeof torrentWatchlist.$inferSelect): Promise<number | null> {
+  if (row.tmdbId) {
+    return row.tmdbId;
+  }
+
+  const metadata = await findContentByImdb(row.imdbId).catch(() => null);
+  if (!metadata?.tmdbId) {
+    return null;
+  }
+
+  await db
+    .update(torrentWatchlist)
+    .set({ tmdbId: metadata.tmdbId, updatedAt: new Date() })
+    .where(eq(torrentWatchlist.id, row.id));
+
+  return metadata.tmdbId;
+}
+
+async function enrichTorrentSchedule(row: typeof torrentWatchlist.$inferSelect): Promise<TorrentScheduleMeta> {
+  const empty: TorrentScheduleMeta = {
+    digitalReleaseDate: null,
+    nextEpisodeSeason: null,
+    nextEpisodeNumber: null,
+    nextEpisodeDate: null,
+  };
+
+  const tmdbId = await resolveTmdbId(row);
+  if (!tmdbId) {
+    return empty;
+  }
+
+  if (row.type === 'tv') {
+    const episode = await getShowEpisodeForDisplay(tmdbId).catch(() => null);
+    if (!episode?.airDate) {
+      return empty;
+    }
+
+    return {
+      digitalReleaseDate: null,
+      nextEpisodeSeason: episode.season,
+      nextEpisodeNumber: episode.episode,
+      nextEpisodeDate: episode.airDate,
+    };
+  }
+
+  const digitalReleaseDate = await MovieDigitalReleaseDateService.resolveDisplay(tmdbId).catch(() => null);
+  return {
+    digitalReleaseDate,
+    nextEpisodeSeason: null,
+    nextEpisodeNumber: null,
+    nextEpisodeDate: null,
+  };
+}
 
 function parsePinnedAliases(raw: string | null | undefined): string[] {
   if (!raw) {
@@ -48,7 +129,13 @@ async function deletePinnedReleases(imdbId: string, releaseKey: string | null, a
 function mapRow(
   row: typeof torrentWatchlist.$inferSelect,
   releasesCount = 0,
-  latest: TorrentWatchlistItem['latestRelease'] = null
+  latest: TorrentWatchlistItem['latestRelease'] = null,
+  schedule: TorrentScheduleMeta = {
+    digitalReleaseDate: null,
+    nextEpisodeSeason: null,
+    nextEpisodeNumber: null,
+    nextEpisodeDate: null,
+  }
 ): TorrentWatchlistItem {
   return {
     id: row.id,
@@ -72,7 +159,20 @@ function mapRow(
     releasesCount,
     lastChecked: row.lastChecked ? row.lastChecked.toISOString() : null,
     latestRelease: latest,
+    digitalReleaseDate: schedule.digitalReleaseDate,
+    nextEpisodeSeason: schedule.nextEpisodeSeason,
+    nextEpisodeNumber: schedule.nextEpisodeNumber,
+    nextEpisodeDate: schedule.nextEpisodeDate,
   };
+}
+
+async function mapRowWithSchedule(
+  row: typeof torrentWatchlist.$inferSelect,
+  releasesCount = 0,
+  latest: TorrentWatchlistItem['latestRelease'] = null
+): Promise<TorrentWatchlistItem> {
+  const schedule = await enrichTorrentSchedule(row);
+  return mapRow(row, releasesCount, latest, schedule);
 }
 
 export class TorrentLocalStore {
@@ -83,8 +183,7 @@ export class TorrentLocalStore {
       .where(eq(torrentWatchlist.userId, userId))
       .orderBy(desc(torrentWatchlist.createdAt));
 
-    const items: TorrentWatchlistItem[] = [];
-    for (const row of rows) {
+    const items = await mapPool(rows, SCHEDULE_ENRICH_CONCURRENCY, async (row) => {
       const [countRow] = await db
         .select({ c: sql<number>`count(*)::int` })
         .from(torrentReleases)
@@ -96,8 +195,10 @@ export class TorrentLocalStore {
         .orderBy(desc(torrentReleases.createdAt))
         .limit(1);
 
-      items.push(
-        mapRow(row, Number(countRow?.c ?? 0), latest
+      return mapRowWithSchedule(
+        row,
+        Number(countRow?.c ?? 0),
+        latest
           ? {
               title: latest.title ?? '',
               quality: latest.quality,
@@ -105,9 +206,9 @@ export class TorrentLocalStore {
               currentEpisode: latest.currentEpisode,
               totalEpisodes: latest.totalEpisodes,
             }
-          : null)
+          : null
       );
-    }
+    });
 
     return items;
   }
@@ -124,7 +225,7 @@ export class TorrentLocalStore {
       .limit(1);
 
     if (existing[0]) {
-      return mapRow(existing[0]);
+      return mapRowWithSchedule(existing[0]);
     }
 
     const metadata = await findContentByImdb(imdbId).catch(() => null);
@@ -157,7 +258,7 @@ export class TorrentLocalStore {
       })
       .returning();
 
-    return mapRow(row);
+    return mapRowWithSchedule(row);
   }
 
   static async updatePreferences(
@@ -191,7 +292,7 @@ export class TorrentLocalStore {
     if (!row) {
       throw new Error('Watchlist item not found');
     }
-    return mapRow(row);
+    return mapRowWithSchedule(row);
   }
 
   static async pinRelease(
@@ -245,7 +346,7 @@ export class TorrentLocalStore {
         infoHash: nextKey,
       })
       .onConflictDoNothing();
-    return mapRow(row);
+    return mapRowWithSchedule(row);
   }
 
   static async unpinRelease(userId: number, itemId: number): Promise<TorrentWatchlistItem> {
@@ -277,7 +378,7 @@ export class TorrentLocalStore {
     if (!row) {
       throw new Error('Watchlist item not found');
     }
-    return mapRow(row);
+    return mapRowWithSchedule(row);
   }
 
   static async toggle(userId: number, itemId: number): Promise<TorrentWatchlistItem> {
@@ -297,7 +398,7 @@ export class TorrentLocalStore {
       .where(eq(torrentWatchlist.id, itemId))
       .returning();
 
-    return mapRow(updated);
+    return mapRowWithSchedule(updated);
   }
 
   static async remove(userId: number, itemId: number): Promise<void> {

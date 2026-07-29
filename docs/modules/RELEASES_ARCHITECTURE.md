@@ -16,10 +16,12 @@
 
 | Слой | Путь | Ответственность |
 |------|------|-----------------|
-| TMDB client | `src/lib/integrations/tmdb/client.ts` | Discover/upcoming, digital release dates, episodes |
+| TMDB client | `src/lib/integrations/tmdb/client.ts` | Discover/upcoming, episodes |
+| TMDB digital parse | `src/lib/integrations/tmdb/digital-release-dates.ts` | Парсинг TMDB release_dates (type-4 + SVOD type-6); см. `MOVIE_DIGITAL_RELEASE_ARCHITECTURE.md` |
+| Movie digital aggregator | `src/lib/services/movie-digital-release-date-service.ts` | Cross-source min: TMDB + Watchmode + Trakt → earliest digital |
 | TVmaze client | `src/lib/integrations/tvmaze/client.ts` | Web/broadcast schedule, lookup by IMDb, episodes (`airstamp`) |
 | Trakt client | `src/lib/integrations/trakt/client.ts` | Bulk `/calendars/all/*` (optional; `TRAKT_CLIENT_ID` = `trakt-api-key`; OAuth не нужен); 429 → `Retry-After`; обязательный `User-Agent` |
-| Watchmode client | `src/lib/integrations/watchmode/client.ts` | Digital movie date fallback (optional; `WATCHMODE_API_KEY`) |
+| Watchmode client | `src/lib/integrations/watchmode/client.ts` | Digital movie date (optional; `WATCHMODE_API_KEY`) |
 | Catalog aggregator | `src/lib/services/release-catalog-aggregator.ts` | Merge TMDB + TVmaze + Trakt → `CatalogPage`; dedup `{type}:{tmdbId}` |
 | Schedule dates | `src/lib/services/release-schedule-date-service.ts` | Единая логика дат: movie digital / show next episode |
 | Watchlist service | `src/lib/services/release-watchlist-service.ts` | CRUD + resolve dates при add |
@@ -49,13 +51,17 @@ flowchart TB
   end
   subgraph schedule [Watchlist schedule]
     SDS[ReleaseScheduleDateService]
-    TMDB2[TMDB dates]
+    MDR[MovieDigitalReleaseDateService]
+    TMDB2[TMDB]
+    WM[Watchmode]
+    TRAKT2[Trakt US]
     TVMAZE2[TVmaze episodes]
-    WM[Watchmode optional]
     WL[(release_watchlist_entries)]
-    TMDB2 --> SDS
+    TMDB2 --> MDR
+    WM --> MDR
+    TRAKT2 --> MDR
+    MDR --> SDS
     TVMAZE2 --> SDS
-    WM --> SDS
     SDS --> WL
     WL --> Dash[Dashboard 7 days]
   end
@@ -68,7 +74,7 @@ flowchart TB
 
 | Тип | Приоритет источников |
 |-----|----------------------|
-| **movie** | TMDB digital (US→RU) → Watchmode (если ключ) |
+| **movie** | `MovieDigitalReleaseDateService`: min(TMDB all digital-like, Watchmode, Trakt US) в окне |
 | **show** | TMDB episode в окне → TVmaze episodes (`airstamp`) |
 
 Точки применения: `ReleaseWatchlistService.add`, modal add, `ReleaseWatchlistRefreshService.refreshSchedules`, preview в aggregator.
@@ -114,7 +120,7 @@ Feature flag: `RELEASES_MODULE_ENABLED`. OpenAPI: `docs/openapi/releases.yaml`.
 |------------|------------|
 | `TMDB_API_KEY` | Обязателен для модуля |
 | `TRAKT_CLIENT_ID` | Опционально: bulk streaming/movie calendars |
-| `WATCHMODE_API_KEY` | Опционально: digital fallback для фильмов |
+| `WATCHMODE_API_KEY` | Опционально: digital date для фильмов (агрегатор) |
 | `RELEASES_MODULE_ENABLED` / `NEXT_PUBLIC_RELEASES_MODULE_ENABLED` | Feature flags |
 | `TMDB_UPCOMING_CACHE_TTL_MS` | TTL catalog cache |
 | `TMDB_SCHEDULE_CACHE_TTL_MS` | TTL schedule cache |

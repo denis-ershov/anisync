@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-07-29 (feat: multi-source movie digital date aggregation)
+
+**Файлы:** `movie-digital-release-date-service.ts`, `release-schedule-date-service.ts`, `torrent-local-store.ts`, `tmdb/client.ts`, `trakt/client.ts`, `tmdb/cache-keys.ts`, `movie-digital-release-date-service.test.ts`, `docs/modules/MOVIE_DIGITAL_RELEASE_ARCHITECTURE.md`, `RELEASES_ARCHITECTURE.md`.
+
+**Изменения:**
+- Единый агрегатор digital dates: TMDB (все digital-like entries по регионам) + Watchmode + Trakt US.
+- Display и schedule window: **earliest** дата среди всех источников, не «TMDB first + Watchmode fallback».
+- `ReleaseScheduleDateService.resolveMovie` и torrent enrich используют агрегатор; `source` = победивший API.
+- Cache keys `v3` для windowed movie release dates.
+
+**Обоснование:** даты нужно сравнивать между всех доступных сервисов (FNAF2 и др.), а не полагаться только на TMDB.
+
+## 2026-07-29 (fix: TMDB digital release date aggregation)
+
+**Файлы:** `tmdb/digital-release-dates.ts`, `tmdb/client.ts`, `tmdb/cache-keys.ts`, `digital-release-dates.test.ts`, `docs/modules/MOVIE_DIGITAL_RELEASE_ARCHITECTURE.md`, `RELEASES_ARCHITECTURE.md`.
+
+**Изменения:**
+- Агрегация digital: все US entries type 4 + SVOD type 6 (note с платформой); **earliest** дата.
+- Display (карточки/modal/torrent): earliest US digital без окна (FNAF2 → 2025-12-23, не 2026-08-03).
+- Catalog/schedule window: earliest US digital **внутри окна**, не «canonical вне окна → null».
+- Cache keys `v2` для сброса старых значений.
+
+**Обоснование:** показывалась поздняя digital date; реальный первый digital (US VOD) терялся.
+
+## 2026-07-29 (ui: torrent watchlist digital / premiere dates)
+
+**Файлы:** `torrent-local-store.ts`, `torrents/types.ts`, `torrents/schedule-label.ts`, `torrent-watchlist-card.tsx`, `torrent-watchlist-detail-modal.tsx`, `tmdb/client.ts`, messages.
+
+**Изменения:** при загрузке torrent watchlist TMDB enrich: фильмы — canonical digital date; сериалы — премьера сезона / следующий эпизод. Даты на карточке и в модалке.
+
+**Обоснование:** в torrent watchlist не было понятно, когда ждать цифровой релиз.
+
 ## 2026-07-29 (ui: Releases digital / season premiere dates)
 
 **Файлы:** `release-content-card.tsx`, `release-detail-modal.tsx`, `release-schedule-item.tsx`, `modules/releases/utils.ts`, `tmdb/client.ts` (`getContentDetail`, episode sort), messages.

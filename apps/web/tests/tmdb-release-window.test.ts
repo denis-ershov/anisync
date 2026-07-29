@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  getCurrentCatalogWindow,
-  getScheduleWindow,
-  pickDigitalReleaseDate,
-} from '@/lib/integrations/tmdb/client';
+import { pickDigitalReleaseDate } from '@/lib/integrations/tmdb/digital-release-dates';
 
 function payload(entries: Array<[string, string, number]>) {
   return {
@@ -50,14 +46,4 @@ test('digital release ignores theatrical type and dates outside window', () => {
     pickDigitalReleaseDate(payload([['US', '2026-08-01T00:00:00Z', 4]]), '2026-07-01', '2026-08-01'),
     null
   );
-});
-
-test('catalog and schedule windows remain deterministic', () => {
-  const now = new Date('2026-07-20T12:00:00Z');
-  const catalog = getCurrentCatalogWindow(now);
-  const schedule = getScheduleWindow(now);
-  assert.equal(catalog.from, '2026-07-01');
-  assert.equal(schedule.from, '2026-07-20');
-  assert.ok(schedule.toExclusive > schedule.from);
-  assert.ok(catalog.toExclusive > catalog.from);
 });

@@ -156,3 +156,35 @@ export async function getShowsCalendar(startDate: string, days: number): Promise
   await cacheWrite(key, items, CALENDAR_CACHE_TTL_MS);
   return items;
 }
+
+export type TraktMovieRelease = {
+  country: string;
+  certification?: string;
+  release_date: string;
+  release_type: 'digital' | 'theatrical' | 'physical' | 'premiere' | 'limited' | 'tv' | 'unknown';
+  note?: string | null;
+};
+
+/** GET /movies/tmdb:{id}/releases/{country} — digital release dates (US default). */
+export async function getMovieDigitalReleaseDatesByTmdb(
+  tmdbId: number,
+  country = 'us',
+): Promise<string[]> {
+  const key = `trakt:movie-digital-releases:${tmdbId}:${country}`;
+  const cached = await cacheRead<{ value: string[] }>(key);
+  if (cached) {
+    return cached.value;
+  }
+
+  const items =
+    (await getJson<TraktMovieRelease[]>(`/movies/tmdb:${tmdbId}/releases/${country}`)) ?? [];
+
+  const dates = items
+    .filter((item) => item.release_type === 'digital')
+    .map((item) => item.release_date?.slice(0, 10))
+    .filter((date): date is string => Boolean(date))
+    .sort((a, b) => a.localeCompare(b));
+
+  await cacheWrite(key, { value: dates }, CALENDAR_CACHE_TTL_MS);
+  return dates;
+}
