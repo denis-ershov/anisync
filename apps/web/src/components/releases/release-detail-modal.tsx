@@ -26,6 +26,10 @@ import {
   useUpdateReleaseWatchlistItem,
 } from '@/lib/releases/hooks';
 import type { ReleaseWatchlistStatus } from '@/lib/releases/types';
+import {
+  formatReleaseDateLabel,
+  isSeasonPremiere,
+} from '@/modules/releases/utils';
 import { useAddTorrentWatchlistItem, useTorrentWatchlist } from '@/lib/torrents/hooks';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
@@ -128,6 +132,31 @@ export function ReleaseDetailModal() {
   const posterUrl = display?.posterPath ? `${TMDB_IMAGE_BASE}${display.posterPath}` : null;
   const durationLabel = formatDuration(detail?.duration, t);
 
+  // Digital / schedule dates живут в catalog/watchlist item; detail API для movie теперь тоже digital.
+  const contentTypeResolved = selectedItem?.type ?? display?.type ?? null;
+  const digitalReleaseDate =
+    contentTypeResolved === 'movie'
+      ? selectedItem?.releaseDate ?? watchlistItem?.releaseDate ?? detail?.releaseDate ?? null
+      : null;
+  const digitalReleaseLabel = formatReleaseDateLabel(digitalReleaseDate, locale);
+
+  const nextEpisode =
+    contentTypeResolved === 'show'
+      ? selectedItem?.nextEpisode ??
+        (watchlistItem?.nextEpisodeDate && watchlistItem.nextEpisodeSeason && watchlistItem.nextEpisodeNumber
+          ? {
+              season: watchlistItem.nextEpisodeSeason,
+              episode: watchlistItem.nextEpisodeNumber,
+              airDate: watchlistItem.nextEpisodeDate,
+              title: null,
+            }
+          : null) ??
+        detail?.nextEpisode ??
+        null
+      : null;
+  const nextEpisodeDateLabel = formatReleaseDateLabel(nextEpisode?.airDate, locale);
+  const nextEpisodeIsPremiere = isSeasonPremiere(nextEpisode?.episode);
+
   const handleStatus = async (status: ReleaseWatchlistStatus) => {
     if (!display) {
       return;
@@ -149,10 +178,13 @@ export function ReleaseDetailModal() {
           genre: display.genre,
           genreRu: display.genreRu,
           year: display.year,
-          releaseDate: display.releaseDate,
-          nextEpisodeSeason: display.nextEpisode?.season ?? null,
-          nextEpisodeNumber: display.nextEpisode?.episode ?? null,
-          nextEpisodeDate: display.nextEpisode?.airDate ?? null,
+          releaseDate:
+            display.type === 'movie'
+              ? digitalReleaseDate ?? display.releaseDate
+              : display.releaseDate,
+          nextEpisodeSeason: nextEpisode?.season ?? display.nextEpisode?.season ?? null,
+          nextEpisodeNumber: nextEpisode?.episode ?? display.nextEpisode?.episode ?? null,
+          nextEpisodeDate: nextEpisode?.airDate ?? display.nextEpisode?.airDate ?? null,
         });
       }
 
@@ -238,6 +270,37 @@ export function ReleaseDetailModal() {
                 </DialogDescription>
               </DialogHeader>
 
+              {(digitalReleaseLabel || nextEpisode) && (
+                <div className="space-y-3">
+                  {digitalReleaseLabel ? (
+                    <div className="rounded-xl border bg-card/60 px-4 py-3 text-sm">
+                      <p className="font-medium">{t('detail.digitalRelease')}</p>
+                      <p className="text-muted-foreground">{digitalReleaseLabel}</p>
+                    </div>
+                  ) : null}
+
+                  {nextEpisode ? (
+                    <div className="rounded-xl border bg-card/60 px-4 py-3 text-sm">
+                      <p className="font-medium">
+                        {nextEpisodeIsPremiere ? t('detail.seasonPremiere') : t('detail.nextEpisode')}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {nextEpisodeIsPremiere
+                          ? t('detail.seasonPremiereLine', {
+                              season: nextEpisode.season,
+                              date: nextEpisodeDateLabel ?? '—',
+                            })
+                          : t('detail.nextEpisodeLine', {
+                              season: nextEpisode.season,
+                              episode: nextEpisode.episode,
+                              date: nextEpisodeDateLabel ?? '—',
+                            })}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
               {detailLoading ? (
                 <div className="flex items-center justify-center py-8 text-muted-foreground">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -245,21 +308,6 @@ export function ReleaseDetailModal() {
                 </div>
               ) : (
                 <>
-                  {display.nextEpisode ? (
-                    <div className="rounded-xl border bg-card/60 px-4 py-3 text-sm">
-                      <p className="font-medium">{t('detail.nextEpisode')}</p>
-                      <p className="text-muted-foreground">
-                        {t('dashboard.episode', {
-                          season: display.nextEpisode.season,
-                          episode: display.nextEpisode.episode,
-                        })}
-                        {display.nextEpisode.airDate
-                          ? ` · ${display.nextEpisode.airDate}`
-                          : null}
-                      </p>
-                    </div>
-                  ) : null}
-
                   {overview ? (
                     <div className="space-y-2">
                       <h3 className="text-sm font-semibold">{t('detail.overview')}</h3>

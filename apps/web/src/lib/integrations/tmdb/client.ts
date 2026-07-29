@@ -397,6 +397,10 @@ async function getShowEpisodeInRange(
 
   const selected = matchedEpisodes
     .sort((a, b) => {
+      // В Releases приоритет — премьера сезона (E1), затем ближайшая дата.
+      const aPremiere = a.episode_number === 1 ? 0 : 1;
+      const bPremiere = b.episode_number === 1 ? 0 : 1;
+      if (aPremiere !== bPremiere) return aPremiere - bPremiere;
       const dateCompare = (a.air_date ?? "9999").localeCompare(b.air_date ?? "9999");
       if (dateCompare !== 0) return dateCompare;
       if (a.season_number !== b.season_number) return a.season_number - b.season_number;
@@ -815,8 +819,23 @@ export async function getContentDetail(tmdbId: number, type: "movie" | "show", l
 
   const title = (type === "movie" ? detail.title : detail.name) ?? "";
   const titleEn = detailEn ? (type === "movie" ? detailEn.title : detailEn.name) ?? title : title;
-  const releaseDate = type === "movie" ? detail.release_date : detail.first_air_date;
-  const year = releaseDate ? new Date(releaseDate).getFullYear() : null;
+  let nextEpisode: { season: number; episode: number; airDate: string | null; title: string | null } | null = null;
+  let releaseDate = type === "movie" ? detail.release_date : detail.first_air_date;
+
+  if (type === "show") {
+    const { from, toExclusive } = getScheduleWindow();
+    nextEpisode = await getShowEpisodeInRange(tmdbId, detail, lang, from, toExclusive);
+  } else {
+    const { from, toExclusive } = getCurrentCatalogWindow();
+    const digital = await getMovieDigitalReleaseDate(tmdbId, from, toExclusive).catch(() => null);
+    if (digital) {
+      releaseDate = digital;
+    }
+  }
+
+  const year = (type === "movie" ? detail.release_date : detail.first_air_date)
+    ? new Date((type === "movie" ? detail.release_date : detail.first_air_date) as string).getFullYear()
+    : null;
 
   const genres = detail.genres ?? [];
   const genre = genres.map(g => g.name).slice(0, 2).join(", ") || null;
@@ -833,12 +852,6 @@ export async function getContentDetail(tmdbId: number, type: "movie" | "show", l
 
   const trailer =
     detail.videos?.results?.find(v => v.site === "YouTube" && v.type === "Trailer")?.key ?? null;
-
-  let nextEpisode: { season: number; episode: number; airDate: string | null; title: string | null } | null = null;
-  if (type === "show") {
-    const { from, toExclusive } = getScheduleWindow();
-    nextEpisode = await getShowEpisodeInRange(tmdbId, detail, lang, from, toExclusive);
-  }
 
   return {
     tmdbId: detail.id,

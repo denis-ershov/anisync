@@ -57,11 +57,19 @@ export function ReleaseScheduleItem({ item, dateKey, className }: ReleaseSchedul
         </div>
         <p className="text-xs text-muted-foreground">
           {item.type === 'show' && item.nextEpisodeSeason && item.nextEpisodeNumber
-            ? t('dashboard.episode', {
-                season: item.nextEpisodeSeason,
-                episode: item.nextEpisodeNumber,
-              })
-            : t('dashboard.releaseOn', { date: scheduleDate ? formatFullDate(scheduleDate, locale) : dateKey })}
+            ? item.nextEpisodeNumber === 1
+              ? t('card.seasonPremiere', {
+                  season: item.nextEpisodeSeason,
+                  date: scheduleDate ? formatFullDate(scheduleDate, locale) : dateKey,
+                })
+              : t('card.nextEpisode', {
+                  season: item.nextEpisodeSeason,
+                  episode: item.nextEpisodeNumber,
+                  date: scheduleDate ? formatFullDate(scheduleDate, locale) : dateKey,
+                })
+            : t('dashboard.releaseOn', {
+                date: scheduleDate ? formatFullDate(scheduleDate, locale) : dateKey,
+              })}
         </p>
         {item.rating ? (
           <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">

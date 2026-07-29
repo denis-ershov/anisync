@@ -498,6 +498,12 @@
       "grid": "Сетка",
       "list": "Список"
     },
+    "card": {
+      "digitalRelease": "Цифровой · {date}",
+      "premiere": "Премьера · {date}",
+      "seasonPremiere": "S{season} премьера · {date}",
+      "nextEpisode": "S{season}E{episode} · {date}"
+    },
     "errors": {
       "loadFailed": "Не удалось загрузить данные релизов.",
       "watchlistFailed": "Не удалось обновить список.",
@@ -533,7 +539,11 @@
       "loadFailed": "Не удалось загрузить детали",
       "statusUpdated": "Список обновлён",
       "removed": "Удалено из списка",
+      "digitalRelease": "Цифровой релиз",
       "nextEpisode": "Следующий эпизод",
+      "seasonPremiere": "Премьера сезона",
+      "nextEpisodeLine": "S{season} · E{episode} · {date}",
+      "seasonPremiereLine": "Сезон {season} · {date}",
       "minutes": "{count} мин"
     }
   },

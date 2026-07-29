@@ -73,7 +73,9 @@ flowchart TB
 
 Точки применения: `ReleaseWatchlistService.add`, modal add, `ReleaseWatchlistRefreshService.refreshSchedules`, preview в aggregator.
 
-**TZ:** в БД ISO/date strings; UI группирует по `localDateKey(new Date(instant))` в локали браузера.
+**TZ:** в БД ISO/date strings; UI группирует по `zonedDateKey` / `calendarDateKey`. На карточке Discover/Watchlist и в модалке:
+- **movie** — `releaseDate` (цифровой);
+- **show** — `nextEpisode` (премьера сезона при E1, иначе S·E + дата).
 
 ---
 

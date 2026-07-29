@@ -498,6 +498,12 @@
       "grid": "Grid",
       "list": "List"
     },
+    "card": {
+      "digitalRelease": "Digital · {date}",
+      "premiere": "Premiere · {date}",
+      "seasonPremiere": "S{season} premiere · {date}",
+      "nextEpisode": "S{season}E{episode} · {date}"
+    },
     "errors": {
       "loadFailed": "Failed to load releases data.",
       "watchlistFailed": "Failed to update watchlist.",
@@ -533,7 +539,11 @@
       "loadFailed": "Failed to load details",
       "statusUpdated": "Watchlist updated",
       "removed": "Removed from watchlist",
+      "digitalRelease": "Digital release",
       "nextEpisode": "Next episode",
+      "seasonPremiere": "Season premiere",
+      "nextEpisodeLine": "S{season} · E{episode} · {date}",
+      "seasonPremiereLine": "Season {season} · {date}",
       "minutes": "{count} min"
     }
   },

@@ -28,6 +28,33 @@ export function formatFullDate(dateKey: string, locale: string) {
   });
 }
 
+/** Нормализует YYYY-MM-DD или ISO-instant к календарному ключу YYYY-MM-DD. */
+export function calendarDateKey(raw: string | null | undefined, timeZone?: string | null): string | null {
+  if (!raw) {
+    return null;
+  }
+
+  if (raw.includes('T') || raw.endsWith('Z')) {
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    return zonedDateKey(date, timeZone);
+  }
+
+  const key = raw.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(key) ? key : null;
+}
+
+export function formatReleaseDateLabel(raw: string | null | undefined, locale: string, timeZone?: string | null) {
+  const key = calendarDateKey(raw, timeZone);
+  return key ? formatFullDate(key, locale) : null;
+}
+
+export function isSeasonPremiere(episode: number | null | undefined) {
+  return episode === 1;
+}
+
 export function scheduleDateOf(
   item: ReleaseWatchlistItem,
   timeZone?: string | null

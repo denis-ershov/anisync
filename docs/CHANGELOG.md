@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-07-29 (ui: Releases digital / season premiere dates)
+
+**Файлы:** `release-content-card.tsx`, `release-detail-modal.tsx`, `release-schedule-item.tsx`, `modules/releases/utils.ts`, `tmdb/client.ts` (`getContentDetail`, episode sort), messages.
+
+**Изменения:**
+- На карточке и в модалке фильмов показывается дата **цифрового** релиза.
+- Для сериалов — дата премьеры сезона (E1) или ближайшего эпизода с читаемой подписью.
+- `getContentDetail` для movie подставляет digital date; при выборе эпизода TMDB приоритет у E1.
+
+**Обоснование:** без даты на карточке/в модалке непонятно что и когда выходит.
+
+## 2026-07-29 (ui: integration service logos)
+
+**Файлы:** `integration-service-icon.tsx`, `settings/integrations/page.tsx`, `public/icons/{anilist,myanimelist,shikimori}.svg`.
+
+**Изменения:** в настройках интеграций inline SVG заменены на актуальные логотипы из `public/icons/` через общий компонент `IntegrationServiceIcon`.
+
+**Обоснование:** единые брендированные иконки MAL / AniList / Shikimori в разделе подключения и выбора primary/secondary.
+
 ## 2026-07-29 (ui: torrent watchlist cards + detail modal)
 
 **Файлы:** `torrent-watchlist-card.tsx`, `torrent-watchlist-detail-modal.tsx`, `torrents-watchlist-view.tsx`, `torrent-preferences-dialog.tsx`, messages.

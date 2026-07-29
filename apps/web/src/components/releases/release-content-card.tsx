@@ -8,6 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { ReleaseCatalogItem, ReleaseWatchlistStatus } from '@/lib/releases/types';
+import {
+  formatReleaseDateLabel,
+  isSeasonPremiere,
+} from '@/modules/releases/utils';
 import { cn } from '@/lib/utils';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342';
@@ -48,6 +52,34 @@ export function ReleaseContentCard({
 
   const statusLabel = watchlistStatus ? t(`status.${watchlistStatus}`) : t('status.add');
   const StatusIcon = watchlistStatus ? STATUS_ICONS[watchlistStatus] : Plus;
+
+  const scheduleLabel = (() => {
+    if (item.type === 'movie') {
+      const dateLabel = formatReleaseDateLabel(item.releaseDate, locale);
+      return dateLabel ? t('card.digitalRelease', { date: dateLabel }) : null;
+    }
+
+    const next = item.nextEpisode;
+    if (!next?.airDate) {
+      const dateLabel = formatReleaseDateLabel(item.releaseDate, locale);
+      return dateLabel ? t('card.premiere', { date: dateLabel }) : null;
+    }
+
+    const dateLabel = formatReleaseDateLabel(next.airDate, locale);
+    if (!dateLabel) {
+      return null;
+    }
+
+    if (isSeasonPremiere(next.episode)) {
+      return t('card.seasonPremiere', { season: next.season, date: dateLabel });
+    }
+
+    return t('card.nextEpisode', {
+      season: next.season,
+      episode: next.episode,
+      date: dateLabel,
+    });
+  })();
 
   return (
     <Card
@@ -96,7 +128,7 @@ export function ReleaseContentCard({
               <Star className="h-3.5 w-3.5 text-amber-400" />
               {item.rating && item.rating > 0 ? item.rating.toFixed(1) : '—'}
             </span>
-            <span>{item.year ?? '—'}</span>
+            <span className="min-w-0 truncate text-right">{scheduleLabel ?? (item.year ?? '—')}</span>
           </div>
         </CardContent>
       </button>
