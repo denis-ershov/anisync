@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, LayoutGrid, List, Search, SlidersHorizontal } from 'lucide-react';
+import { LayoutGrid, List, Search, SlidersHorizontal } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { ReleaseContentCard } from '@/components/releases/release-content-card';
 import { useReleasesModule } from '@/components/releases/releases-module-context';
 import { Button } from '@/components/ui/button';
+import { CatalogPaginationBar } from '@/components/ui/catalog-pagination-bar';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -34,6 +35,12 @@ import {
 } from '@/lib/releases/hooks';
 import type { ReleaseCatalogItem, ReleaseWatchlistItem } from '@/lib/releases/types';
 import { getNextWatchlistStatus } from '@/lib/releases/utils';
+import {
+  catalogCardGridClassName,
+  catalogListGridClassName,
+  DEFAULT_CATALOG_PAGE_SIZE,
+  type CatalogPageSize,
+} from '@/lib/ui/catalog-pagination';
 import { cn } from '@/lib/utils';
 
 type CatalogType = 'all' | 'movie' | 'show';
@@ -114,7 +121,7 @@ export function ReleasesDiscoverView() {
   const [sort, setSort] = useState<CatalogSort>('popularity');
   const [genreId, setGenreId] = useState<string>('all');
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(24);
+  const [pageSize, setPageSize] = useState<CatalogPageSize>(DEFAULT_CATALOG_PAGE_SIZE);
   const [actionError, setActionError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [layout, setLayout] = useState<'grid' | 'list'>('grid');
@@ -169,6 +176,9 @@ export function ReleasesDiscoverView() {
   const items = isSearchMode ? (searchResults ?? []) : (catalog?.items ?? []);
   const hasNextPage = isSearchMode ? false : (catalog?.hasNextPage ?? false);
   const hasPreviousPage = isSearchMode ? false : (catalog?.hasPreviousPage ?? false);
+  const totalPages = isSearchMode ? undefined : catalog?.totalPages;
+
+  const cardsGridClass = layout === 'grid' ? catalogCardGridClassName : catalogListGridClassName;
 
   const watchlistMap = useMemo(() => {
     const map = new Map<string, ReleaseWatchlistItem>();
@@ -214,6 +224,11 @@ export function ReleasesDiscoverView() {
     } catch (actionErr) {
       setActionError(actionErr instanceof Error ? actionErr.message : t('errors.watchlistFailed'));
     }
+  };
+
+  const handlePageSizeChange = (nextSize: CatalogPageSize) => {
+    setPageSize(nextSize);
+    setPage(1);
   };
 
   return (
@@ -298,15 +313,15 @@ export function ReleasesDiscoverView() {
       {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
 
       {loading ? (
-        <div className={cn('grid gap-3', layout === 'grid' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6' : 'grid-cols-1 lg:grid-cols-2')}>
-          {Array.from({ length: 12 }).map((_, index) => (
+        <div className={cardsGridClass}>
+          {Array.from({ length: Math.min(pageSize, 10) }).map((_, index) => (
             <Skeleton key={index} className="aspect-[2/3] w-full rounded-xl" />
           ))}
         </div>
       ) : items.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">{t('emptyCatalog')}</p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <div className={cardsGridClass}>
           {items.map((item) => {
             const watchlistItem = watchlistMap.get(`${item.tmdbId}:${item.type}`);
             return (
@@ -324,29 +339,15 @@ export function ReleasesDiscoverView() {
       )}
 
       {!isSearchMode ? (
-        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 w-full sm:w-auto"
-            disabled={!hasPreviousPage}
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            {t('pagination.prev')}
-          </Button>
-          <span className="text-center text-sm text-muted-foreground">{t('pagination.page', { page })}</span>
-          <Button
-            type="button"
-            variant="outline"
-            className="min-h-11 w-full sm:w-auto"
-            disabled={!hasNextPage}
-            onClick={() => setPage((value) => value + 1)}
-          >
-            {t('pagination.next')}
-            <ChevronRight className="ml-1 h-4 w-4" />
-          </Button>
-        </div>
+        <CatalogPaginationBar
+          page={page}
+          pageSize={pageSize}
+          hasPreviousPage={hasPreviousPage}
+          hasNextPage={hasNextPage}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
       ) : null}
     </div>
   );

@@ -3,6 +3,7 @@ import type { CatalogOptions, UpcomingCatalogResult } from '@/lib/integrations/t
 import {
   getUpcoming,
   getScheduleWindow,
+  getCurrentCatalogWindow,
   findContentByImdb,
   getContentDetail,
   paginateCatalogItems,
@@ -21,7 +22,6 @@ const log = createLogger('services:release-catalog-aggregator');
 
 const MERGED_CACHE_TTL_MS = Number.parseInt(process.env.RELEASES_MERGED_CATALOG_TTL_MS ?? '1800000', 10);
 const TVMAZE_COUNTRY = process.env.TVMAZE_SCHEDULE_COUNTRY ?? 'RU';
-const CATALOG_DAYS = Number.parseInt(process.env.RELEASES_CATALOG_WINDOW_DAYS ?? '14', 10);
 const TMDB_ENRICH_CONCURRENCY = 6;
 
 type NormalizedItem = UpcomingCatalogResult['items'][number] & { imdbId?: string | null };
@@ -33,14 +33,45 @@ function dateOnly(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function rollingWindow(now = new Date()) {
-  const fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const toExclusiveDate = new Date(fromDate);
-  toExclusiveDate.setDate(fromDate.getDate() + CATALOG_DAYS);
+function daysBetween(from: string, toExclusive: string): number {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${toExclusive}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return 1;
+  }
+  return Math.max(1, Math.round((end - start) / 86_400_000));
+}
+
+/**
+ * Окно Discover-каталога.
+ * По умолчанию — текущий + следующий календарный месяц (как TMDB getUpcoming).
+ * Если задан RELEASES_CATALOG_WINDOW_DAYS — rolling N дней от сегодня.
+ */
+export function resolveCatalogWindow(now = new Date()) {
+  const rawDays = process.env.RELEASES_CATALOG_WINDOW_DAYS;
+  if (rawDays != null && rawDays !== '') {
+    const days = Number.parseInt(rawDays, 10);
+    if (Number.isFinite(days) && days > 0) {
+      const fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const toExclusiveDate = new Date(fromDate);
+      toExclusiveDate.setDate(fromDate.getDate() + days);
+      const toInclusiveDate = new Date(toExclusiveDate);
+      toInclusiveDate.setDate(toExclusiveDate.getDate() - 1);
+      return {
+        from: dateOnly(fromDate),
+        toInclusive: dateOnly(toInclusiveDate),
+        toExclusive: dateOnly(toExclusiveDate),
+        days,
+      };
+    }
+  }
+
+  const { from, toInclusive, toExclusive } = getCurrentCatalogWindow(now);
   return {
-    from: dateOnly(fromDate),
-    toExclusive: dateOnly(toExclusiveDate),
-    days: CATALOG_DAYS,
+    from,
+    toInclusive,
+    toExclusive,
+    days: daysBetween(from, toExclusive),
   };
 }
 
@@ -375,19 +406,23 @@ export class ReleaseCatalogAggregator {
     const sort = options.sort ?? 'popularity';
     const genreId = options.genreId && options.genreId > 0 ? Math.floor(options.genreId) : null;
 
-    const { from, toExclusive, days } = rollingWindow();
-    const cacheKey = `releases:catalog:merged:v2:${lang}:${type}:${sort}:${genreId ?? 0}:${page}:${pageSize}:${from}:${toExclusive}`;
+    const { from, toExclusive, days } = resolveCatalogWindow();
+    const cacheKey = `releases:catalog:merged:v3:${lang}:${type}:${sort}:${genreId ?? 0}:${page}:${pageSize}:${from}:${toExclusive}`;
     const cached = await cacheRead<UpcomingCatalogResult>(cacheKey);
     if (cached) {
       return cached;
     }
 
+    // Тянем на одну страницу вперёд, чтобы hasNextPage был честным после merge/filter.
+    const tmdbPoolSize = Math.max(pageSize * (page + 1), 50);
     const tmdb = await getUpcoming(lang, {
       page: 1,
-      pageSize: Math.max(pageSize * page, 50),
+      pageSize: tmdbPoolSize,
       type,
       sort,
       genreId: genreId ?? undefined,
+      from,
+      toExclusive,
     });
 
     const [tvmazeItems, traktItems] = await Promise.all([
@@ -478,7 +513,7 @@ export class ReleaseCatalogAggregator {
 
 /** Expose window for tests / schedule alignment. */
 export function getCatalogRollingWindow(now = new Date()) {
-  return rollingWindow(now);
+  return resolveCatalogWindow(now);
 }
 
 export function getReleasesScheduleWindow(now = new Date()) {

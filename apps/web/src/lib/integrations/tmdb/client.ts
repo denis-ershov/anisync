@@ -466,6 +466,10 @@ export interface CatalogOptions {
   type?: CatalogTypeFilter;
   sort?: CatalogSort;
   genreId?: number;
+  /** Inclusive YYYY-MM-DD; defaults to getCurrentCatalogWindow().from */
+  from?: string;
+  /** Exclusive YYYY-MM-DD; defaults to getCurrentCatalogWindow().toExclusive */
+  toExclusive?: string;
 }
 
 async function loadUpcomingShows(
@@ -667,6 +671,19 @@ export function getCurrentCatalogWindow(now = new Date()) {
   return { from, toInclusive, toExclusive };
 }
 
+function resolveUpcomingWindow(options: CatalogOptions) {
+  if (options.from && options.toExclusive && options.from < options.toExclusive) {
+    const exclusive = new Date(`${options.toExclusive}T00:00:00`);
+    exclusive.setDate(exclusive.getDate() - 1);
+    return {
+      from: options.from,
+      toInclusive: dateOnly(exclusive),
+      toExclusive: options.toExclusive,
+    };
+  }
+  return getCurrentCatalogWindow();
+}
+
 export function getScheduleWindow(now = new Date()) {
   const fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const toExclusiveDate = new Date(fromDate);
@@ -744,14 +761,14 @@ export async function getUpcoming(lang = "en", options: CatalogOptions = {}): Pr
   const type = options.type ?? "all";
   const sort = options.sort ?? "popularity";
   const genreId = clampGenreId(options.genreId);
-  const cacheKey = buildUpcomingCacheKey(lang, { page, pageSize, type, sort, genreId });
+  const { from, toInclusive, toExclusive } = resolveUpcomingWindow(options);
+  const cacheKey = buildUpcomingCacheKey(lang, { page, pageSize, type, sort, genreId, from, toExclusive });
   const cached = await cacheRead<UpcomingCatalogResult>(cacheKey);
   if (cached) {
     return cached;
   }
 
   const tmdbLang = lang === "ru" ? "ru-RU" : "en-US";
-  const { from, toInclusive, toExclusive } = getCurrentCatalogWindow();
   const fetchMovies = type === "all" || type === "movie";
   const fetchShows = type === "all" || type === "show";
   const pageEnd = page * pageSize;

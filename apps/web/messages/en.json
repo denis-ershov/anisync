@@ -43,6 +43,13 @@
     "notificationsLoading": "Loading…",
     "markAllRead": "Mark all read"
   },
+  "CatalogPagination": {
+    "prev": "Previous",
+    "next": "Next",
+    "page": "Page {page}",
+    "pageOf": "Page {page} / {total}",
+    "pageSize": "Page size"
+  },
   "Auth": {
     "loginTitle": "Sign In",
     "loginDescription": "Enter your credentials to access your account",

@@ -81,7 +81,7 @@ export function TorrentWatchlistCard({ item }: TorrentWatchlistCardProps) {
     <TorrentWatchlistDetailModal item={item}>
       <Card
         className={cn(
-          'group overflow-hidden border-border/70 bg-card/70 transition-colors',
+          'group h-full overflow-hidden border-border/70 bg-card/70 transition-colors',
           'hover:border-primary/30 hover:bg-card/90 cursor-pointer'
         )}
       >
@@ -93,7 +93,7 @@ export function TorrentWatchlistCard({ item }: TorrentWatchlistCardProps) {
                 alt=""
                 fill
                 className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                sizes="(max-width: 640px) 100vw, 20vw"
                 loading="lazy"
               />
             ) : (

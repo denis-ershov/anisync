@@ -1,7 +1,7 @@
 # Архитектура модуля Releases
 
-> **Версия:** 1.2  
-> **Дата:** 2026-07-29  
+> **Версия:** 1.3  
+> **Дата:** 2026-08-05  
 > **Источник:** порт логики OnTrash / NextScene + multi-API catalog/schedule
 
 ---
@@ -16,13 +16,13 @@
 
 | Слой | Путь | Ответственность |
 |------|------|-----------------|
-| TMDB client | `src/lib/integrations/tmdb/client.ts` | Discover/upcoming, episodes |
+| TMDB client | `src/lib/integrations/tmdb/client.ts` | Discover/upcoming, episodes; окно дат через `from`/`toExclusive` |
 | TMDB digital parse | `src/lib/integrations/tmdb/digital-release-dates.ts` | Парсинг TMDB release_dates (type-4 + SVOD type-6); см. `MOVIE_DIGITAL_RELEASE_ARCHITECTURE.md` |
 | Movie digital aggregator | `src/lib/services/movie-digital-release-date-service.ts` | Cross-source min: TMDB + Watchmode + Trakt → earliest digital |
 | TVmaze client | `src/lib/integrations/tvmaze/client.ts` | Web/broadcast schedule, lookup by IMDb, episodes (`airstamp`) |
 | Trakt client | `src/lib/integrations/trakt/client.ts` | Bulk `/calendars/all/*` (optional; `TRAKT_CLIENT_ID` = `trakt-api-key`; OAuth не нужен); 429 → `Retry-After`; обязательный `User-Agent` |
 | Watchmode client | `src/lib/integrations/watchmode/client.ts` | Digital movie date (optional; `WATCHMODE_API_KEY`) |
-| Catalog aggregator | `src/lib/services/release-catalog-aggregator.ts` | Merge TMDB + TVmaze + Trakt → `CatalogPage`; dedup `{type}:{tmdbId}` |
+| Catalog aggregator | `src/lib/services/release-catalog-aggregator.ts` | Merge TMDB + TVmaze + Trakt → `CatalogPage`; dedup `{type}:{tmdbId}`; **то же окно дат**, что и TMDB fetch |
 | Schedule dates | `src/lib/services/release-schedule-date-service.ts` | Единая логика дат: movie digital / show next episode |
 | Watchlist service | `src/lib/services/release-watchlist-service.ts` | CRUD + resolve dates при add |
 | Watchlist refresh | `src/lib/services/release-watchlist-refresh-service.ts` | Batch refresh movies **и** shows |
@@ -122,6 +122,7 @@ Feature flag: `RELEASES_MODULE_ENABLED`. OpenAPI: `docs/openapi/releases.yaml`.
 | `TRAKT_CLIENT_ID` | Опционально: bulk streaming/movie calendars |
 | `WATCHMODE_API_KEY` | Опционально: digital date для фильмов (агрегатор) |
 | `RELEASES_MODULE_ENABLED` / `NEXT_PUBLIC_RELEASES_MODULE_ENABLED` | Feature flags |
+| `RELEASES_CATALOG_WINDOW_DAYS` | Опционально: rolling N дней для Discover. Если **не задан** — окно = текущий + следующий календарный месяц (как TMDB) |
 | `TMDB_UPCOMING_CACHE_TTL_MS` | TTL catalog cache |
 | `TMDB_SCHEDULE_CACHE_TTL_MS` | TTL schedule cache |
 | `RELEASES_WATCHLIST_STALE_MS` | Порог refresh watchlist |

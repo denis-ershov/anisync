@@ -1,8 +1,16 @@
 import type { CatalogOptions, CatalogSort, CatalogTypeFilter } from '@/lib/integrations/tmdb/client';
 
-export function buildUpcomingCacheKey(lang: string, options: Required<Pick<CatalogOptions, 'page' | 'pageSize' | 'type' | 'sort'>> & { genreId: number | null }) {
+export function buildUpcomingCacheKey(
+  lang: string,
+  options: Required<Pick<CatalogOptions, 'page' | 'pageSize' | 'type' | 'sort'>> & {
+    genreId: number | null;
+    from?: string;
+    toExclusive?: string;
+  },
+) {
   const genre = options.genreId ?? 0;
-  return `tmdb:upcoming:${lang}:${options.type}:${options.sort}:${genre}:${options.page}:${options.pageSize}`;
+  const window = options.from && options.toExclusive ? `${options.from}:${options.toExclusive}` : 'default';
+  return `tmdb:upcoming:v2:${lang}:${options.type}:${options.sort}:${genre}:${options.page}:${options.pageSize}:${window}`;
 }
 
 export function buildDetailCacheKey(tmdbId: number, tmdbLang: string) {

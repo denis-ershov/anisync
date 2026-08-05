@@ -5,7 +5,7 @@ import { ReleaseCatalogAggregator } from '@/lib/services/release-catalog-aggrega
 
 const log = createLogger('services:releases-precompute');
 
-const DEFAULT_PAGE_SIZE = 24;
+const DEFAULT_PAGE_SIZE = 25;
 
 export class ReleasesPrecomputeService {
   static async warmUpcomingCatalog(pageSize = DEFAULT_PAGE_SIZE) {

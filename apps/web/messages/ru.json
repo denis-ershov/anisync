@@ -43,6 +43,13 @@
     "notificationsLoading": "Загрузка…",
     "markAllRead": "Прочитать все"
   },
+  "CatalogPagination": {
+    "prev": "Назад",
+    "next": "Далее",
+    "page": "Страница {page}",
+    "pageOf": "Страница {page} / {total}",
+    "pageSize": "Размер страницы"
+  },
   "Auth": {
     "loginTitle": "Войти",
     "loginDescription": "Введите свои данные для входа в аккаунт",

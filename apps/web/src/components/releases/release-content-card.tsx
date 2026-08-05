@@ -84,7 +84,7 @@ export function ReleaseContentCard({
   return (
     <Card
       className={cn(
-        'overflow-hidden border-border/70 bg-card/60',
+        'h-full overflow-hidden border-border/70 bg-card/60',
         layout === 'list' && 'flex items-stretch',
         className
       )}
@@ -106,7 +106,7 @@ export function ReleaseContentCard({
           )}
         >
           {posterUrl ? (
-            <Image src={posterUrl} alt={title} fill className="object-cover" sizes="(max-width: 768px) 50vw, 200px" />
+            <Image src={posterUrl} alt={title} fill className="object-cover" sizes="(max-width: 640px) 100vw, 20vw" />
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground">
               {item.type === 'movie' ? <Film className="h-10 w-10" /> : <Tv className="h-10 w-10" />}

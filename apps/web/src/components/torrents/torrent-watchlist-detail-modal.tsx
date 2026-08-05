@@ -95,7 +95,9 @@ export function TorrentWatchlistDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger asChild className="h-full">
+        {children}
+      </DialogTrigger>
       <DialogContent className="max-h-[min(92vh,900px)] max-w-3xl gap-0 overflow-hidden p-0">
         <div className="relative h-44 sm:h-52">
           {item.posterUrl ? (

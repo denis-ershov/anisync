@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react';
+import { LayoutGrid, List } from 'lucide-react';
 
 import { ReleaseContentCard } from '@/components/releases/release-content-card';
 import { useReleasesModule } from '@/components/releases/releases-module-context';
+import { CatalogPaginationBar } from '@/components/ui/catalog-pagination-bar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,12 +19,16 @@ import {
 import { useReleaseWatchlist, useReleaseWatchlistStats, useUpdateReleaseWatchlistItem } from '@/lib/releases/hooks';
 import type { ReleaseCatalogItem, ReleaseWatchlistStatus } from '@/lib/releases/types';
 import { watchlistItemToCatalogItem } from '@/lib/releases/utils';
-import { cn } from '@/lib/utils';
+import {
+  catalogCardGridClassName,
+  catalogListGridClassName,
+  DEFAULT_CATALOG_PAGE_SIZE,
+  type CatalogPageSize,
+} from '@/lib/ui/catalog-pagination';
 
 type StatusFilter = 'all' | ReleaseWatchlistStatus;
 type TypeFilter = 'all' | 'movie' | 'show';
 type SortMode = 'releaseDate' | 'popularity' | 'rating';
-const PAGE_SIZE = 24;
 
 export function ReleasesWatchlistView() {
   const locale = useLocale();
@@ -36,6 +41,7 @@ export function ReleasesWatchlistView() {
   const [layout, setLayout] = useState<'grid' | 'list'>('grid');
   const [sort, setSort] = useState<SortMode>('releaseDate');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<CatalogPageSize>(DEFAULT_CATALOG_PAGE_SIZE);
 
   const {
     data: items = [],
@@ -67,10 +73,12 @@ export function ReleasesWatchlistView() {
         return (b.releaseDate ?? '').localeCompare(a.releaseDate ?? '');
       });
   }, [items, sort, statusFilter, typeFilter]);
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
-  const pageItems = filteredItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  useEffect(() => setPage(1), [statusFilter, typeFilter, sort]);
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+  const pageItems = filteredItems.slice((page - 1) * pageSize, page * pageSize);
+  const cardsGridClass = layout === 'grid' ? catalogCardGridClassName : catalogListGridClassName;
+
+  useEffect(() => setPage(1), [statusFilter, typeFilter, sort, pageSize]);
   useEffect(() => setPage((value) => Math.min(value, totalPages)), [totalPages]);
 
   const handleStatusChange = async (catalogItem: ReleaseCatalogItem, status: ReleaseWatchlistStatus) => {
@@ -88,9 +96,14 @@ export function ReleasesWatchlistView() {
     }
   };
 
+  const handlePageSizeChange = (nextSize: CatalogPageSize) => {
+    setPageSize(nextSize);
+    setPage(1);
+  };
+
   return (
     <div className="container space-y-4 px-4 py-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
         {[
           { label: t('stats.total'), value: stats.total },
           { label: t('stats.watching'), value: stats.watching },
@@ -151,15 +164,15 @@ export function ReleasesWatchlistView() {
       {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
 
       {loading ? (
-        <div className={cn('grid gap-3', layout === 'grid' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6' : 'grid-cols-1 lg:grid-cols-2')}>
-          {Array.from({ length: 8 }).map((_, index) => (
+        <div className={cardsGridClass}>
+          {Array.from({ length: Math.min(pageSize, 10) }).map((_, index) => (
             <Skeleton key={index} className="aspect-[2/3] w-full rounded-xl" />
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">{t('emptyWatchlist')}</p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <div className={cardsGridClass}>
           {pageItems.map((item) => (
             <ReleaseContentCard
               key={item.id}
@@ -173,17 +186,16 @@ export function ReleasesWatchlistView() {
         </div>
       )}
 
-      {filteredItems.length > PAGE_SIZE ? (
-        <div className="flex items-center justify-between gap-3">
-          <Button variant="outline" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>
-            <ChevronLeft className="mr-1 size-4" /> {t('pagination.prev')}
-          </Button>
-          <span className="text-sm text-muted-foreground">{t('pagination.page', { page })} / {totalPages}</span>
-          <Button variant="outline" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>
-            {t('pagination.next')} <ChevronRight className="ml-1 size-4" />
-          </Button>
-        </div>
-      ) : null}
+      <CatalogPaginationBar
+        page={page}
+        pageSize={pageSize}
+        hasPreviousPage={page > 1}
+        hasNextPage={page < totalPages}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={handlePageSizeChange}
+        hidden={filteredItems.length === 0}
+      />
     </div>
   );
 }

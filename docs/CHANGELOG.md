@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-05 (ui: pagination page size 25/50/100 + even card grid)
+
+**Файлы:** `catalog-pagination.ts`, `catalog-pagination-bar.tsx`, `releases-discover-view.tsx`, `releases-watchlist-view.tsx`, `torrents-watchlist-view.tsx`, `release-content-card.tsx`, `torrent-watchlist-card.tsx`, messages, tests, `releases-precompute-service.ts`.
+
+**Изменения:**
+- На Каталоге, Списке и Торрентах — пагинация с выбором размера страницы **25 / 50 / 100**.
+- Сетка карточек: **1 → 5 колонок** (`sm+`), чтобы полная страница делилась без «хвоста» (раньше 6 колонок при pageSize 24/25 ломали ряды).
+- Общий `CatalogPaginationBar` + константы в `lib/ui/catalog-pagination.ts`.
+
+**Обоснование:** ровная сетка и единый контроль размера страницы на страницах со списками карточек.
+
+## 2026-08-05 (fix: Discover catalog window alignment)
+
+**Файлы:** `release-catalog-aggregator.ts`, `tmdb/client.ts`, `tmdb/cache-keys.ts`, `tests/catalog-window.test.ts`, `docs/modules/RELEASES_ARCHITECTURE.md`.
+
+**Изменения:**
+- Discover больше не режет TMDB-выборку «2 месяца → top N» до отдельного окна 14 дней: aggregator и `getUpcoming` используют **одно** окно дат.
+- По умолчанию окно = текущий + следующий календарный месяц; `RELEASES_CATALOG_WINDOW_DAYS` — опциональный rolling override.
+- Cache keys `merged:v3` / `tmdb:upcoming:v2` включают границы окна, чтобы не отдавать устаревшие «урезанные» страницы.
+
+**Обоснование:** на `/releases/discover` оставалось ~11 карточек и `hasNextPage=false`, потому что из топа 2-месячного Discover почти ничего не попадало в 14-дневный post-filter.
+
 ## 2026-07-29 (feat: multi-source movie digital date aggregation)
 
 **Файлы:** `movie-digital-release-date-service.ts`, `release-schedule-date-service.ts`, `torrent-local-store.ts`, `tmdb/client.ts`, `trakt/client.ts`, `tmdb/cache-keys.ts`, `movie-digital-release-date-service.test.ts`, `docs/modules/MOVIE_DIGITAL_RELEASE_ARCHITECTURE.md`, `RELEASES_ARCHITECTURE.md`.
