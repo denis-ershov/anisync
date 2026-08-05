@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-05 (fix: catalog card grid Tailwind classes)
+
+**Файлы:** `components/ui/catalog-grid.ts`, `releases-discover-view.tsx`, `releases-watchlist-view.tsx`, `torrents-watchlist-view.tsx`, `tailwind.config.ts`, `lib/ui/catalog-pagination.ts`.
+
+**Изменения:** классы сетки `sm:grid-cols-5` перенесены из `src/lib` в `src/components` (и `lib` добавлен в Tailwind `content`), иначе JIT не генерировал utility и сетка оставалась в 1 колонку.
+
+**Обоснование:** на Каталоге карточка растягивалась на всю ширину.
+
+## 2026-08-05 (ci: fix quality — cache key test + pnpm action Node 24)
+
+**Файлы:** `tests/releases-cache.test.ts`, `.github/workflows/ci.yml`.
+
+**Изменения:**
+- Тест `buildUpcomingCacheKey` обновлён под формат `tmdb:upcoming:v2:…:window`.
+- `pnpm/action-setup` → `@v5` (Node.js 24), убрано deprecation-предупреждение Node 20.
+
+**Обоснование:** quality job падал на устаревшем ожидании cache key после выравнивания окна каталога.
+
 ## 2026-08-05 (ui: pagination page size 25/50/100 + even card grid)
 
 **Файлы:** `catalog-pagination.ts`, `catalog-pagination-bar.tsx`, `releases-discover-view.tsx`, `releases-watchlist-view.tsx`, `torrents-watchlist-view.tsx`, `release-content-card.tsx`, `torrent-watchlist-card.tsx`, messages, tests, `releases-precompute-service.ts`.

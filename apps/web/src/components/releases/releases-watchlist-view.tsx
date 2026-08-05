@@ -7,6 +7,7 @@ import { LayoutGrid, List } from 'lucide-react';
 import { ReleaseContentCard } from '@/components/releases/release-content-card';
 import { useReleasesModule } from '@/components/releases/releases-module-context';
 import { CatalogPaginationBar } from '@/components/ui/catalog-pagination-bar';
+import { catalogCardGridClassName, catalogListGridClassName } from '@/components/ui/catalog-grid';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,8 +21,6 @@ import { useReleaseWatchlist, useReleaseWatchlistStats, useUpdateReleaseWatchlis
 import type { ReleaseCatalogItem, ReleaseWatchlistStatus } from '@/lib/releases/types';
 import { watchlistItemToCatalogItem } from '@/lib/releases/utils';
 import {
-  catalogCardGridClassName,
-  catalogListGridClassName,
   DEFAULT_CATALOG_PAGE_SIZE,
   type CatalogPageSize,
 } from '@/lib/ui/catalog-pagination';

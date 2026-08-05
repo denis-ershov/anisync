@@ -8,6 +8,7 @@ import { ReleaseContentCard } from '@/components/releases/release-content-card';
 import { useReleasesModule } from '@/components/releases/releases-module-context';
 import { Button } from '@/components/ui/button';
 import { CatalogPaginationBar } from '@/components/ui/catalog-pagination-bar';
+import { catalogCardGridClassName, catalogListGridClassName } from '@/components/ui/catalog-grid';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -36,8 +37,6 @@ import {
 import type { ReleaseCatalogItem, ReleaseWatchlistItem } from '@/lib/releases/types';
 import { getNextWatchlistStatus } from '@/lib/releases/utils';
 import {
-  catalogCardGridClassName,
-  catalogListGridClassName,
   DEFAULT_CATALOG_PAGE_SIZE,
   type CatalogPageSize,
 } from '@/lib/ui/catalog-pagination';

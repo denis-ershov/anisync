@@ -7,10 +7,10 @@ import { TorrentAddForm } from '@/components/torrents/torrent-add-form';
 import { TorrentWatchlistCard } from '@/components/torrents/torrent-watchlist-card';
 import { TorrentsHealthBanner } from '@/components/torrents/torrents-health-banner';
 import { CatalogPaginationBar } from '@/components/ui/catalog-pagination-bar';
+import { catalogCardGridClassName } from '@/components/ui/catalog-grid';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTorrentWatchlist } from '@/lib/torrents/hooks';
 import {
-  catalogCardGridClassName,
   DEFAULT_CATALOG_PAGE_SIZE,
   type CatalogPageSize,
 } from '@/lib/ui/catalog-pagination';

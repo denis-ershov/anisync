@@ -14,12 +14,24 @@ test('buildUpcomingCacheKey encodes catalog filters', () => {
   assert.equal(
     buildUpcomingCacheKey('en', {
       page: 1,
-      pageSize: 24,
+      pageSize: 25,
       type: 'all',
       sort: 'popularity',
       genreId: null,
     }),
-    'tmdb:upcoming:en:all:popularity:0:1:24'
+    'tmdb:upcoming:v2:en:all:popularity:0:1:25:default'
+  );
+  assert.equal(
+    buildUpcomingCacheKey('ru', {
+      page: 2,
+      pageSize: 50,
+      type: 'movie',
+      sort: 'releaseDate',
+      genreId: 28,
+      from: '2026-08-01',
+      toExclusive: '2026-10-01',
+    }),
+    'tmdb:upcoming:v2:ru:movie:releaseDate:28:2:50:2026-08-01:2026-10-01'
   );
 });
 
