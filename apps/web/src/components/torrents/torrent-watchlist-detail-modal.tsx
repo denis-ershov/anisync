@@ -9,6 +9,7 @@ import {
   Loader2,
   Pin,
   Power,
+  RefreshCw,
   Star,
   Trash2,
   Tv,
@@ -29,13 +30,16 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 import {
   useDeleteTorrentWatchlistItem,
+  useRefreshTorrentWatchlistItem,
   useToggleTorrentWatchlistItem,
   useTorrentReleases,
 } from '@/lib/torrents/hooks';
 import type { TorrentWatchlistItem } from '@/lib/torrents/types';
 import { getTorrentScheduleDetail } from '@/lib/torrents/schedule-label';
+import { cn } from '@/lib/utils';
 
 type TorrentWatchlistDetailModalProps = {
   item: TorrentWatchlistItem;
@@ -63,13 +67,15 @@ export function TorrentWatchlistDetailModal({
 }: TorrentWatchlistDetailModalProps) {
   const t = useTranslations('Torrents');
   const locale = useLocale();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
 
   const toggleMutation = useToggleTorrentWatchlistItem();
   const deleteMutation = useDeleteTorrentWatchlistItem();
+  const refreshMutation = useRefreshTorrentWatchlistItem();
   const releasesQuery = useTorrentReleases(item.imdbId, open);
 
-  const busy = toggleMutation.isPending || deleteMutation.isPending;
+  const busy = toggleMutation.isPending || deleteMutation.isPending || refreshMutation.isPending;
   const secondaryTitle =
     item.originalTitle && item.originalTitle !== item.title ? item.originalTitle : null;
   const scheduleDetail = getTorrentScheduleDetail(item, locale);
@@ -79,6 +85,20 @@ export function TorrentWatchlistDetailModal({
       await toggleMutation.mutateAsync(item.id);
     } catch {
       // noop
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      await refreshMutation.mutateAsync(item.id);
+      toast({
+        title: t('refreshSuccess'),
+      });
+    } catch {
+      toast({
+        title: t('refreshError'),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -278,6 +298,18 @@ export function TorrentWatchlistDetailModal({
 
         <div className="flex flex-wrap gap-2 border-t bg-muted/30 p-4">
           <TorrentPreferencesDialog item={item} />
+          <Button
+            variant="outline"
+            className="min-h-11 flex-1 sm:flex-none transition-colors hover:border-primary/50 hover:text-primary"
+            onClick={handleRefresh}
+            disabled={busy}
+          >
+            <RefreshCw
+              className={cn('h-4 w-4', refreshMutation.isPending && 'animate-spin text-primary')}
+              aria-hidden
+            />
+            <span className="ml-2">{t('card.refresh')}</span>
+          </Button>
           <Button
             variant="outline"
             className="min-h-11 flex-1 sm:flex-none"

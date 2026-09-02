@@ -557,6 +557,11 @@
   "Torrents": {
     "title": "Торрент watchlist",
     "subtitle": "Отслеживание релизов встроенным TS watcher. Добавляйте тайтлы по IMDb ID.",
+    "autoRefresh": "Автообновление метаданных",
+    "autoRefreshHint": "Сверять даты премьер, серий и постеры из TMDB (выключено по умолчанию)",
+    "refreshMetadata": "Обновить метаданные и даты",
+    "refreshSuccess": "Метаданные и даты обновлены",
+    "refreshError": "Не удалось обновить метаданные",
     "health": {
       "title": "Статус сервиса",
       "unavailable": "Модуль торрентов недоступен. Проверьте Postgres, Prowlarr и worker.",
@@ -588,6 +593,7 @@
       "seeders": "{count} сидов",
       "pause": "Пауза",
       "resume": "Возобновить",
+      "refresh": "Обновить данные",
       "remove": "Удалить",
       "deleteConfirm": "Удалить «{title}» из watchlist?",
       "openDetail": "Подробнее",

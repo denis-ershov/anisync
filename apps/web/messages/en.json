@@ -557,6 +557,11 @@
   "Torrents": {
     "title": "Torrent watchlist",
     "subtitle": "Track releases with the built-in TypeScript watcher. Add titles by IMDb ID.",
+    "autoRefresh": "Auto-sync metadata",
+    "autoRefreshHint": "Automatically sync release dates, episodes and posters from TMDB (disabled by default)",
+    "refreshMetadata": "Refresh metadata & dates",
+    "refreshSuccess": "Metadata and dates refreshed",
+    "refreshError": "Failed to refresh metadata",
     "health": {
       "title": "Service status",
       "unavailable": "The torrent module is unavailable. Check PostgreSQL, Prowlarr and the worker.",
@@ -588,6 +593,7 @@
       "seeders": "{count} seeders",
       "pause": "Pause",
       "resume": "Resume",
+      "refresh": "Refresh metadata",
       "remove": "Remove",
       "deleteConfirm": "Remove “{title}” from the watchlist?",
       "openDetail": "Details",

@@ -38,6 +38,7 @@ function toAuthUser(user: User, settings: UserSettings): AuthUser {
       secondaryService: settings.secondaryService || undefined,
       enabledModules: settings.enabledModules ?? ['anime'],
       notificationPreferences: settings.notificationPreferences ?? { inApp: true },
+      autoRefreshTorrentMetadata: settings.autoRefreshTorrentMetadata ?? false,
       createdAt: toIsoString(settings.createdAt),
       updatedAt: toIsoString(settings.updatedAt),
     },
@@ -238,6 +239,9 @@ export class UserSettingsService {
         ...(current?.notificationPreferences ?? { inApp: true, telegram: false, email: false }),
         ...settingsData.notificationPreferences,
       };
+    }
+    if (settingsData.autoRefreshTorrentMetadata !== undefined) {
+      updateData.autoRefreshTorrentMetadata = settingsData.autoRefreshTorrentMetadata;
     }
 
     const nextPrimary =

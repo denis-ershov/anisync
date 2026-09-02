@@ -82,3 +82,7 @@ export async function notifyTorrentRelease(
 ) {
   return TorrentWatcherService.notifyRelease(userId, itemId, input);
 }
+
+export async function refreshTorrentMetadata(userId: number, itemId: number) {
+  return TorrentLocalStore.refreshMetadata(userId, itemId);
+}

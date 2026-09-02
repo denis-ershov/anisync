@@ -9,6 +9,7 @@ import {
   Loader2,
   Pin,
   Power,
+  RefreshCw,
   Star,
   Trash2,
   Tv,
@@ -20,8 +21,10 @@ import { TorrentWatchlistDetailModal } from '@/components/torrents/torrent-watch
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 import {
   useDeleteTorrentWatchlistItem,
+  useRefreshTorrentWatchlistItem,
   useToggleTorrentWatchlistItem,
 } from '@/lib/torrents/hooks';
 import type { TorrentWatchlistItem } from '@/lib/torrents/types';
@@ -48,11 +51,13 @@ function typeLabel(type: string, t: ReturnType<typeof useTranslations<'Torrents'
 export function TorrentWatchlistCard({ item }: TorrentWatchlistCardProps) {
   const t = useTranslations('Torrents');
   const locale = useLocale();
+  const { toast } = useToast();
 
   const toggleMutation = useToggleTorrentWatchlistItem();
   const deleteMutation = useDeleteTorrentWatchlistItem();
+  const refreshMutation = useRefreshTorrentWatchlistItem();
 
-  const busy = toggleMutation.isPending || deleteMutation.isPending;
+  const busy = toggleMutation.isPending || deleteMutation.isPending || refreshMutation.isPending;
   const secondaryTitle =
     item.originalTitle && item.originalTitle !== item.title ? item.originalTitle : null;
   const lastCheckedLabel = formatDate(item.lastChecked, locale);
@@ -64,6 +69,21 @@ export function TorrentWatchlistCard({ item }: TorrentWatchlistCardProps) {
       await toggleMutation.mutateAsync(item.id);
     } catch {
       // noop
+    }
+  };
+
+  const handleRefresh = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await refreshMutation.mutateAsync(item.id);
+      toast({
+        title: t('refreshSuccess'),
+      });
+    } catch {
+      toast({
+        title: t('refreshError'),
+        variant: 'destructive',
+      });
     }
   };
 
@@ -196,6 +216,20 @@ export function TorrentWatchlistCard({ item }: TorrentWatchlistCardProps) {
           onClick={(e) => e.stopPropagation()}
         >
           <TorrentPreferencesDialog item={item} />
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-9 px-2.5 transition-colors hover:border-primary/50 hover:text-primary"
+            onClick={handleRefresh}
+            disabled={busy}
+            title={t('card.refresh')}
+            aria-label={t('card.refresh')}
+          >
+            <RefreshCw
+              className={cn('h-4 w-4', refreshMutation.isPending && 'animate-spin text-primary')}
+              aria-hidden
+            />
+          </Button>
           <Button
             variant="outline"
             size="sm"

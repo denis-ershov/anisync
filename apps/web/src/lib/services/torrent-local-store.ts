@@ -183,6 +183,11 @@ export class TorrentLocalStore {
       .where(eq(torrentWatchlist.userId, userId))
       .orderBy(desc(torrentWatchlist.createdAt));
 
+    const { TorrentMetadataRefreshService } = await import(
+      '@/lib/services/torrent-metadata-refresh-service'
+    );
+    void TorrentMetadataRefreshService.reconcileStaleIfEnabled(userId, rows).catch(() => undefined);
+
     const items = await mapPool(rows, SCHEDULE_ENRICH_CONCURRENCY, async (row) => {
       const [countRow] = await db
         .select({ c: sql<number>`count(*)::int` })
@@ -211,6 +216,13 @@ export class TorrentLocalStore {
     });
 
     return items;
+  }
+
+  static async refreshMetadata(userId: number, itemId: number): Promise<TorrentWatchlistItem> {
+    const { TorrentMetadataRefreshService } = await import(
+      '@/lib/services/torrent-metadata-refresh-service'
+    );
+    return TorrentMetadataRefreshService.refreshSingle(userId, itemId);
   }
 
   static async add(

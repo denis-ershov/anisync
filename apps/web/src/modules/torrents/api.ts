@@ -140,3 +140,11 @@ export async function fetchTorrentReleases(imdbId: string) {
 
   return parseJson<TorrentReleaseItem[]>(response);
 }
+
+export async function refreshTorrentWatchlistItem(id: number) {
+  const response = await fetch(`/api/torrents/watchlist/${id}/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return parseJson<TorrentWatchlistItem>(response);
+}

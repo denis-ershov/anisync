@@ -40,6 +40,7 @@ export interface UserSettings {
   secondaryService?: IntegrationServiceName | null;
   enabledModules: PlatformModule[];
   notificationPreferences: NotificationPreferences;
+  autoRefreshTorrentMetadata?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +67,7 @@ export interface UpdateUserSettingsData {
   secondaryService?: IntegrationServiceName | null;
   enabledModules?: PlatformModule[];
   notificationPreferences?: NotificationPreferences;
+  autoRefreshTorrentMetadata?: boolean;
 }
 
 export interface LoginData {

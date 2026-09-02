@@ -93,6 +93,7 @@ export const userSettings = pgTable(
       .$type<NotificationPreferences>()
       .default({ inApp: true, telegram: false, email: false })
       .notNull(),
+    autoRefreshTorrentMetadata: boolean('auto_refresh_torrent_metadata').default(false).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

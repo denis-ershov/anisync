@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-09-02 (feat: torrent metadata sync, manual card refresh & opt-in auto-refresh switch)
+
+**Файлы:**
+- `apps/web/src/lib/db/schema.ts`
+- `apps/web/src/lib/types.ts`
+- `apps/web/src/lib/services/user-service.ts`
+- `apps/web/src/lib/services/torrent-metadata-refresh-service.ts`
+- `apps/web/src/lib/services/torrent-local-store.ts`
+- `apps/web/src/lib/services/torrent-facade.ts`
+- `apps/web/src/app/api/torrents/watchlist/[id]/refresh/route.ts`
+- `apps/web/src/modules/torrents/api.ts`
+- `apps/web/src/modules/torrents/hooks.ts`
+- `apps/web/src/components/torrents/torrent-watchlist-card.tsx`
+- `apps/web/src/components/torrents/torrent-watchlist-detail-modal.tsx`
+- `apps/web/src/components/torrents/torrents-watchlist-view.tsx`
+- `apps/web/messages/ru.json`
+- `apps/web/messages/en.json`
+- `apps/web/tests/torrent-metadata-refresh.test.ts`
+- `docs/modules/TORRENT_METADATA_SYNC_ARCHITECTURE.md`
+
+**Изменения:**
+1. **Ручное обновление метаданных и дат торрентов по кнопке:**
+   - Добавлен защищенный эндпоинт `POST /api/torrents/watchlist/[id]/refresh` для мгновенной актуализации метаданных конкретной карточки.
+   - В карточку `TorrentWatchlistCard` и модальное окно деталей `TorrentWatchlistDetailModal` добавлена кнопка «Обновить данные» (`RefreshCw`) с плавной анимацией вращения и Toast-уведомлением.
+   - Пользовательские предпочтения (`preferredQuality`, `preferredAudio`, `pinnedReleaseKey`, `targetSeason`, `maxReleasesCount`, `notifyOnce`) строго защищены и не перезаписываются.
+2. **Опция автоматического фонового обновления (тихая сверка):**
+   - Добавлено поле `autoRefreshTorrentMetadata` (по умолчанию `false`) в таблицу `user_settings` и контекст пользователя.
+   - В интерфейс `TorrentsWatchlistView` добавлен эргономичный переключатель `Switch` в стиле UI/UX Pro Max с описанием и tooltip.
+   - При включении опции сервис `TorrentMetadataRefreshService` выполняет тихую пакетную сверку записей старше 24 часов в фоне без блокировки интерфейса.
+3. **Тестирование и документация:**
+   - Добавлены unit-тесты в `apps/web/tests/torrent-metadata-refresh.test.ts` (96/96 тестов проходят).
+   - Создан архитектурный документ `docs/modules/TORRENT_METADATA_SYNC_ARCHITECTURE.md`.
+
 ## 2026-09-02 (fix: canonical movie digital release dates, discover catalog list aggregator fix & comprehensive quality audit)
 
 **Файлы:**

@@ -9,6 +9,7 @@ import {
   fetchTorrentHealth,
   fetchTorrentReleases,
   fetchTorrentWatchlist,
+  refreshTorrentWatchlistItem,
   toggleTorrentWatchlistItem,
   updateTorrentWatchlistItem,
   pinTorrentReleaseCandidate,
@@ -151,5 +152,13 @@ export function useNotifyTorrentRelease() {
       id: number;
       candidate: TorrentReleaseCandidate;
     }) => notifyTorrentReleaseCandidate(id, candidate),
+  });
+}
+
+export function useRefreshTorrentWatchlistItem() {
+  const invalidateWatchlist = useInvalidateTorrentWatchlist();
+  return useMutation({
+    mutationFn: refreshTorrentWatchlistItem,
+    onSuccess: invalidateWatchlist,
   });
 }
