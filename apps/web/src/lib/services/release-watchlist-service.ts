@@ -3,6 +3,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { db, releaseWatchlistEntries, type ReleaseContentType, type ReleaseWatchlistEntry, type ReleaseWatchlistStatus } from '@/lib/db';
 import { isQueuesEnabled } from '@/lib/config';
 import { enqueueReleaseWatchlistRefresh } from '@/lib/queue/queues';
+import { MovieDigitalReleaseDateService } from '@/lib/services/movie-digital-release-date-service';
 import { ReleaseScheduleDateService } from '@/lib/services/release-schedule-date-service';
 import { ReleaseWatchlistRefreshService } from '@/lib/services/release-watchlist-refresh-service';
 
@@ -126,6 +127,10 @@ export class ReleaseWatchlistService {
     }
 
     const slot = await ReleaseScheduleDateService.resolve(data.tmdbId, data.type, 'ru').catch(() => null);
+    const digitalDisplay =
+      data.type === 'movie'
+        ? await MovieDigitalReleaseDateService.resolveDisplay(data.tmdbId).catch(() => null)
+        : null;
 
     const [inserted] = await db
       .insert(releaseWatchlistEntries)
@@ -144,7 +149,7 @@ export class ReleaseWatchlistService {
         year: data.year ?? null,
         releaseDate:
           data.type === 'movie'
-            ? (slot?.calendarDate ?? data.releaseDate ?? null)
+            ? (digitalDisplay ?? slot?.calendarDate ?? data.releaseDate ?? null)
             : (data.releaseDate ?? null),
         nextEpisodeSeason:
           data.type === 'show' ? (slot?.season ?? data.nextEpisodeSeason ?? null) : (data.nextEpisodeSeason ?? null),
@@ -154,7 +159,7 @@ export class ReleaseWatchlistService {
           data.type === 'show'
             ? (slot?.instant ?? slot?.calendarDate ?? data.nextEpisodeDate ?? null)
             : (data.nextEpisodeDate ?? null),
-        scheduleUpdatedAt: slot ? new Date() : null,
+        scheduleUpdatedAt: (slot || digitalDisplay) ? new Date() : null,
       })
       .returning();
 

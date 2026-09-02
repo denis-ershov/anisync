@@ -443,11 +443,27 @@ export async function getTrending(lang = "en") {
     get<{ results: TmdbMovie[] }>("/trending/movie/week", { language: tmdbLang }),
     get<{ results: TmdbMovie[] }>("/trending/tv/week", { language: tmdbLang }),
   ]);
+
+  const filteredMovies = movies.results
+    .filter(movie => isAllowedCatalogGenreIds("movie", movie.genre_ids))
+    .slice(0, 10);
+
+  const normalizedMovies = await Promise.all(
+    filteredMovies.map(async movie => {
+      const digitalDate = await getMovieDigitalReleaseDateDisplay(movie.id).catch(() => null);
+      return normalizeItem(
+        {
+          ...movie,
+          release_date: digitalDate ?? movie.release_date,
+        },
+        "movie",
+        lang,
+      );
+    }),
+  );
+
   const items = [
-    ...movies.results
-      .filter(movie => isAllowedCatalogGenreIds("movie", movie.genre_ids))
-      .slice(0, 10)
-      .map(movie => normalizeItem(movie, "movie", lang)),
+    ...normalizedMovies,
     ...shows.results
       .filter(show => isAllowedCatalogGenreIds("show", show.genre_ids))
       .slice(0, 10)

@@ -1,6 +1,6 @@
 # Агрегация дат цифрового релиза фильмов
 
-> **Версия:** 2.1  
+> **Версия:** 2.2  
 > **Дата:** 2026-09-02  
 > **Код:** `movie-digital-release-date-service.ts`, `movie-digital-release-pick.ts`, `tmdb/digital-release-dates.ts`, `release-catalog-aggregator.ts`
 
@@ -35,8 +35,9 @@
    - *Пример «Мандалорец и Грогу»*: PVOD US `2026-07-21` + Disney+ US `2026-09-02` → каноническая дата: **`2026-07-21`**.
 
 2. **Фильтрация каталога предстоящих релизов (Discover, Вариант А)**:
-   - Если каноническая дата релиза меньше начала каталожного окна (`canonicalDate < from`), тайтл считается **уже вышедшим** и исключается из выборки предстоящих релизов этого месяца.
-   - Если каноническая дата релиза попадает в диапазон `[from, toExclusive)`, фильм отображается с точной датой своего релиза.
+   - В `ReleaseCatalogAggregator` (`resolveFromTmdbId`, `resolveFromImdb`, `enrichTmdbFromExternal`) для фильмов каноническая дата TMDB (`detail.releaseDate`) является приоритетной над сторонними календарями стримингов.
+   - Если каноническая дата релиза меньше начала каталожного окна (`releaseDate < from`, например `2026-07-21 < 2026-09-01`), тайтл считается **уже вышедшим** и исключается из выборки предстоящих релизов этого месяца.
+   - Если каноническая дата релиза попадает в диапазон `[from, toExclusive)`, фильм отображается с точной датой своего релиза как в карточке списка, так и в деталях.
 
 3. **Отображение в UI (Поиск, Карточки, Модальные окна)**:
    - В поиске, модальном окне деталей и карточках используется `resolveDisplay(tmdbId)`.
@@ -49,7 +50,7 @@
 | Уровень | Технология | Описание |
 |---------|------------|----------|
 | **L1 (In-Memory)** | SingleFlight / Request Coalescing | Карта `activePoolFetches` объединяет параллельные запросы к одинаковым фильтрам каталога. |
-| **L2 (Redis Pool)** | Page-Independent Pool Cache | Кэширование пула элементов `releases:catalog:pool:v4:...` с мгновенной пагинацией в памяти (<5ms). |
+| **L2 (Redis Pool)** | Page-Independent Pool Cache | Кэширование пула элементов `releases:catalog:pool:v5:...` с мгновенной пагинацией в памяти (<5ms). |
 | **L3 (HTTP / CDN)** | `Cache-Control` | `public, max-age=60, s-maxage=300, stale-while-revalidate=1800` на `/api/releases/content/upcoming`. |
 | **Zero DB Writes** | Read-Only GET Path | Устранены вызовы `MediaExternalIdsService.upsert` при обработке GET-запросов каталога. |
 

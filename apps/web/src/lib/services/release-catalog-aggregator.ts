@@ -6,6 +6,7 @@ import {
   getCurrentCatalogWindow,
   findContentByImdb,
   getContentDetail,
+  getMovieDigitalReleaseDateDisplay,
   paginateCatalogItems,
 } from '@/lib/integrations/tmdb';
 import { getWebSchedule, getBroadcastSchedule } from '@/lib/integrations/tvmaze/client';
@@ -48,50 +49,60 @@ function daysBetween(from: string, toExclusive: string): number {
  * Если задан RELEASES_CATALOG_WINDOW_DAYS — rolling N дней от сегодня.
  */
 export function resolveCatalogWindow(now = new Date()) {
-  const rawDays = process.env.RELEASES_CATALOG_WINDOW_DAYS;
-  if (rawDays != null && rawDays !== '') {
-    const days = Number.parseInt(rawDays, 10);
-    if (Number.isFinite(days) && days > 0) {
-      const fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const toExclusiveDate = new Date(fromDate);
-      toExclusiveDate.setDate(fromDate.getDate() + days);
-      const toInclusiveDate = new Date(toExclusiveDate);
-      toInclusiveDate.setDate(toExclusiveDate.getDate() - 1);
-      return {
-        from: dateOnly(fromDate),
-        toInclusive: dateOnly(toInclusiveDate),
-        toExclusive: dateOnly(toExclusiveDate),
-        days,
-      };
-    }
+  const customDays = Number.parseInt(process.env.RELEASES_CATALOG_WINDOW_DAYS ?? '', 10);
+  if (Number.isFinite(customDays) && customDays > 0) {
+    const fromDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const toExclusiveDate = new Date(fromDate);
+    toExclusiveDate.setDate(fromDate.getDate() + customDays);
+    const toInclusiveDate = new Date(fromDate);
+    toInclusiveDate.setDate(fromDate.getDate() + customDays - 1);
+
+    const from = dateOnly(fromDate);
+    const toExclusive = dateOnly(toExclusiveDate);
+    const toInclusive = dateOnly(toInclusiveDate);
+    return { from, toInclusive, toExclusive, days: customDays };
   }
 
   const { from, toInclusive, toExclusive } = getCurrentCatalogWindow(now);
-  return {
-    from,
-    toInclusive,
-    toExclusive,
-    days: daysBetween(from, toExclusive),
-  };
+  const days = daysBetween(from, toExclusive);
+  return { from, toInclusive, toExclusive, days };
+}
+
+function itemKey(item: { tmdbId: number; type: string }): string {
+  return `${item.type}:${item.tmdbId}`;
 }
 
 function dateKeysInRange(from: string, days: number): string[] {
-  const start = new Date(`${from}T00:00:00`);
-  return Array.from({ length: days }, (_, index) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + index);
-    return dateOnly(d);
-  });
+  const keys: string[] = [];
+  const base = new Date(`${from}T00:00:00Z`);
+  for (let i = 0; i < days; i += 1) {
+    const current = new Date(base.getTime() + i * 86_400_000);
+    keys.push(current.toISOString().slice(0, 10));
+  }
+  return keys;
 }
 
-function itemKey(item: { tmdbId: number; type: string }) {
-  return `${item.type}:${item.tmdbId}`;
+function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const current = index++;
+      results[current] = await fn(items[current]);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  return Promise.all(workers).then(() => results);
 }
 
 function compareCatalogItems(sort: NonNullable<CatalogOptions['sort']>) {
   return (a: NormalizedItem, b: NormalizedItem) => {
     if (sort === 'releaseDate') {
-      const dateCompare = (a.releaseDate ?? '9999').localeCompare(b.releaseDate ?? '9999');
+      const dateA = a.type === 'show' ? a.nextEpisode?.airDate ?? a.releaseDate : a.releaseDate;
+      const dateB = b.type === 'show' ? b.nextEpisode?.airDate ?? b.releaseDate : b.releaseDate;
+      const dateCompare = (dateA ?? '9999').localeCompare(dateB ?? '9999');
       if (dateCompare !== 0) return dateCompare;
     } else if (sort === 'rating') {
       const ratingCompare = (b.rating ?? 0) - (a.rating ?? 0);
@@ -100,23 +111,9 @@ function compareCatalogItems(sort: NonNullable<CatalogOptions['sort']>) {
       const popularityCompare = (b.popularity ?? 0) - (a.popularity ?? 0);
       if (popularityCompare !== 0) return popularityCompare;
     }
+
     return (b.popularity ?? 0) - (a.popularity ?? 0);
   };
-}
-
-async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  if (items.length === 0) return [];
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  async function worker() {
-    while (next < items.length) {
-      const index = next;
-      next += 1;
-      results[index] = await fn(items[index]);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
-  return results;
 }
 
 async function resolveFromTmdbId(
@@ -144,7 +141,9 @@ async function resolveFromTmdbId(
     genreRu: detail.genreRu,
     year: detail.year,
     overview: detail.overview,
-    releaseDate: schedule.releaseDate ?? detail.releaseDate,
+    // Для фильмов всегда отдаем каноническую цифровую дату из getContentDetail (TMDB release_dates),
+    // чтобы сторонние календари стримингов не подменяли официальный цифровой релиз.
+    releaseDate: type === 'movie' ? (detail.releaseDate ?? schedule.releaseDate) : (schedule.releaseDate ?? detail.releaseDate),
     nextEpisode: schedule.nextEpisode ?? detail.nextEpisode,
     imdbId: imdbId ?? detail.imdbId ?? null,
   };
@@ -165,6 +164,11 @@ async function resolveFromImdb(
     return null;
   }
 
+  let canonicalMovieDate: string | null = null;
+  if (type === 'movie') {
+    canonicalMovieDate = await getMovieDigitalReleaseDateDisplay(found.tmdbId).catch(() => null);
+  }
+
   return {
     tmdbId: found.tmdbId,
     type,
@@ -180,7 +184,7 @@ async function resolveFromImdb(
     genreRu: lang === 'ru' ? found.genre : null,
     year: found.year ? Number(found.year) : null,
     overview: found.plot,
-    releaseDate: null,
+    releaseDate: canonicalMovieDate,
     nextEpisode: null,
     imdbId,
   };
@@ -326,7 +330,7 @@ async function collectTraktItems(lang: string, from: string, days: number): Prom
 function enrichTmdbFromExternal(base: NormalizedItem, extra: NormalizedItem): NormalizedItem {
   return {
     ...base,
-    releaseDate: base.releaseDate ?? extra.releaseDate,
+    releaseDate: base.type === 'movie' ? (base.releaseDate ?? extra.releaseDate) : (base.releaseDate ?? extra.releaseDate),
     nextEpisode: base.nextEpisode ?? extra.nextEpisode,
     posterPath: base.posterPath ?? extra.posterPath,
     rating: base.rating && base.rating > 0 ? base.rating : extra.rating ?? base.rating,
@@ -395,7 +399,7 @@ async function fetchMergedPool(
   toExclusive: string,
   days: number,
 ): Promise<NormalizedItem[]> {
-  const poolCacheKey = `releases:catalog:pool:v4:${lang}:${type}:${sort}:${genreId ?? 0}:${from}:${toExclusive}`;
+  const poolCacheKey = `releases:catalog:pool:v5:${lang}:${type}:${sort}:${genreId ?? 0}:${from}:${toExclusive}`;
   const cached = await cacheRead<NormalizedItem[]>(poolCacheKey);
   if (cached) {
     return cached;
@@ -472,6 +476,13 @@ async function fetchMergedPool(
       if (!item.posterPath) {
         return false;
       }
+
+      // Вариант А: Если фильм уже вышел в цифре ранее начала текущего окна каталога (например, 21 июля при окне с 1 сентября),
+      // он не считается предстоящим релизом для этого окна.
+      if (item.type === 'movie' && item.releaseDate && item.releaseDate < from) {
+        return false;
+      }
+
       const date = item.type === 'show' ? item.nextEpisode?.airDate ?? item.releaseDate : item.releaseDate;
       if (!date) {
         return Boolean(item.popularity);

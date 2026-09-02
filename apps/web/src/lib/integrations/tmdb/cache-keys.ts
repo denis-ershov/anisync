@@ -10,7 +10,7 @@ export function buildUpcomingCacheKey(
 ) {
   const genre = options.genreId ?? 0;
   const window = options.from && options.toExclusive ? `${options.from}:${options.toExclusive}` : 'default';
-  return `tmdb:upcoming:v2:${lang}:${options.type}:${options.sort}:${genre}:${options.page}:${options.pageSize}:${window}`;
+  return `tmdb:upcoming:v3:${lang}:${options.type}:${options.sort}:${genre}:${options.page}:${options.pageSize}:${window}`;
 }
 
 export function buildDetailCacheKey(tmdbId: number, tmdbLang: string) {

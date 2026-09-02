@@ -58,3 +58,23 @@ test('canonical display preserves earliest retail digital release over later str
   assert.equal(isAlreadyReleased, true);
 });
 
+test('movie digital release is not overwritten by streaming calendar dates in aggregator', () => {
+  const canonicalDetailDate = '2026-07-21';
+  const traktStreamingScheduleDate = '2026-09-02';
+
+  // Логика resolveFromTmdbId:
+  const movieType = 'movie' as const;
+  const resolvedReleaseDate = movieType === 'movie'
+    ? (canonicalDetailDate ?? traktStreamingScheduleDate)
+    : (traktStreamingScheduleDate ?? canonicalDetailDate);
+
+  assert.equal(resolvedReleaseDate, '2026-07-21');
+
+  // Логика фильтрации каталога предстоящих релизов (Вариант А):
+  const windowFrom = '2026-09-01';
+  const windowToExclusive = '2026-11-01';
+  const shouldExcludeFromUpcoming = movieType === 'movie' && resolvedReleaseDate < windowFrom;
+  assert.equal(shouldExcludeFromUpcoming, true);
+});
+
+

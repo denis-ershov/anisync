@@ -69,7 +69,12 @@ export function ReleasesWatchlistView() {
       .sort((a, b) => {
         if (sort === 'rating') return (b.rating ?? 0) - (a.rating ?? 0);
         if (sort === 'popularity') return (b.popularity ?? 0) - (a.popularity ?? 0);
-        return (b.releaseDate ?? '').localeCompare(a.releaseDate ?? '');
+        const dateA = a.type === 'show' ? a.nextEpisodeDate ?? a.releaseDate : a.releaseDate;
+        const dateB = b.type === 'show' ? b.nextEpisodeDate ?? b.releaseDate : b.releaseDate;
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return dateA.localeCompare(dateB);
       });
   }, [items, sort, statusFilter, typeFilter]);
 

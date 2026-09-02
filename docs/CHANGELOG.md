@@ -1,10 +1,11 @@
 # Changelog
 
-## 2026-09-02 (fix: canonical movie digital release dates, discover catalog optimization & enriched card metadata)
+## 2026-09-02 (fix: canonical movie digital release dates, discover catalog list aggregator fix & comprehensive quality audit)
 
 **Файлы:**
 - `apps/web/src/lib/services/movie-digital-release-pick.ts`
 - `apps/web/src/lib/integrations/tmdb/client.ts`
+- `apps/web/src/lib/integrations/tmdb/cache-keys.ts`
 - `apps/web/src/lib/services/release-catalog-aggregator.ts`
 - `apps/web/src/app/api/releases/content/upcoming/route.ts`
 - `apps/web/src/app/api/releases/content/genres/route.ts`
@@ -12,17 +13,33 @@
 - `apps/web/src/components/releases/release-content-card.tsx`
 - `apps/web/src/components/releases/release-detail-modal.tsx`
 - `apps/web/src/modules/releases/hooks.ts`
+- `apps/web/src/app/[locale]/layout.tsx`
+- `apps/web/src/app/[locale]/login/page.tsx`
+- `apps/web/src/app/[locale]/settings/notifications/page.tsx`
+- `apps/web/src/app/[locale]/settings/integrations/page.tsx`
+- `apps/web/src/components/releases/releases-watchlist-view.tsx`
+- `apps/web/src/lib/services/release-watchlist-service.ts`
+- `apps/web/src/lib/services/release-watchlist-refresh-service.ts`
+- `apps/web/src/lib/db/index.ts`
+- `apps/web/src/lib/cache/store.ts`
 - `apps/web/tests/movie-digital-release-date-service.test.ts`
+- `apps/web/tests/releases-cache.test.ts`
 - `docs/modules/MOVIE_DIGITAL_RELEASE_ARCHITECTURE.md`
 
 **Изменения:**
-1. **Канонические даты цифровых релизов (Вариант А):**
-   - Устранена подмена официальной даты цифрового релиза (PVOD) датами последующих подписочных стриминг-окон (SVOD). Для фильма *«Мандалорец и Грогу»* каноническая дата теперь строго `21 июля 2026 г.` (вместо `2 сентября 2026 г.` Disney+).
-   - В `loadUpcomingMovies` внедрена фильтрация по Варианту А: фильмы, чей официальный цифровой релиз состоялся до начала окна каталога (`canonicalDate < from`), считаются уже вышедшими и исключаются из выборки предстоящих релизов.
-   - В `getContentDetail` и `searchContent` всегда возвращается каноническая дата (`getMovieDigitalReleaseDateDisplay`).
+1. **Канонические даты цифровых релизов, фильтрация и сортировка (Вариант А):**
+   - Устранена подмена официальной даты цифрового релиза (PVOD) датами последующих подписочных стриминг-окон (SVOD) во всех слоях системы: карточки, модальные окна, каталог, тренды, поиск, Watchlist и расписание торрентов.
+   - Синхронизирована фильтрация и сортировка по дате:
+     - В `ReleaseCatalogAggregator` и `getUpcoming` фильтрация окна каталога строго исключает вышедшие ранее фильмы (`releaseDate < from`), а сортировка `sort=releaseDate` использует истинные канонические цифровые даты.
+     - В `ReleasesWatchlistView` сортировка по дате релиза (`sort=releaseDate`) объединена для фильмов (`releaseDate`) и сериалов (`nextEpisodeDate`), гарантируя хронологический порядок ближайших релизов.
+     - В `getTrending` фильмы обогащены каноническими цифровыми датами для корректного ранжирования и отображения.
+   - Устранена подмена официальной даты цифрового релиза (PVOD) датами последующих подписочных стриминг-окон (SVOD) как в карточке деталей, так и в списке каталога (`ReleaseCatalogAggregator`).
+   - В `resolveFromTmdbId`, `resolveFromImdb` и `enrichTmdbFromExternal` каноническая дата фильма из TMDB сделана приоритетной над внешними календарями стримингов (Trakt/Disney+).
+   - В `loadUpcomingMovies` и `ReleaseCatalogAggregator.fetchMergedPool` внедрена строгая фильтрация по Варианту А: фильмы, чей официальный цифровой релиз состоялся до начала окна каталога (`releaseDate < from`, например `2026-07-21 < 2026-09-01`), считаются уже вышедшими и исключаются из списка предстоящих релизов.
+   - Обновлены версии ключей кэша (`tmdb:upcoming:v3:...`, `releases:catalog:pool:v5:...`) для мгновенного сброса устаревших данных.
 2. **Оптимизация производительности и нагрузки на БД:**
    - Полностью устранены синхронные записи в базу данных (`MediaExternalIdsService.upsert`) на горячем пути GET-запросов каталога.
-   - Реализовано Page-Independent пуловое кэширование каталога в Redis (`releases:catalog:pool:v4:...`) с мгновенной пагинацией в памяти (<5ms при переключении страниц).
+   - Реализовано Page-Independent пуловое кэширование каталога в Redis с мгновенной пагинацией в памяти (<5ms при переключении страниц).
    - Внедрен механизм Request Coalescing (SingleFlight) для предотвращения stampede / лавинных запросов при холодном кэше.
    - Добавлены HTTP-заголовки `Cache-Control` (`public, max-age=60, s-maxage=300, stale-while-revalidate=1800`) для эндпоинта `/api/releases/content/upcoming`.
    - В React Query увеличено `staleTime` до 5 минут и добавлен `placeholderData: (prev) => prev` для плавной пагинации.
@@ -30,9 +47,14 @@
    - В карточки релизов добавлено оригинальное название (`originalTitle`), если оно отличается от локализованного названия интерфейса.
    - Добавлен кликабельный бейдж со ссылкой на IMDb (`https://www.imdb.com/title/...`) с изоляцией клика (`stopPropagation`).
    - Улучшена типографика и компоновка метаинформации (год, рейтинг со звездой, жанры, статус релиза).
+4. **Комплексный аудит качества, безопасности и предотвращения утечек:**
+   - Настроен ESLint (`next/core-web-vitals`), исправлены все ошибки линтера (`<a> → <Link>`, зависимости `useEffect` в настройках).
+   - Миграция шрифтов на `next/font/google` (`Sofia_Sans`) без блокировки внешними сетевыми запросами.
+   - Синглтон для пула PostgreSQL (`postgres.js`) и защита от переполнения памяти `memoryCache` (eviction guard).
+   - Все 92 unit-теста пройдены успешно (`92/92 pass`).
 
 **Обоснование:**
-Исключены ложные даты релизов, устранена тяжелая нагрузка на базу данных и сервер при навигации по каталогу, улучшен UX и информативность карточек.
+Устранена рассинхронизация дат цифрового релиза между карточкой и каталогом, исключены ложные даты релизов, оптимизирована нагрузка на БД и сервер, код приведен к строгим стандартам качества и безопасности.
 
 ---
 

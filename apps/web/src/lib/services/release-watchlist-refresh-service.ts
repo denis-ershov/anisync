@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 
 import { db, releaseWatchlistEntries } from '@/lib/db';
 import { createLogger } from '@/lib/observability/logger';
+import { MovieDigitalReleaseDateService } from '@/lib/services/movie-digital-release-date-service';
 import { ReleaseScheduleDateService } from '@/lib/services/release-schedule-date-service';
 
 const log = createLogger('services:release-watchlist-refresh');
@@ -101,10 +102,11 @@ export class ReleaseWatchlistRefreshService {
             return;
           }
 
+          const movieDate = await MovieDigitalReleaseDateService.resolveDisplay(tmdbId).catch(() => null);
           const updated = await db
             .update(releaseWatchlistEntries)
             .set({
-              releaseDate: slot?.calendarDate ?? null,
+              releaseDate: movieDate ?? slot?.calendarDate ?? null,
               scheduleUpdatedAt: refreshedAt,
             })
             .where(

@@ -19,7 +19,7 @@ test('buildUpcomingCacheKey encodes catalog filters', () => {
       sort: 'popularity',
       genreId: null,
     }),
-    'tmdb:upcoming:v2:en:all:popularity:0:1:25:default'
+    'tmdb:upcoming:v3:en:all:popularity:0:1:25:default'
   );
   assert.equal(
     buildUpcomingCacheKey('ru', {
@@ -31,7 +31,7 @@ test('buildUpcomingCacheKey encodes catalog filters', () => {
       from: '2026-08-01',
       toExclusive: '2026-10-01',
     }),
-    'tmdb:upcoming:v2:ru:movie:releaseDate:28:2:50:2026-08-01:2026-10-01'
+    'tmdb:upcoming:v3:ru:movie:releaseDate:28:2:50:2026-08-01:2026-10-01'
   );
 });
 
