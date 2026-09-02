@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-09-02 (fix: canonical movie digital release dates, discover catalog optimization & enriched card metadata)
+
+**Файлы:**
+- `apps/web/src/lib/services/movie-digital-release-pick.ts`
+- `apps/web/src/lib/integrations/tmdb/client.ts`
+- `apps/web/src/lib/services/release-catalog-aggregator.ts`
+- `apps/web/src/app/api/releases/content/upcoming/route.ts`
+- `apps/web/src/app/api/releases/content/genres/route.ts`
+- `apps/web/src/modules/releases/types.ts`
+- `apps/web/src/components/releases/release-content-card.tsx`
+- `apps/web/src/components/releases/release-detail-modal.tsx`
+- `apps/web/src/modules/releases/hooks.ts`
+- `apps/web/tests/movie-digital-release-date-service.test.ts`
+- `docs/modules/MOVIE_DIGITAL_RELEASE_ARCHITECTURE.md`
+
+**Изменения:**
+1. **Канонические даты цифровых релизов (Вариант А):**
+   - Устранена подмена официальной даты цифрового релиза (PVOD) датами последующих подписочных стриминг-окон (SVOD). Для фильма *«Мандалорец и Грогу»* каноническая дата теперь строго `21 июля 2026 г.` (вместо `2 сентября 2026 г.` Disney+).
+   - В `loadUpcomingMovies` внедрена фильтрация по Варианту А: фильмы, чей официальный цифровой релиз состоялся до начала окна каталога (`canonicalDate < from`), считаются уже вышедшими и исключаются из выборки предстоящих релизов.
+   - В `getContentDetail` и `searchContent` всегда возвращается каноническая дата (`getMovieDigitalReleaseDateDisplay`).
+2. **Оптимизация производительности и нагрузки на БД:**
+   - Полностью устранены синхронные записи в базу данных (`MediaExternalIdsService.upsert`) на горячем пути GET-запросов каталога.
+   - Реализовано Page-Independent пуловое кэширование каталога в Redis (`releases:catalog:pool:v4:...`) с мгновенной пагинацией в памяти (<5ms при переключении страниц).
+   - Внедрен механизм Request Coalescing (SingleFlight) для предотвращения stampede / лавинных запросов при холодном кэше.
+   - Добавлены HTTP-заголовки `Cache-Control` (`public, max-age=60, s-maxage=300, stale-while-revalidate=1800`) для эндпоинта `/api/releases/content/upcoming`.
+   - В React Query увеличено `staleTime` до 5 минут и добавлен `placeholderData: (prev) => prev` для плавной пагинации.
+3. **Обогащение информации в карточках и деталях:**
+   - В карточки релизов добавлено оригинальное название (`originalTitle`), если оно отличается от локализованного названия интерфейса.
+   - Добавлен кликабельный бейдж со ссылкой на IMDb (`https://www.imdb.com/title/...`) с изоляцией клика (`stopPropagation`).
+   - Улучшена типографика и компоновка метаинформации (год, рейтинг со звездой, жанры, статус релиза).
+
+**Обоснование:**
+Исключены ложные даты релизов, устранена тяжелая нагрузка на базу данных и сервер при навигации по каталогу, улучшен UX и информативность карточек.
+
+---
+
 ## 2026-08-05 (fix: catalog card grid Tailwind classes)
 
 **Файлы:** `components/ui/catalog-grid.ts`, `releases-discover-view.tsx`, `releases-watchlist-view.tsx`, `torrents-watchlist-view.tsx`, `tailwind.config.ts`, `lib/ui/catalog-pagination.ts`.

@@ -132,11 +132,11 @@ export function ReleaseDetailModal() {
   const posterUrl = display?.posterPath ? `${TMDB_IMAGE_BASE}${display.posterPath}` : null;
   const durationLabel = formatDuration(detail?.duration, t);
 
-  // Digital / schedule dates живут в catalog/watchlist item; detail API для movie теперь тоже digital.
+  // Digital / schedule dates живут в catalog/watchlist item; detail API для movie теперь тоже канонический digital.
   const contentTypeResolved = selectedItem?.type ?? display?.type ?? null;
   const digitalReleaseDate =
     contentTypeResolved === 'movie'
-      ? selectedItem?.releaseDate ?? watchlistItem?.releaseDate ?? detail?.releaseDate ?? null
+      ? detail?.releaseDate ?? selectedItem?.releaseDate ?? watchlistItem?.releaseDate ?? null
       : null;
   const digitalReleaseLabel = formatReleaseDateLabel(digitalReleaseDate, locale);
 
@@ -164,35 +164,37 @@ export function ReleaseDetailModal() {
 
     try {
       if (watchlistItem) {
-        await updateMutation.mutateAsync({ id: watchlistItem.id, status });
+        await updateMutation.mutateAsync({
+          id: watchlistItem.id,
+          status,
+        });
       } else {
         await addMutation.mutateAsync({
           tmdbId: display.tmdbId,
           type: display.type,
-          status,
           title: display.title,
           titleRu: display.titleRu,
+          status,
           rating: display.rating,
           popularity: display.popularity,
           posterPath: display.posterPath,
           genre: display.genre,
           genreRu: display.genreRu,
           year: display.year,
-          releaseDate:
-            display.type === 'movie'
-              ? digitalReleaseDate ?? display.releaseDate
-              : display.releaseDate,
-          nextEpisodeSeason: nextEpisode?.season ?? display.nextEpisode?.season ?? null,
-          nextEpisodeNumber: nextEpisode?.episode ?? display.nextEpisode?.episode ?? null,
-          nextEpisodeDate: nextEpisode?.airDate ?? display.nextEpisode?.airDate ?? null,
+          releaseDate: display.releaseDate,
+          nextEpisodeSeason: display.nextEpisode?.season ?? null,
+          nextEpisodeNumber: display.nextEpisode?.episode ?? null,
+          nextEpisodeDate: display.nextEpisode?.airDate ?? null,
         });
       }
 
-      toast({ title: t('detail.statusUpdated') });
+      toast({
+        title: t('detail.statusUpdated'),
+      });
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: t('errors.watchlistFailed'),
+        title: t('errors.actionFailed'),
         description: error instanceof Error ? error.message : undefined,
       });
     }
@@ -205,7 +207,9 @@ export function ReleaseDetailModal() {
 
     try {
       await deleteMutation.mutateAsync(watchlistItem.id);
-      toast({ title: t('detail.removed') });
+      toast({
+        title: t('detail.removed'),
+      });
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -216,7 +220,7 @@ export function ReleaseDetailModal() {
   };
 
   const handleWatchTorrent = async () => {
-    if (!display || !imdbId) {
+    if (!imdbId || !display) {
       return;
     }
 
@@ -259,14 +263,30 @@ export function ReleaseDetailModal() {
                   ) : null}
                 </div>
                 <DialogTitle className="text-xl sm:text-2xl">{title}</DialogTitle>
+                {display.originalTitle && display.originalTitle !== title ? (
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {display.originalTitle}
+                  </p>
+                ) : null}
                 <DialogDescription className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="inline-flex items-center gap-1">
-                    <Star className="h-4 w-4 text-amber-400" />
-                    {display.rating?.toFixed(1) ?? '—'}
+                  <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                    <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                    {display.rating && display.rating > 0 ? display.rating.toFixed(1) : '—'}
                   </span>
                   {display.year ? <span>{display.year}</span> : null}
                   {genre ? <span>{genre}</span> : null}
                   {durationLabel ? <span>{durationLabel}</span> : null}
+                  {imdbId ? (
+                    <a
+                      href={`https://www.imdb.com/title/${imdbId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-500 hover:bg-amber-500/25 transition-colors"
+                    >
+                      IMDb
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  ) : null}
                 </DialogDescription>
               </DialogHeader>
 

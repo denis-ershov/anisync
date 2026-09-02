@@ -16,6 +16,10 @@ export type AggregatedMovieDigitalRelease = {
   candidates: DigitalReleaseCandidate[];
 };
 
+function sortCandidatesByDate(candidates: DigitalReleaseCandidate[]): DigitalReleaseCandidate[] {
+  return [...candidates].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function earliestCandidate(
   candidates: DigitalReleaseCandidate[],
 ): DigitalReleaseCandidate | null {
@@ -23,7 +27,13 @@ function earliestCandidate(
     return null;
   }
 
-  return [...candidates].sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
+  // Приоритет US региона (TMDB US, Watchmode US, Trakt US)
+  const usCandidates = candidates.filter((c) => c.region === 'US');
+  if (usCandidates.length > 0) {
+    return sortCandidatesByDate(usCandidates)[0] ?? null;
+  }
+
+  return sortCandidatesByDate(candidates)[0] ?? null;
 }
 
 export function pickEarliestDigitalCandidate(
@@ -41,3 +51,4 @@ export function pickEarliestDigitalCandidate(
   }
   return { date: winner.date, source: winner.source, candidates };
 }
+

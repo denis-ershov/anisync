@@ -12,7 +12,12 @@ async function getHandler(request: NextRequest) {
 
   try {
     const data = await ReleaseCatalogAggregator.getUpcoming(getLang(request), parseCatalogOptions(request));
-    return NextResponse.json(data);
+    const response = NextResponse.json(data);
+    response.headers.set(
+      'Cache-Control',
+      'public, max-age=60, s-maxage=300, stale-while-revalidate=1800'
+    );
+    return response;
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to fetch upcoming content', message: error instanceof Error ? error.message : 'Unknown error' },

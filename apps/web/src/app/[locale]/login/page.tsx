@@ -1,5 +1,6 @@
 import { LoginForm } from "@/components/auth/login-form";
 import { LoginMessage } from "@/components/auth/login-message";
+import { Link } from "@/navigation";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 
@@ -24,9 +25,9 @@ export default async function LoginPage() {
         <div className="text-center mt-6">
           <p className="text-sm text-muted-foreground">
             {t('noAccount')}{' '}
-            <a href="/register" className="text-primary hover:underline">
+            <Link href="/register" className="text-primary hover:underline">
               {t('signUp')}
-            </a>
+            </Link>
           </p>
         </div>
       </div>

@@ -47,6 +47,7 @@ export function ReleaseContentCard({
   const t = useTranslations('Releases');
 
   const title = locale === 'ru' && item.titleRu ? item.titleRu : item.title;
+  const originalTitle = item.originalTitle && item.originalTitle !== title ? item.originalTitle : null;
   const genre = locale === 'ru' && item.genreRu ? item.genreRu : item.genre;
   const posterUrl = item.posterPath ? `${TMDB_IMAGE_BASE}${item.posterPath}` : null;
 
@@ -84,7 +85,7 @@ export function ReleaseContentCard({
   return (
     <Card
       className={cn(
-        'h-full overflow-hidden border-border/70 bg-card/60',
+        'h-full overflow-hidden border-border/70 bg-card/60 transition-colors hover:border-border',
         layout === 'list' && 'flex items-stretch',
         className
       )}
@@ -112,23 +113,50 @@ export function ReleaseContentCard({
               {item.type === 'movie' ? <Film className="h-10 w-10" /> : <Tv className="h-10 w-10" />}
             </div>
           )}
-          <Badge className="absolute left-2 top-2" variant="secondary">
-            {item.type === 'movie' ? t('type.movie') : t('type.show')}
-          </Badge>
+          <div className="absolute left-2 top-2 z-10 flex items-center gap-1.5">
+            <Badge variant="secondary" className="shadow-sm font-medium">
+              {item.type === 'movie' ? t('type.movie') : t('type.show')}
+            </Badge>
+          </div>
+          {item.imdbId ? (
+            <a
+              href={`https://www.imdb.com/title/${item.imdbId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="IMDb"
+              className="absolute right-2 top-2 z-10 inline-flex items-center gap-0.5 rounded bg-amber-500 hover:bg-amber-400 text-black px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-sm transition-colors"
+              onClick={(event) => event.stopPropagation()}
+            >
+              IMDb
+            </a>
+          ) : null}
         </div>
         <CardContent
-          className={cn('space-y-3 p-3', layout === 'list' && 'flex min-w-0 flex-1 flex-col justify-center')}
+          className={cn('space-y-2 p-3', layout === 'list' && 'flex min-w-0 flex-1 flex-col justify-center')}
         >
-          <div className="space-y-1">
-            <h3 className="line-clamp-2 text-sm font-semibold leading-tight">{title}</h3>
-            <p className="text-xs text-muted-foreground line-clamp-1">{genre}</p>
+          <div className="space-y-0.5">
+            <h3 className="line-clamp-2 text-sm font-semibold leading-tight text-foreground">{title}</h3>
+            {originalTitle ? (
+              <p className="line-clamp-1 text-[11px] font-medium text-muted-foreground/80">
+                {originalTitle}
+              </p>
+            ) : null}
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground line-clamp-1 pt-0.5">
+              {item.year ? <span>{item.year}</span> : null}
+              {item.year && genre ? <span className="opacity-60">•</span> : null}
+              {genre ? <span className="truncate">{genre}</span> : null}
+            </div>
           </div>
-          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <Star className="h-3.5 w-3.5 text-amber-400" />
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground pt-1 border-t border-border/40">
+            <span className="inline-flex items-center gap-1 font-medium text-foreground">
+              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
               {item.rating && item.rating > 0 ? item.rating.toFixed(1) : '—'}
             </span>
-            <span className="min-w-0 truncate text-right">{scheduleLabel ?? (item.year ?? '—')}</span>
+            {scheduleLabel ? (
+              <span className="min-w-0 truncate text-right text-xs font-medium text-primary">
+                {scheduleLabel}
+              </span>
+            ) : null}
           </div>
         </CardContent>
       </button>

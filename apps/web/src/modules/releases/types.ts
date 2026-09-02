@@ -7,6 +7,7 @@ export type ReleaseCatalogItem = {
   title: string;
   titleRu: string | null;
   originalTitle?: string | null;
+  imdbId?: string | null;
   rating: number;
   popularity: number;
   posterPath: string | null;

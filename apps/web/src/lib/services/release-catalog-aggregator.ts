@@ -131,14 +131,6 @@ async function resolveFromTmdbId(
     return null;
   }
 
-  if (imdbId || detail.imdbId) {
-    await MediaExternalIdsService.upsert({
-      mediaType: type,
-      tmdbId: String(detail.tmdbId),
-      imdbId: imdbId ?? detail.imdbId ?? undefined,
-    }).catch(() => undefined);
-  }
-
   return {
     tmdbId: detail.tmdbId,
     type,
@@ -172,12 +164,6 @@ async function resolveFromImdb(
   if (typeHint && type !== typeHint) {
     return null;
   }
-
-  await MediaExternalIdsService.upsert({
-    mediaType: type,
-    tmdbId: String(found.tmdbId),
-    imdbId,
-  });
 
   return {
     tmdbId: found.tmdbId,
@@ -398,23 +384,31 @@ function mergeByImdb(items: NormalizedItem[]): NormalizedItem[] {
   return [...byKey.values()];
 }
 
-export class ReleaseCatalogAggregator {
-  static async getUpcoming(lang = 'en', options: CatalogOptions = {}): Promise<UpcomingCatalogResult> {
-    const page = options.page && options.page > 0 ? Math.floor(options.page) : 1;
-    const pageSize = options.pageSize && options.pageSize > 0 ? Math.min(Math.floor(options.pageSize), 100) : 25;
-    const type = options.type ?? 'all';
-    const sort = options.sort ?? 'popularity';
-    const genreId = options.genreId && options.genreId > 0 ? Math.floor(options.genreId) : null;
+const activePoolFetches = new Map<string, Promise<NormalizedItem[]>>();
 
-    const { from, toExclusive, days } = resolveCatalogWindow();
-    const cacheKey = `releases:catalog:merged:v3:${lang}:${type}:${sort}:${genreId ?? 0}:${page}:${pageSize}:${from}:${toExclusive}`;
-    const cached = await cacheRead<UpcomingCatalogResult>(cacheKey);
-    if (cached) {
-      return cached;
-    }
+async function fetchMergedPool(
+  lang: string,
+  type: 'all' | 'movie' | 'show',
+  sort: NonNullable<CatalogOptions['sort']>,
+  genreId: number | null,
+  from: string,
+  toExclusive: string,
+  days: number,
+): Promise<NormalizedItem[]> {
+  const poolCacheKey = `releases:catalog:pool:v4:${lang}:${type}:${sort}:${genreId ?? 0}:${from}:${toExclusive}`;
+  const cached = await cacheRead<NormalizedItem[]>(poolCacheKey);
+  if (cached) {
+    return cached;
+  }
 
-    // Тянем на одну страницу вперёд, чтобы hasNextPage был честным после merge/filter.
-    const tmdbPoolSize = Math.max(pageSize * (page + 1), 50);
+  const existingFetch = activePoolFetches.get(poolCacheKey);
+  if (existingFetch) {
+    return existingFetch;
+  }
+
+  const fetchPromise = (async () => {
+    // Предварительно тянем 100 элементов пула (для мгновенной пагинации 1-4 страниц)
+    const tmdbPoolSize = 100;
     const tmdb = await getUpcoming(lang, {
       page: 1,
       pageSize: tmdbPoolSize,
@@ -487,27 +481,46 @@ export class ReleaseCatalogAggregator {
 
     merged.sort(compareCatalogItems(sort));
 
-    const pageItems = paginateCatalogItems(merged, page, pageSize).map((item) => {
-      const { imdbId: _imdb, ...rest } = item;
-      return rest;
-    });
+    await cacheWrite(poolCacheKey, merged, MERGED_CACHE_TTL_MS);
+    return merged;
+  })();
+
+  activePoolFetches.set(poolCacheKey, fetchPromise);
+  try {
+    return await fetchPromise;
+  } finally {
+    activePoolFetches.delete(poolCacheKey);
+  }
+}
+
+export class ReleaseCatalogAggregator {
+  static async getUpcoming(lang = 'en', options: CatalogOptions = {}): Promise<UpcomingCatalogResult> {
+    const page = options.page && options.page > 0 ? Math.floor(options.page) : 1;
+    const pageSize = options.pageSize && options.pageSize > 0 ? Math.min(Math.floor(options.pageSize), 100) : 25;
+    const type = options.type ?? 'all';
+    const sort = options.sort ?? 'popularity';
+    const genreId = options.genreId && options.genreId > 0 ? Math.floor(options.genreId) : null;
+
+    const { from, toExclusive, days } = resolveCatalogWindow();
+
+    const merged = await fetchMergedPool(lang, type, sort, genreId, from, toExclusive, days);
+
+    const pageItems = paginateCatalogItems(merged, page, pageSize);
     const pageEnd = page * pageSize;
     const hasNextPage = merged.length > pageEnd;
     const hasPreviousPage = page > 1;
-    const knownResults = (page - 1) * pageSize + pageItems.length + (hasNextPage ? 1 : 0);
+    const totalPages = Math.max(1, Math.ceil(merged.length / pageSize));
+    const totalResults = merged.length;
 
-    const result: UpcomingCatalogResult = {
+    return {
       items: pageItems,
       page,
       pageSize,
-      totalPages: hasNextPage ? page + 1 : page,
-      totalResults: knownResults,
+      totalPages,
+      totalResults,
       hasNextPage,
       hasPreviousPage,
     };
-
-    await cacheWrite(cacheKey, result, MERGED_CACHE_TTL_MS);
-    return result;
   }
 }
 

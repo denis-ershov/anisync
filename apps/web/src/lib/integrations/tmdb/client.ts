@@ -572,7 +572,19 @@ async function loadUpcomingMovies(
       const chunk = moviePage.results.slice(i, i + releaseDatesConcurrency);
       const normalizedChunk = await Promise.all(
         chunk.filter(movie => isAllowedCatalogGenreIds("movie", movie.genre_ids)).map(async movie => {
-          const digitalDate = await getMovieDigitalReleaseDate(movie.id, from, toExclusive);
+          const canonicalDate = await getMovieDigitalReleaseDateDisplay(movie.id).catch(() => null);
+
+          // Вариант А: Если фильм уже вышел в цифре ранее начала текущего окна каталога,
+          // он не считается предстоящим релизом для этого окна.
+          if (canonicalDate && canonicalDate < from) {
+            return null;
+          }
+
+          const digitalDate =
+            canonicalDate && inDateRange(canonicalDate, from, toExclusive)
+              ? canonicalDate
+              : await getMovieDigitalReleaseDate(movie.id, from, toExclusive);
+
           if (!digitalDate) {
             return null;
           }
@@ -580,7 +592,7 @@ async function loadUpcomingMovies(
           return normalizeItem(
             {
               ...movie,
-              release_date: digitalDate ?? movie.release_date,
+              release_date: digitalDate,
             },
             "movie",
             _lang,
@@ -815,11 +827,25 @@ export async function searchContent(query: string, lang = "en") {
     language: tmdbLang,
     include_adult: "false",
   });
-  return result.results
+  const rawItems = result.results
     .filter(r => r.media_type === "movie" || r.media_type === "tv")
     .filter(r => isAllowedCatalogGenreIds(r.media_type === "movie" ? "movie" : "show", r.genre_ids))
     .slice(0, 20)
     .map(r => normalizeItem(r, r.media_type === "movie" ? "movie" : "show", lang));
+
+  const items = await Promise.all(
+    rawItems.map(async (item) => {
+      if (item.type === 'movie') {
+        const digital = await getMovieDigitalReleaseDateDisplay(item.tmdbId).catch(() => null);
+        if (digital) {
+          return { ...item, releaseDate: digital };
+        }
+      }
+      return item;
+    })
+  );
+
+  return items;
 }
 
 export async function getContentDetail(tmdbId: number, type: "movie" | "show", lang = "en") {
@@ -863,8 +889,7 @@ export async function getContentDetail(tmdbId: number, type: "movie" | "show", l
     const { from, toExclusive } = getScheduleWindow();
     nextEpisode = await getShowEpisodeInRange(tmdbId, detail, lang, from, toExclusive);
   } else {
-    const { from, toExclusive } = getCurrentCatalogWindow();
-    const digital = await getMovieDigitalReleaseDate(tmdbId, from, toExclusive).catch(() => null);
+    const digital = await getMovieDigitalReleaseDateDisplay(tmdbId).catch(() => null);
     if (digital) {
       releaseDate = digital;
     }

@@ -22,6 +22,25 @@ function readMemory<T>(key: string): T | null {
 }
 
 function writeMemory(key: string, value: unknown, ttlMs: number) {
+  if (memoryCache.size > 1000) {
+    const now = Date.now();
+    for (const [k, v] of memoryCache.entries()) {
+      if (v.expiresAt <= now) {
+        memoryCache.delete(k);
+      }
+    }
+    // Если после очистки просроченных всё ещё > 1000, удаляем старейшие
+    if (memoryCache.size > 1000) {
+      const excess = memoryCache.size - 800;
+      let count = 0;
+      for (const k of memoryCache.keys()) {
+        memoryCache.delete(k);
+        count++;
+        if (count >= excess) break;
+      }
+    }
+  }
+
   memoryCache.set(key, {
     expiresAt: Date.now() + ttlMs,
     value: JSON.stringify(value),

@@ -1,75 +1,65 @@
 # Агрегация дат цифрового релиза фильмов
 
-> **Версия:** 2.0  
-> **Дата:** 2026-07-29  
-> **Код:** `movie-digital-release-date-service.ts`, `tmdb/digital-release-dates.ts`
+> **Версия:** 2.1  
+> **Дата:** 2026-09-02  
+> **Код:** `movie-digital-release-date-service.ts`, `movie-digital-release-pick.ts`, `tmdb/digital-release-dates.ts`, `release-catalog-aggregator.ts`
 
 ---
 
 ## Назначение
 
-Единая **мульти-источниковая** агрегация даты цифрового релиза фильма для Releases, torrent watchlist и расписания.
+Единая **мульти-источниковая** агрегация даты цифрового релиза фильма для Discover-каталога, поиска, карточек, модальных окон деталей, watchlist и расписания торрентов.
 
 ---
 
-## Источники
+## Источники и Приоритеты
 
 | Источник | API | Что собираем |
 |----------|-----|----------------|
-| **TMDB** | `/movie/{id}/release_dates` | Все digital-like entries (type 4 + SVOD type 6 с платформой в `note`) по **всем регионам** |
+| **TMDB** | `/movie/{id}/release_dates` | Все digital-like entries (type 4 + SVOD type 6 с платформой в `note`) по всем регионам |
 | **Watchmode** | `/title/movie-{tmdbId}/details` | `release_date` (если `WATCHMODE_API_KEY`) |
 | **Trakt** | `/movies/tmdb:{id}/releases/us` | Все `release_type: digital` (если `TRAKT_CLIENT_ID`) |
 
----
-
-## Алгоритм
-
-1. `collectCandidates(tmdbId)` — параллельный fetch всех источников.
-2. Объединить в один пул `DigitalReleaseCandidate[]`.
-3. **Display** (карточки, модалки): `min(date)` по всему пулу.
-4. **Window** (Discover, 7-day schedule): `min(date)` среди candidates в `[from, toExclusive)`.
-5. `source` победившего candidate сохраняется в `ReleaseScheduleSlot`.
-
-Пример FNAF 2: TMDB US 2026-08-03 + Watchmode 2025-12-23 → **2025-12-23**.
+### Приоритеты регионов и типов:
+1. **US регион** (TMDB US, Watchmode US, Trakt US) — первичный ориентир для цифровых релизов.
+2. **PVOD (покупка/аренда)** — определяет официальную каноническую дату выхода тайтла в цифре.
+3. **SVOD (подписочные стриминги)** — фиксируются как вторичные окна доступности.
 
 ---
 
-## TMDB-специфика
+## Алгоритм и Вариант А (Строгий каталог предстоящих релизов)
 
-Парсинг в `digital-release-dates.ts`:
+1. **Каноническая дата релиза (`resolveDisplay(tmdbId)`)**:
+   - `collectCandidates(tmdbId)` собирает кандидатов со всех источников.
+   - Ищется минимальная календарная дата среди US-кандидатов (или глобально, если US отсутствует).
+   - *Пример «Мандалорец и Грогу»*: PVOD US `2026-07-21` + Disney+ US `2026-09-02` → каноническая дата: **`2026-07-21`**.
 
-- type 4 = Digital (VOD purchase/rent)
-- type 6 + platform note = SVOD (Peacock, Netflix, …)
-- Theatrical / Physical не участвуют
+2. **Фильтрация каталога предстоящих релизов (Discover, Вариант А)**:
+   - Если каноническая дата релиза меньше начала каталожного окна (`canonicalDate < from`), тайтл считается **уже вышедшим** и исключается из выборки предстоящих релизов этого месяца.
+   - Если каноническая дата релиза попадает в диапазон `[from, toExclusive)`, фильм отображается с точной датой своего релиза.
 
-В агрегаторе TMDB даёт **несколько** candidates (по регионам и платформам), не одну «каноническую» дату.
+3. **Отображение в UI (Поиск, Карточки, Модальные окна)**:
+   - В поиске, модальном окне деталей и карточках используется `resolveDisplay(tmdbId)`.
+   - В модальном окне отображается оригинальное название (`originalTitle`) и кликабельная ссылка на IMDb.
 
 ---
 
-## Кэш
+## Архитектура производительности и кэширования
 
-| Ключ | Содержимое |
-|------|------------|
-| `movie:digital:candidates:v2:{tmdbId}` | полный список candidates |
-| `tmdb:movie:{id}:digital_display_v3` | resolved display date |
-| `tmdb:movie-release:v3:{id}:{from}:{toExclusive}` | windowed date |
-| `trakt:movie-digital-releases:{tmdbId}:us` | Trakt US digital dates |
-| `watchmode:movie-release:{tmdbId}` | Watchmode date |
+| Уровень | Технология | Описание |
+|---------|------------|----------|
+| **L1 (In-Memory)** | SingleFlight / Request Coalescing | Карта `activePoolFetches` объединяет параллельные запросы к одинаковым фильтрам каталога. |
+| **L2 (Redis Pool)** | Page-Independent Pool Cache | Кэширование пула элементов `releases:catalog:pool:v4:...` с мгновенной пагинацией в памяти (<5ms). |
+| **L3 (HTTP / CDN)** | `Cache-Control` | `public, max-age=60, s-maxage=300, stale-while-revalidate=1800` на `/api/releases/content/upcoming`. |
+| **Zero DB Writes** | Read-Only GET Path | Устранены вызовы `MediaExternalIdsService.upsert` при обработке GET-запросов каталога. |
 
 ---
 
 ## Потребители
 
 - `MovieDigitalReleaseDateService` — единая точка входа
-- `getMovieDigitalReleaseDate` / `getMovieDigitalReleaseDateDisplay` (TMDB client)
+- `getMovieDigitalReleaseDateDisplay` — каноническая дата для UI, поиска и модалок
+- `ReleaseCatalogAggregator.getUpcoming` — пул и пагинация предстоящих релизов
 - `ReleaseScheduleDateService.resolveMovie`
-- `torrent-local-store.enrichTorrentSchedule`
 - `getContentDetail` (movie)
 
----
-
-## Ключевые решения
-
-- **Cross-source min** — сравниваем даты между TMDB, Watchmode и Trakt, не «TMDB first».
-- **US Trakt** — `/releases/us` для согласованности с US digital market.
-- **TMDB multi-entry** — каждая digital-запись в пуле, не только earliest per region.

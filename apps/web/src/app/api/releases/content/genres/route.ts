@@ -12,7 +12,12 @@ async function getHandler(request: NextRequest) {
 
   try {
     const data = await getGenres(getLang(request));
-    return NextResponse.json(data);
+    const response = NextResponse.json(data);
+    response.headers.set(
+      'Cache-Control',
+      'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800'
+    );
+    return response;
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to fetch genres', message: error instanceof Error ? error.message : 'Unknown error' },

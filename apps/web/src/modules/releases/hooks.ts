@@ -19,7 +19,7 @@ import type { ReleaseWatchlistStatus } from '@/lib/releases/types';
 const defaultQueryOptions = {
   retry: false,
   refetchOnWindowFocus: false,
-  staleTime: 30_000,
+  staleTime: 5 * 60 * 1000,
 } as const;
 
 export function useInvalidateReleaseWatchlist() {
@@ -59,6 +59,7 @@ export function useReleaseUpcomingCatalog(lang: string, params: UpcomingCatalogP
     queryKey: releaseQueryKeys.catalog.upcoming(lang, params),
     queryFn: () => fetchUpcomingCatalog(lang, params),
     enabled,
+    placeholderData: (previousData) => previousData,
     ...defaultQueryOptions,
   });
 }

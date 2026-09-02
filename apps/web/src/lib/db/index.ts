@@ -17,18 +17,28 @@ function sslFromUrl(url: string) {
   return undefined;
 }
 
-const client = postgres(connectionString, {
-  max: 10,
-  idle_timeout: 20,
-  connect_timeout: 30,
-  // Coolify / PgBouncer (часто :6432) в transaction mode не любят prepared statements.
-  prepare: false,
-  ssl: sslFromUrl(connectionString),
-  onnotice: () => {},
-  transform: {
-    undefined: null,
-  },
-});
+const globalForDb = globalThis as unknown as {
+  _postgresClient?: postgres.Sql;
+};
+
+const client =
+  globalForDb._postgresClient ??
+  postgres(connectionString, {
+    max: 10,
+    idle_timeout: 20,
+    connect_timeout: 30,
+    // Coolify / PgBouncer (часто :6432) в transaction mode не любят prepared statements.
+    prepare: false,
+    ssl: sslFromUrl(connectionString),
+    onnotice: () => {},
+    transform: {
+      undefined: null,
+    },
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForDb._postgresClient = client;
+}
 
 export const db = drizzle(client, { schema });
 export * from './schema';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -65,6 +65,41 @@ export default function IntegrationsPage() {
     }
   }, [user]);
 
+  const fetchSyncJob = useCallback(async (jobId: number) => {
+    try {
+      const response = await fetch(`/api/user/integrations/sync/${jobId}`, {
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      setSyncJob(data.job);
+      const active = data.job.status === 'pending' || data.job.status === 'running';
+      setIsSyncing(active);
+
+      if (data.job.status === 'completed') {
+        const imported = Number(data.job.summary?.imported || 0);
+        toast({
+          title: t('syncStarted'),
+          description: `${t('syncStartedDescription')} Imported ${imported} entries.`,
+        });
+      }
+
+      if (data.job.status === 'failed') {
+        toast({
+          variant: "destructive",
+          title: t('syncError'),
+          description: data.job.error || t('syncErrorDescription'),
+        });
+      }
+    } catch {
+      // Best-effort status polling; no UI interruption needed.
+    }
+  }, [t, toast]);
+
   useEffect(() => {
     if (!syncJob || (syncJob.status !== 'pending' && syncJob.status !== 'running')) {
       return;
@@ -75,7 +110,7 @@ export default function IntegrationsPage() {
     }, 3000);
 
     return () => window.clearInterval(intervalId);
-  }, [syncJob]);
+  }, [syncJob, fetchSyncJob]);
 
   const fetchIntegrations = async () => {
     try {
@@ -108,41 +143,6 @@ export default function IntegrationsPage() {
       setIsSyncing(Boolean(latestJob && (latestJob.status === 'pending' || latestJob.status === 'running')));
     } catch {
       // Best-effort status polling; no UI interruption needed.
-    }
-  };
-
-  const fetchSyncJob = async (jobId: number) => {
-    try {
-      const response = await fetch(`/api/user/integrations/sync/${jobId}`, {
-        cache: 'no-store',
-      });
-
-      if (!response.ok) {
-        return;
-      }
-
-      const data = await response.json();
-      setSyncJob(data.job);
-      const active = data.job.status === 'pending' || data.job.status === 'running';
-      setIsSyncing(active);
-
-      if (data.job.status === 'completed') {
-        const imported = Number(data.job.summary?.imported || 0);
-        toast({
-          title: t('syncStarted'),
-          description: `${t('syncStartedDescription')} Imported ${imported} entries.`,
-        });
-      }
-
-      if (data.job.status === 'failed') {
-        toast({
-          variant: "destructive",
-          title: t('syncError'),
-          description: data.job.error || t('syncErrorDescription'),
-        });
-      }
-    } catch {
-      // Best-effort polling.
     }
   };
 

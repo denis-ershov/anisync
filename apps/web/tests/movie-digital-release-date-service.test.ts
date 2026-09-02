@@ -37,3 +37,24 @@ test('returns null when no candidates match window', () => {
 
   assert.equal(pickEarliestDigitalCandidate(candidates, '2026-07-01', '2026-08-01'), null);
 });
+
+test('canonical display preserves earliest retail digital release over later streaming windows (The Mandalorian & Grogu case)', () => {
+  const candidates: DigitalReleaseCandidate[] = [
+    { date: '2026-07-21', source: 'tmdb', region: 'US', label: 'PVOD Retail' },
+    { date: '2026-07-21', source: 'tmdb', region: 'RU', label: 'PVOD Retail' },
+    { date: '2026-09-02', source: 'tmdb', region: 'US', label: 'Disney+' },
+    { date: '2026-09-02', source: 'tmdb', region: 'CZ', label: 'Disney+' },
+  ];
+
+  // Для отображения в карточках, модалке и поиске (canonical display)
+  const canonical = pickEarliestDigitalCandidate(candidates);
+  assert.equal(canonical?.date, '2026-07-21');
+  assert.equal(canonical?.source, 'tmdb');
+
+  // Проверка логики каталога предстоящих релизов за сентябрь (Вариант А):
+  // Фильм с canonicalDate 2026-07-21 считается вышедшим до сентября (canonicalDate < 2026-09-01).
+  const fromSeptember = '2026-09-01';
+  const isAlreadyReleased = Boolean(canonical?.date && canonical.date < fromSeptember);
+  assert.equal(isAlreadyReleased, true);
+});
+

@@ -1,4 +1,5 @@
 import type {Metadata, Viewport} from 'next';
+import { Sofia_Sans } from 'next/font/google';
 import '../globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import {NextIntlClientProvider} from 'next-intl';
@@ -7,6 +8,13 @@ import { AuthProvider } from '@/contexts/auth-context';
 import { QueryProvider } from '@/components/providers/query-provider';
 import { SerwistClientProvider } from '@/components/providers/serwist-provider';
 import { PwaInstallPrompt } from '@/components/pwa/install-prompt';
+
+const sofiaSans = Sofia_Sans({
+  subsets: ['latin', 'cyrillic'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-sofia-sans',
+});
 
 export const metadata: Metadata = {
   applicationName: 'AniSync',
@@ -44,12 +52,7 @@ export default async function RootLayout({
   const {locale} = await params;
   const messages = await getMessages();
   return (
-    <html lang={locale} className="dark">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Sofia+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      </head>
+    <html lang={locale} className={`dark ${sofiaSans.className} ${sofiaSans.variable}`}>
       <body className="font-body antialiased">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <SerwistClientProvider>

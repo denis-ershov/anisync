@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
@@ -24,11 +24,7 @@ export default function NotificationsSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    void loadSettings();
-  }, []);
-
-  async function loadSettings() {
+  const loadSettings = useCallback(async () => {
     try {
       const response = await fetch('/api/user/settings');
       if (!response.ok) {
@@ -51,7 +47,11 @@ export default function NotificationsSettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [t, toast]);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
 
   async function saveSettings() {
     setIsSaving(true);
