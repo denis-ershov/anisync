@@ -40,7 +40,7 @@ export class ReleaseScheduleDateService {
     now = new Date()
   ): Promise<ReleaseScheduleSlot | null> {
     const { from, toExclusive } = getScheduleWindow(now);
-    const cacheKey = `releases:schedule:movie:${tmdbId}:${from}:${toExclusive}`;
+    const cacheKey = `releases:schedule:movie:v2:${tmdbId}:${from}:${toExclusive}`;
     const cachedWrap = await cacheRead<{ value: ReleaseScheduleSlot | null }>(cacheKey);
     if (cachedWrap) {
       return cachedWrap.value;

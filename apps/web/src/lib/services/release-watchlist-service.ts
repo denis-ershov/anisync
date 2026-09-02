@@ -77,7 +77,25 @@ export class ReleaseWatchlistService {
 
     void ReleaseWatchlistService.scheduleRefreshIfNeeded();
 
-    return items.map(toDto);
+    const dtos = await Promise.all(
+      items.map(async (entry) => {
+        const dto = toDto(entry);
+        if (dto.type === 'movie') {
+          const canonicalDate = await MovieDigitalReleaseDateService.resolveDisplay(dto.tmdbId).catch(() => null);
+          if (canonicalDate && canonicalDate !== dto.releaseDate) {
+            dto.releaseDate = canonicalDate;
+            void db
+              .update(releaseWatchlistEntries)
+              .set({ releaseDate: canonicalDate, scheduleUpdatedAt: new Date() })
+              .where(eq(releaseWatchlistEntries.id, dto.id))
+              .catch(() => undefined);
+          }
+        }
+        return dto;
+      })
+    );
+
+    return dtos;
   }
 
   static async scheduleRefreshIfNeeded() {

@@ -18,16 +18,28 @@ test('aggregates earliest date across TMDB, Watchmode and Trakt', () => {
   assert.equal(result?.source, 'watchmode');
 });
 
-test('windowed aggregation picks earliest in-window across sources', () => {
+test('windowed aggregation returns canonical release when within window', () => {
   const candidates: DigitalReleaseCandidate[] = [
-    { date: '2025-12-23', source: 'tmdb', region: 'US' },
+    { date: '2026-07-15', source: 'tmdb', region: 'US' },
     { date: '2026-08-03', source: 'tmdb', region: 'US' },
-    { date: '2026-07-15', source: 'trakt', region: 'US' },
+    { date: '2026-07-20', source: 'trakt', region: 'US' },
   ];
 
   const result = pickEarliestDigitalCandidate(candidates, '2026-07-01', '2026-09-01');
   assert.equal(result?.date, '2026-07-15');
-  assert.equal(result?.source, 'trakt');
+  assert.equal(result?.source, 'tmdb');
+});
+
+test('windowed aggregation rejects movies already released before window (The Mandalorian & Grogu case)', () => {
+  const candidates: DigitalReleaseCandidate[] = [
+    { date: '2026-07-21', source: 'tmdb', region: 'US', label: 'PVOD' },
+    { date: '2026-09-02', source: 'trakt', region: 'US', label: 'Disney+' },
+  ];
+
+  // Проверяем окно расписания 2-9 сентября 2026 г.
+  // Так как фильм уже вышел 21 июля 2026 г., он не должен возвращать сентябрьскую дату как новый релиз
+  const result = pickEarliestDigitalCandidate(candidates, '2026-09-02', '2026-09-09');
+  assert.equal(result, null);
 });
 
 test('returns null when no candidates match window', () => {

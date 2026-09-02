@@ -80,7 +80,7 @@ async function loadTmdbCandidates(tmdbId: number): Promise<DigitalReleaseCandida
 export class MovieDigitalReleaseDateService {
   /** Собирает digital candidates из TMDB + Watchmode + Trakt (US). */
   static async collectCandidates(tmdbId: number): Promise<DigitalReleaseCandidate[]> {
-    const cacheKey = `movie:digital:candidates:v2:${tmdbId}`;
+    const cacheKey = `movie:digital:candidates:v3:${tmdbId}`;
     const cached = await cacheRead<{ value: DigitalReleaseCandidate[] }>(cacheKey);
     if (cached) {
       return cached.value;

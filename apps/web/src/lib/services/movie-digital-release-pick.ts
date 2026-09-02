@@ -41,14 +41,17 @@ export function pickEarliestDigitalCandidate(
   from?: string,
   toExclusive?: string,
 ): AggregatedMovieDigitalRelease | null {
-  const pool =
-    from && toExclusive
-      ? candidates.filter((candidate) => inDateRange(candidate.date, from, toExclusive))
-      : candidates;
-  const winner = earliestCandidate(pool);
+  const winner = earliestCandidate(candidates);
   if (!winner) {
     return null;
   }
+
+  if (from && toExclusive) {
+    if (!inDateRange(winner.date, from, toExclusive)) {
+      return null;
+    }
+  }
+
   return { date: winner.date, source: winner.source, candidates };
 }
 
