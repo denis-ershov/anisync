@@ -64,6 +64,13 @@
       "when": 1765201535771,
       "tag": "0008_user_timezone",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788363266272,
+      "tag": "0009_auto_refresh_torrent_metadata",
+      "breakpoints": true
     }
   ]
 }

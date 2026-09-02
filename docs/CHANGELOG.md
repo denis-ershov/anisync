@@ -18,6 +18,8 @@
 - `apps/web/messages/ru.json`
 - `apps/web/messages/en.json`
 - `apps/web/tests/torrent-metadata-refresh.test.ts`
+- `apps/web/drizzle/0009_auto_refresh_torrent_metadata.sql`
+- `apps/web/drizzle/meta/_journal.json`
 - `docs/modules/TORRENT_METADATA_SYNC_ARCHITECTURE.md`
 
 **Изменения:**
