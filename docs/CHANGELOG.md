@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-17 (fix: resolve coolify pull access denied for local anisync-runtime image)
+
+**Файлы:**
+- `docker-compose.yml`
+- `docs/COOLIFY_DEPLOY.md`
+
+**Изменения:**
+1. **Спецификация `build` для всех сервисов в Compose:**
+   - Вынесена общая конфигурация сборки в якорь `x-anisync-build`.
+   - Включен якорь сборки `build: *anisync-build` в базовый шаблон сервисов `x-anisync-image`.
+   - Сервисы `worker` и `scheduler` теперь имеют явную декларацию `build`, сохраняя единое имя образа `image: anisync-runtime:local`.
+2. **Устранение падения деплоя в Coolify (`pull access denied`):**
+   - На этапе подготовки Coolify выполняет команду `docker compose pull --ignore-buildable`. Сервисы без секции `build:` (ранее `worker` и `scheduler`) трактовались Docker Compose как внешние образы и запрашивались из Docker Hub, завершая деплой ошибкой `Error pull access denied for anisync-runtime, repository does not exist or may require 'docker login'`.
+   - Благодаря наличию `build` у всех сервисов, Docker Compose корректно определяет их как buildable и пропускает (`Image anisync-runtime:local Skipped Image can be built`).
+   - Использование единого имени `image: anisync-runtime:local` гарантирует, что BuildKit билдит образ один раз и не дублирует экспорт слоев.
+
 ## 2026-09-17 (fix: torrent voice audio filtering, domestic russian cinema search & prowlarr multi-indexer support)
 
 **Файлы:**

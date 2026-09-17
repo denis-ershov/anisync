@@ -15,11 +15,12 @@ PostgreSQL и Redis — **отдельные** Coolify Database resources. В co
 
 | Сервис | Роль |
 |--------|------|
-| `web` | Next.js UI + API, **миграции при старте**; единственный сервис с `build` |
-| `worker` | BullMQ consumers (тот же image `anisync-runtime`) |
-| `scheduler` | Repeatable jobs (тот же image) |
+| `web` | Next.js UI + API, **миграции при старте** (общий image `anisync-runtime:local`) |
+| `worker` | BullMQ consumers (тот же image `anisync-runtime:local`) |
+| `scheduler` | Repeatable jobs (тот же image `anisync-runtime:local`) |
 
-`worker` и `scheduler` **не** объявляют свой `build` — иначе Coolify трижды экспортирует один огромный образ и деплой может надолго зависнуть на `exporting to image` / `resolving provenance`.
+Все три сервиса используют общий якорь `x-anisync-image` с единым именем `image: anisync-runtime:local` и спецификацией `build: *anisync-build`.  
+Секция `build` необходима каждому сервису, так как при деплое Coolify запускает команду `docker compose pull --ignore-buildable`. Сервисы без блока `build` Docker Compose трактует как внешние образы и пытается стянуть их с Docker Hub (`pull access denied for anisync-runtime`). Благодаря общему тегу и BuildKit образ компилируется ровно один раз и мгновенно переиспользуется всеми контейнерами стека.
 
 Postgres и Redis **не** входят в compose — Coolify Database + **Connect To Predefined Network**.  
 В env только полные строки `DATABASE_URL` и `REDIS_URL` (internal hostname из карточки ресурса).
@@ -125,11 +126,18 @@ node --import tsx scripts/seed-bootstrap-admin.ts
 - Cleanup — отдельная задача сервера (**Servers → Docker Cleanup**), не шаг Redeploy.
 - Чтобы чистить агрессивнее: включите **Force Docker Cleanup** и при необходимости **Disable Application Image Retention** (или снизьте число образов в Rollback).
 - Разовый ручной сброс на сервере: `docker image prune -af` (удалит все неиспользуемые образы; rollback по старым тегам станет недоступен).
-- Раньше AniSync билдил один Dockerfile трижды (`web`/`worker`/`scheduler`) → ×3 мусора за деплой; сейчас общий `anisync-runtime:local`, build только у `web`.
+- Раньше AniSync билдил один Dockerfile без указания image (`web`/`worker`/`scheduler`) → 3 разных тега и ×3 мусора за деплой; сейчас общий `image: anisync-runtime:local` со спецификацией `build` у всех сервисов.
 
 ---
 
 ## 6. Частые ошибки
+
+### Image anisync-runtime:local Error pull access denied
+
+Симптом: при деплое шаг `docker compose ... pull --ignore-buildable` падает с:
+`pull access denied for anisync-runtime, repository does not exist or may require 'docker login'`
+- **Причина:** у сервисов `worker` или `scheduler` отсутствовала секция `build:`. Флаг `--ignore-buildable` пропускает только сервисы с явным блоком `build:`; сервисы без `build` Docker Compose считает внешними и пытается скачать из Docker Hub.
+- **Решение:** в `docker-compose.yml` секция `build` подключена ко всем сервисам через общий якорь `x-anisync-build`.
 
 ### Restart loop / Exited (10x restarts)
 

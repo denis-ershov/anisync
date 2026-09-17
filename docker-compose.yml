@@ -3,8 +3,10 @@
 # web / worker / scheduler. Postgres и Redis — внешние Coolify Database
 # (Connect To Predefined Network), только DATABASE_URL и REDIS_URL.
 #
-# Один общий image (anisync-runtime): build только у `web`, иначе Coolify
-# трижды экспортирует один и тот же тяжёлый слой и деплой «зависает» на unpack/provenance.
+# Один общий image (anisync-runtime:local) со спецификацией build для всех сервисов.
+# Секция `build` необходима каждому сервису, чтобы Coolify (`docker compose pull --ignore-buildable`)
+# не пытался делать pull локального образа из Docker Hub. Благодаря общему имени образа и BuildKit
+# образ собирается один раз и переиспользуется всеми сервисами.
 #
 # Домен вешается на сервис `web` (порт контейнера 3000).
 # Health checks — в compose (Coolify / Traefik читают Docker health status).
@@ -31,20 +33,22 @@ x-healthcheck-queue: &healthcheck-queue
   retries: 5
   start_period: 45s
 
+x-anisync-build: &anisync-build
+  context: .
+  dockerfile: apps/web/Dockerfile
+  args:
+    NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+    NEXT_PUBLIC_RELEASES_MODULE_ENABLED: ${NEXT_PUBLIC_RELEASES_MODULE_ENABLED:-true}
+    NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: ${NEXT_PUBLIC_TORRENTS_MODULE_ENABLED:-true}
+    NEXT_PUBLIC_REGISTRATION_OPEN: ${NEXT_PUBLIC_REGISTRATION_OPEN:-true}
+
 x-anisync-image: &anisync-image
   image: anisync-runtime:local
+  build: *anisync-build
 
 services:
   web:
     <<: *anisync-image
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
-        NEXT_PUBLIC_RELEASES_MODULE_ENABLED: ${NEXT_PUBLIC_RELEASES_MODULE_ENABLED:-true}
-        NEXT_PUBLIC_TORRENTS_MODULE_ENABLED: ${NEXT_PUBLIC_TORRENTS_MODULE_ENABLED:-true}
-        NEXT_PUBLIC_REGISTRATION_OPEN: ${NEXT_PUBLIC_REGISTRATION_OPEN:-true}
     restart: unless-stopped
     ports:
       - '3000'
