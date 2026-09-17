@@ -36,15 +36,19 @@ export class ProwlarrClient {
     const url = new URL(`${rootUrl(this.baseUrl)}/api/v1/search`);
     url.searchParams.set('imdbId', imdbId);
     url.searchParams.set('apikey', this.apiKey);
-    if (options?.type) {
-      url.searchParams.set('type', options.type);
-    }
+    url.searchParams.set('type', options?.type || 'movie');
     if (options?.categories?.length) {
       for (const cat of options.categories) {
         url.searchParams.append('categories', String(cat));
       }
     }
-    const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    const response = await fetch(url, {
+      headers: {
+        'X-Api-Key': this.apiKey,
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
     if (!response.ok) {
       throw new Error(`Prowlarr searchByImdb failed: ${response.status}`);
     }
@@ -61,15 +65,19 @@ export class ProwlarrClient {
     const url = new URL(`${rootUrl(this.baseUrl)}/api/v1/search`);
     url.searchParams.set('query', query);
     url.searchParams.set('apikey', this.apiKey);
-    if (options?.type) {
-      url.searchParams.set('type', options.type);
-    }
+    url.searchParams.set('type', options?.type || 'search');
     if (options?.categories?.length) {
       for (const cat of options.categories) {
         url.searchParams.append('categories', String(cat));
       }
     }
-    const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    const response = await fetch(url, {
+      headers: {
+        'X-Api-Key': this.apiKey,
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(30_000),
+    });
     if (!response.ok) {
       throw new Error(`Prowlarr searchByQuery failed: ${response.status}`);
     }

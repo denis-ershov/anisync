@@ -137,24 +137,113 @@ const COMMON_WORDS = new Set([
   'nf',
   'dv',
   'hybrid',
+  // Кодеки и разрешения после разделения букв и цифр
+  '1080',
+  '2160',
+  '720',
+  '480',
+  '264',
+  '265',
+  '4k',
+  '8k',
+]);
+
+const ROMAN_NUMERALS_MAP: Record<string, string> = {
+  ii: '2',
+  iii: '3',
+  iv: '4',
+  v: '5',
+  vi: '6',
+  vii: '7',
+  viii: '8',
+  ix: '9',
+  x: '10',
+};
+
+const SEASON_EPISODE_CONTEXT_WORDS = new Set([
+  'season',
+  'seasons',
+  'episode',
+  'episodes',
+  'ep',
+  'eps',
+  'сезон',
+  'сезона',
+  'сезоны',
+  'серия',
+  'серии',
+  'серий',
+  'эпизод',
+  'эпизода',
+  'эпизодов',
+  's',
+  'e',
+  'of',
+  'из',
+  'bit',
+  'бит',
+  'k',
 ]);
 
 function tokenize(value: string): string[] {
   const prepared = value
     .toLowerCase()
     .replace(/ё/g, 'е')
+    .replace(/\b(?:viii|vii|vi|iv|iii|ii|ix|x|v)\b/gi, (roman) => {
+      return ROMAN_NUMERALS_MAP[roman.toLowerCase()] ?? roman;
+    })
     .replace(/([a-zа-я])(\d)/gi, '$1 $2')
     .replace(/(\d)([a-zа-я])/gi, '$1 $2');
   return prepared.match(/[0-9a-zа-я]+/gi) ?? [];
 }
 
 function titleTokens(value: string): string[] {
-  return tokenize(value).filter(
-    (token) =>
-      !COMMON_WORDS.has(token) &&
-      token.length > 1 &&
-      !/^(19|20)\d{2}$/.test(token)
-  );
+  const rawTokens = tokenize(value);
+  const result: string[] = [];
+
+  for (let i = 0; i < rawTokens.length; i += 1) {
+    const token = rawTokens[i];
+
+    // Пропускаем 4-значные года
+    if (/^(?:19|20)\d{2}$/.test(token)) {
+      continue;
+    }
+
+    // Если число — проверяем контекст (сезон, серия, битность, of 10, 4k)
+    if (/^\d+$/.test(token)) {
+      const prev = rawTokens[i - 1];
+      const next = rawTokens[i + 1];
+      const nextNext = rawTokens[i + 2];
+
+      if (prev && SEASON_EPISODE_CONTEXT_WORDS.has(prev)) {
+        continue;
+      }
+      if (next && SEASON_EPISODE_CONTEXT_WORDS.has(next)) {
+        continue;
+      }
+      // Диапазон серий (например "1-8 серии"): prev='1', next='8', nextNext='серии'
+      if (next && /^\d+$/.test(next) && nextNext && SEASON_EPISODE_CONTEXT_WORDS.has(nextNext)) {
+        continue;
+      }
+      if (prev && /^\d+$/.test(prev) && next && SEASON_EPISODE_CONTEXT_WORDS.has(next)) {
+        continue;
+      }
+      if (COMMON_WORDS.has(token)) {
+        continue;
+      }
+      result.push(token);
+      continue;
+    }
+
+    if (COMMON_WORDS.has(token)) {
+      continue;
+    }
+    if (token.length > 1) {
+      result.push(token);
+    }
+  }
+
+  return result;
 }
 
 function containsSequence(tokens: string[], sequence: string[]): boolean {
@@ -163,18 +252,14 @@ function containsSequence(tokens: string[], sequence: string[]): boolean {
   }
   for (let start = 0; start <= tokens.length - sequence.length; start += 1) {
     if (tokens.slice(start, start + sequence.length).join('\0') === sequence.join('\0')) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function containsExactSegment(value: string, sequence: string[]): boolean {
-  const segments = value.split(/\s*[\\/|]+\s*|\s+-\s+/);
-  for (const segment of segments) {
-    const cleanSegment = segment.replace(/\[[^\]]*\]|\([^)]*\)/g, ' ');
-    const tokens = titleTokens(cleanSegment);
-    if (tokens.join('\0') === sequence.join('\0')) {
+      const lastSeqToken = sequence[sequence.length - 1];
+      const isSeqEndingInNumber = /^\d+$/.test(lastSeqToken);
+      const nextToken = tokens[start + sequence.length];
+      // Если искомое название не заканчивается номером сиквела, но в релизе сразу идет номер (напр. 'холоп' -> '3'),
+      // это сиквел — пропускаем данное вхождение
+      if (!isSeqEndingInNumber && nextToken && /^\d+$/.test(nextToken)) {
+        continue;
+      }
       return true;
     }
   }
@@ -290,7 +375,12 @@ function yearMatchesRelease(
   }
   const releaseYears = extractReleaseYears(releaseTitle);
   if (releaseYears.size > 0) {
-    return releaseYears.has(year);
+    const num = Number(year);
+    return (
+      releaseYears.has(year) ||
+      releaseYears.has(String(num - 1)) ||
+      releaseYears.has(String(num + 1))
+    );
   }
   // Для фильмов без года в названии title-match ненадёжен.
   return options?.requireYearInTitle ? false : true;
@@ -599,11 +689,7 @@ export function filterResultsByImdbOrTitle(
     }
 
     const releaseTokens = titleTokens(releaseTitle);
-    const hasTitleMatch = aliases.some((alias) =>
-      alias.length === 1
-        ? containsExactSegment(releaseTitle, alias)
-        : containsSequence(releaseTokens, alias)
-    );
+    const hasTitleMatch = aliases.some((alias) => containsSequence(releaseTokens, alias));
     if (!hasTitleMatch) {
       return false;
     }
@@ -647,6 +733,7 @@ export function filterReleasesByPreferences(
     }
 
     const title = (release.title || '').toLowerCase();
+    const titleClean = title.replace(/[,._\-/\[\]()]+/g, ' ').replace(/\s+/g, ' ');
     let qualityStr = '';
     if (release.quality && typeof release.quality === 'object') {
       qualityStr = String(release.quality.resolution || '').toLowerCase();
@@ -663,9 +750,27 @@ export function filterReleasesByPreferences(
       qualityMatch = false;
 
       for (const qualityPref of qualityList) {
+        if (qualityPref.includes('2160p sdr') || qualityPref.includes('4k sdr')) {
+          const has4k = /\b(?:2160p?|4k|uhd)\b/i.test(title);
+          const hasHdr = /\b(?:hdr|hdr10\+?|dolby\s*vision|dv|dovi)\b/i.test(title);
+          const hasSdr = /\bsdr\b/i.test(title);
+          if (has4k && (hasSdr || !hasHdr)) {
+            qualityMatch = true;
+            break;
+          }
+        }
+        if (qualityPref.includes('2160p hdr') || qualityPref.includes('4k hdr')) {
+          const has4k = /\b(?:2160p?|4k|uhd)\b/i.test(title);
+          const hasHdr = /\b(?:hdr|hdr10\+?|dolby\s*vision|dv|dovi)\b/i.test(title);
+          if (has4k && hasHdr) {
+            qualityMatch = true;
+            break;
+          }
+        }
+
         for (const [variantKey, variants] of Object.entries(qualityVariants)) {
           if (qualityPref.includes(variantKey.toLowerCase()) || variantKey.toLowerCase().includes(qualityPref)) {
-            if (variants.some((variant) => qualityStr.includes(variant) || title.includes(variant))) {
+            if (variants.some((variant) => qualityStr.includes(variant) || title.includes(variant) || titleClean.includes(variant))) {
               qualityMatch = true;
               break;
             }
@@ -675,6 +780,7 @@ export function filterReleasesByPreferences(
           qualityMatch =
             qualityPref.includes(qualityStr) ||
             title.includes(qualityPref) ||
+            titleClean.includes(qualityPref) ||
             qualityStr.includes(qualityPref);
         }
         if (qualityMatch) {

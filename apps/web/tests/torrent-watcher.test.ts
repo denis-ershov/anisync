@@ -8,6 +8,7 @@ import {
 } from '@/lib/torrents/watcher/identity';
 import {
   buildSearchQueries,
+  filterReleasesByPreferences,
   filterResultsByImdbOrTitle,
   filterResultsBySeason,
   hasBadAudioMarkers,
@@ -313,4 +314,73 @@ test('buildSearchQueries generates queries for domestic TV series with season va
   assert.ok(queries.some((q) => q.includes('s01')));
   assert.ok(queries.some((q) => q.startsWith('Слово пацана')));
 });
+
+test('filterResultsByImdbOrTitle and filterReleasesByPreferences correctly process Холоп 3 and sequels', () => {
+  const prowlarrReleases = [
+    {
+      title: 'Холоп 3 (2026) WEBRip [H.264/2160p] [4K, SDR, 8 bit]',
+      indexer: 'NoNaMe Club',
+    },
+    {
+      title: '3 (2026) WEBRip 1080p RUS',
+      indexer: 'BigFANGroup',
+    },
+    {
+      title: 'Холоп 3 (2026) WEBRip [H.264/1080p]',
+      indexer: 'NoNaMe Club',
+    },
+    {
+      title: 'Холоп III (2026) WEBRip [H.264/1080p]',
+      indexer: 'NoNaMe Club',
+    },
+    {
+      title: 'Холоп (2019) BDRip 1080p',
+      indexer: 'NoNaMe Club',
+    },
+  ];
+
+  // 1. Поиск для фильма «Холоп 3» (2026)
+  const matchedForKholop3 = filterResultsByImdbOrTitle(
+    prowlarrReleases,
+    'tt_kholop3',
+    'Холоп 3',
+    'Холоп 3',
+    '2026',
+    'movie'
+  );
+
+  // Должны совпасть обе раздачи с NNM-Club (2160p и 1080p), а также римская запись Холоп III
+  // Фильм первой части (Холоп 2019) не должен попасть!
+  const titlesMatched = matchedForKholop3.map((r) => r.title);
+  assert.ok(titlesMatched.includes('Холоп 3 (2026) WEBRip [H.264/2160p] [4K, SDR, 8 bit]'));
+  assert.ok(titlesMatched.includes('Холоп 3 (2026) WEBRip [H.264/1080p]'));
+  assert.ok(titlesMatched.includes('Холоп III (2026) WEBRip [H.264/1080p]'));
+  assert.equal(titlesMatched.includes('Холоп (2019) BDRip 1080p'), false);
+
+  // 2. Проверяем настройки: Качество «1080p, 2160p SDR», Озвучка «russian»
+  const filteredPreferences = filterReleasesByPreferences(
+    matchedForKholop3,
+    '1080p, 2160p SDR',
+    'russian',
+    { isRussianOrigin: true }
+  );
+
+  const prefTitles = filteredPreferences.map((r) => r.title);
+  assert.ok(prefTitles.includes('Холоп 3 (2026) WEBRip [H.264/2160p] [4K, SDR, 8 bit]'));
+  assert.ok(prefTitles.includes('Холоп 3 (2026) WEBRip [H.264/1080p]'));
+  assert.ok(prefTitles.includes('Холоп III (2026) WEBRip [H.264/1080p]'));
+
+  // 3. Защита сиквелов: поиск для первой части «Холоп» (2019) НЕ должен находить «Холоп 3»
+  const matchedForKholop1 = filterResultsByImdbOrTitle(
+    prowlarrReleases,
+    'tt_kholop1',
+    'Холоп',
+    'Холоп',
+    '2019',
+    'movie'
+  );
+  assert.equal(matchedForKholop1.length, 1);
+  assert.equal(matchedForKholop1[0].title, 'Холоп (2019) BDRip 1080p');
+});
+
 

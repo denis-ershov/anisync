@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-09-17 (fix: sequel title matching, 4K SDR comma tolerance & prowlarr search client enhancements)
+
+**Файлы:**
+- `apps/web/src/lib/torrents/watcher/filters.ts`
+- `apps/web/src/lib/integrations/prowlarr/client.ts`
+- `apps/web/tests/torrent-watcher.test.ts`
+
+**Изменения:**
+1. **Умный парсер номеров сиквелов и контекстная фильтрация чисел:**
+   - В `titleTokens` теперь сохраняются значимые номера сиквелов (например «3» в «Холоп 3»), тогда как номера сезонов, эпизодов, битности (8-bit, 10-bit), каналов звука (5.1, 7.1) и 4K отсекаются по контекстным маркерам (`SEASON_EPISODE_CONTEXT_WORDS`).
+   - Добавлена поддержка римских цифр (например, `Холоп III` сопоставляется с `Холоп 3`).
+   - В `containsSequence` реализована защита от ложных совпадений для первой части фильма: при поиске «Холоп (2019)» релизы сиквела «Холоп 3 (2026)» корректно отклоняются.
+   - Заменена хрупкая функция `containsExactSegment`, ломавшаяся на слэшах внутри тегов кодеков вида `[H.264/1080p]`.
+2. **Толерантность сопоставления качества «2160p SDR» и пунктуации:**
+   - В `filterReleasesByPreferences` добавлена очистка знаков препинания (`titleClean`), а также логика `has4k && (hasSdr || !hasHdr)` для профиля `2160p SDR`, что гарантирует пропуск раздач с тегами вроде `[4K, SDR, 8 bit]`.
+3. **Обновление ProwlarrClient:**
+   - В `searchByQuery` и `searchByImdb` добавлен заголовок `X-Api-Key` и явное указание типа поиска `type=search` / `type=movie` по умолчанию.
+4. **Тестирование:**
+   - Добавлен тест сопоставления раздач с NoNaMe Club и BigFANGroup для фильма «Холоп 3» (1080p, 2160p SDR, russian, римские цифры, защита от первой части). 104 из 104 тестов проходят успешно.
+
 ## 2026-09-17 (fix: resolve coolify pull access denied for local anisync-runtime image)
 
 **Файлы:**
