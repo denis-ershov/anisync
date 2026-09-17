@@ -13,6 +13,7 @@ import {
   filterReleasesByPreferences,
   filterResultsByImdbOrTitle,
   filterResultsBySeason,
+  isRussianTitleOrigin,
 } from '@/lib/torrents/watcher/filters';
 import {
   buildReleaseContentHash,
@@ -82,69 +83,54 @@ async function searchForItem(
   client: ProwlarrClient,
   item: WatchlistRow
 ): Promise<ProwlarrRelease[]> {
+  const categories =
+    item.type === 'movie' ? [2000] : item.type === 'tv' ? [5000] : undefined;
+
   let results: ProwlarrRelease[] = [];
   try {
-    results = await client.searchByImdb(item.imdbId);
+    results = await client.searchByImdb(item.imdbId, {
+      categories,
+      type: item.type === 'tv' ? 'tvsearch' : 'movie',
+    });
   } catch (error) {
     log.warn({ err: error, imdbId: item.imdbId }, 'IMDb search failed');
   }
 
-  const hasExactImdb = results.some((release) => {
-    const id = String(release.imdbId || release.imdb_id || '').trim();
-    return id && id !== '0' && id.toLowerCase() === item.imdbId.toLowerCase();
+  const queries = buildSearchQueries({
+    imdbId: item.imdbId,
+    title: item.title,
+    originalTitle: item.originalTitle,
+    itemType: item.type,
+    year: item.year,
+    targetSeason: item.targetSeason,
   });
 
-  const year = String(item.year || '').match(/\b((?:19|20)\d{2})\b/)?.[1] ?? null;
-  const needsYearQualifiedSearch = Boolean(year && item.type === 'movie');
+  const merged = new Map<string, ProwlarrRelease>();
+  for (const release of results) {
+    const identity = computeReleaseIdentity(release);
+    const key = identity.primary || release.guid || release.infoHash || release.title;
+    if (key) {
+      merged.set(String(key).toLowerCase(), release);
+    }
+  }
 
-  if (!hasExactImdb || needsYearQualifiedSearch) {
-    const queries = buildSearchQueries({
-      imdbId: item.imdbId,
-      title: item.title,
-      originalTitle: item.originalTitle,
-      itemType: item.type,
-      year: item.year,
-      targetSeason: item.targetSeason,
-    });
-
-    if (needsYearQualifiedSearch) {
-      const merged = new Map<string, ProwlarrRelease>();
-      for (const release of results) {
+  // Опрашиваем по текстовым запросам без досрочного break, чтобы охватить все индексаторы
+  for (const query of queries) {
+    try {
+      const byQuery = await client.searchByQuery(query, { categories });
+      for (const release of byQuery) {
         const identity = computeReleaseIdentity(release);
-        const key = identity.primary || release.guid || release.title;
+        const key = identity.primary || release.guid || release.infoHash || release.title;
         if (key) {
           merged.set(String(key).toLowerCase(), release);
         }
       }
-      for (const query of queries) {
-        try {
-          const byQuery = await client.searchByQuery(query);
-          for (const release of byQuery) {
-            const identity = computeReleaseIdentity(release);
-            const key = identity.primary || release.guid || release.title;
-            if (key) {
-              merged.set(String(key).toLowerCase(), release);
-            }
-          }
-        } catch (error) {
-          log.warn({ err: error, query }, 'Query search failed');
-        }
-      }
-      results = Array.from(merged.values());
-    } else {
-      for (const query of queries) {
-        try {
-          const byQuery = await client.searchByQuery(query);
-          if (byQuery.length) {
-            results = byQuery;
-            break;
-          }
-        } catch (error) {
-          log.warn({ err: error, query }, 'Query search failed');
-        }
-      }
+    } catch (error) {
+      log.warn({ err: error, query }, 'Query search failed');
     }
   }
+
+  results = Array.from(merged.values());
 
   let filtered = filterResultsByImdbOrTitle(
     results,
@@ -159,10 +145,13 @@ async function searchForItem(
     filtered = filterResultsBySeason(filtered, item.targetSeason);
   }
 
+  const isRussianOrigin = isRussianTitleOrigin(item.title, item.originalTitle);
+
   filtered = filterReleasesByPreferences(
     filtered,
     item.preferredQuality,
-    item.preferredAudio
+    item.preferredAudio,
+    { isRussianOrigin }
   );
 
   return filtered.sort((a, b) => {
@@ -479,7 +468,53 @@ export class TorrentWatcherService {
 
     const pinned = pinnedIdentities(item);
     const releases = await searchForItem(client, item);
-    return releases.slice(0, 30).flatMap((release) => {
+
+    // Fair representation: распределение выдачи, чтобы один трекер не монополизировал результаты
+    const byTracker = new Map<string, ProwlarrRelease[]>();
+    for (const release of releases) {
+      const trackerKey = (release.indexer || release.tracker || 'other').toLowerCase();
+      const list = byTracker.get(trackerKey) ?? [];
+      list.push(release);
+      byTracker.set(trackerKey, list);
+    }
+
+    const selected: ProwlarrRelease[] = [];
+    const seenPrimary = new Set<string>();
+
+    // Гарантируем до 8 лучших релизов от каждого ответившего индексатора
+    const PER_TRACKER_QUOTA = 8;
+    for (const list of byTracker.values()) {
+      for (const release of list.slice(0, PER_TRACKER_QUOTA)) {
+        const id = computeReleaseIdentity(release).primary;
+        if (id && !seenPrimary.has(id)) {
+          seenPrimary.add(id);
+          selected.push(release);
+        }
+      }
+    }
+
+    // Дозаполняем оставшиеся места до лимита 50 из общего пула по количеству сидеров
+    const TOTAL_LIMIT = 50;
+    for (const release of releases) {
+      if (selected.length >= TOTAL_LIMIT) break;
+      const id = computeReleaseIdentity(release).primary;
+      if (id && !seenPrimary.has(id)) {
+        seenPrimary.add(id);
+        selected.push(release);
+      }
+    }
+
+    // Сортируем итоговую выдачу: закрепленные первыми, затем по сидерам и размеру
+    selected.sort((a, b) => {
+      const pinA = Number(releaseMatchesPinned(a, pinned));
+      const pinB = Number(releaseMatchesPinned(b, pinned));
+      if (pinA !== pinB) return pinB - pinA;
+      const seedersDiff = (b.seeders ?? 0) - (a.seeders ?? 0);
+      if (seedersDiff !== 0) return seedersDiff;
+      return (mapSize(b.size) ?? 0) - (mapSize(a.size) ?? 0);
+    });
+
+    return selected.flatMap((release) => {
       const identity = computeReleaseIdentity(release);
       if (!identity.primary) return [];
       const links = resolveReleaseLinks(release);

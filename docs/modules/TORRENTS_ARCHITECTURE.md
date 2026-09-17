@@ -45,21 +45,33 @@ flowchart LR
 
 ---
 
-## Watcher
+## Watcher & Поиск раздач
 
 1. Due-фильтр: `enabled` + `check_interval` / `last_checked` (как NW).
-2. Prowlarr IMDb → fallback text queries.
-3. Фильтры: IMDb/title + обязательный год для movie, season, quality/audio (`russian` ≠ СТ/субтитры), junk-маркеры (CAM / TS / HDTS / Telesync / Screener / плохой звук).
-   Текстовый поиск фильмов с годом — только year-qualified запросы.
-4. Dedup `(imdb_id, info_hash)` + `content_hash`.
-5. Telegram (per-item `telegram_chat_id` или env) + `torrent_notification_log` + in-app.
+2. **Комплексный опрос Prowlarr:**
+   - Параллельный опрос по IMDb ID (`tt...`, для зарубежных индексаторов) и текстовым запросам (`searchByQuery`, для трекеров RuTracker, NNM-Club, Rutor без поддержки Torznab IMDb).
+   - Передача категорий Prowlarr (`categories=2000` для фильмов, `categories=5000` для ТВ-сериалов).
+   - Устранен досрочный `break`: запросы по оригинальному и русскому тайтлу опрашиваются полностью, результаты объединяются и дедуплицируются.
+3. **Умная фильтрация озвучки и языков:**
+   - **Отечественный контент (`isRussianOrigin`):** для российских/советских фильмов и сериалов («Холоп 3», «Слово пацана», «Мастер и Маргарита») русский звук является языком оригинала — раздачи проходят и при выборе `russian`, и при `original`.
+   - **Словарь студий и типов озвучки:** распознаются все ведущие релиз-группы (`Red Head Sound`, `HDRezka Studio`, `LostFilm`, `NewComers`, `TVShows`, `AlexFilm`, `ViruseProject`, `Kubik`, `WinMedia`, `Syncmer`, `Le-Production`, `Coldfilm`, `Dragon Money Studio`, `Дубляж TVOЁ`, `Пифагор`, `Flarrow Films`, `Невафильм`, `Кураж-Бамбей` и др.), сокращения трекеров (`ДБ`, `ПД`, `ПМ`, `ЛД`, `ЛМ`, `AVO`, `DVO`, `MVO`), а также маркеры качества (`Лицензия`, `Чистый звук`).
+   - **Субтитры:** наличие субтитров не отсекает раздачу, если в релизе присутствует звуковая дорожка или указана студия.
+   - **Оригинальная озвучка (`original`):** признает сцен-релизы с международных трекеров (YTS, 1337x, EZTV, TGx), раздачи со сценарными тегами (`WEB-DL`, `BluRay`, `Remux` без русского дубляжа) и мультиязычные релизы (`Rus, Eng`, `Multi`).
+4. **Нормализация и генерация поисковых запросов:**
+   - Нормализация буквы `ё` -> `е` и разделение цифр и букв в кириллице.
+   - Генерация запросов для сериалов под стандарты трекеров (`"1 сезон"`, `"сезон 1"`, `"s01"`).
+   - Автоматическое выделение короткого базового названия для составных тайтлов с подзаголовками через точку или двоеточие.
+5. **Fair Representation индексаторов в UI кандидатов:**
+   - Распределение кандидатов с гарантированной квотой до 8 лучших релизов от каждого ответившего трекера с последующим дозаполнением до общего пула в 50 раздач. Раздачи одного трекера с высоким числом сидеров больше не вытесняют остальные трекеры.
+6. Dedup `(imdb_id, info_hash)` + `content_hash`.
+7. Telegram (per-item `telegram_chat_id` или env) + `torrent_notification_log` + in-app.
    Формат как NightWatcher: постер + HTML (title/year/IMDb/genre, релиз, размер, magnet / Prowlarr / страница раздачи).
-6. `notify_once` для movie → disable.
-7. Concurrency 5.
-8. Torrent bencode → magnet/info hash.
-9. Pin-only и hunting auto-pin; UI-поиск кандидатов для pin — только по кнопке (открепить / заменить pin).
-   Unpin и смена pin удаляют прежнюю раздачу из `torrent_releases`.
-10. Ручная отправка: `POST /api/torrents/watchlist/[id]/notify` из UI кандидатов.
+8. `notify_once` для movie → disable.
+9. Concurrency 5.
+10. Torrent bencode → magnet/info hash.
+11. Pin-only и hunting auto-pin; UI-поиск кандидатов для pin — только по кнопке (открепить / заменить pin).
+    Unpin и смена pin удаляют прежнюю раздачу из `torrent_releases`.
+12. Ручная отправка: `POST /api/torrents/watchlist/[id]/notify` из UI кандидатов.
 
 Trigger:
 - Scheduler: `*/30 * * * *` → queue `torrents.watcher`

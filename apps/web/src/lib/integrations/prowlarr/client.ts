@@ -9,6 +9,11 @@ function rootUrl(baseUrl: string) {
   return baseUrl.replace(/\/$/, '');
 }
 
+export type ProwlarrSearchOptions = {
+  categories?: number[];
+  type?: string;
+};
+
 export class ProwlarrClient {
   constructor(
     private readonly baseUrl: string,
@@ -24,10 +29,21 @@ export class ProwlarrClient {
     return new ProwlarrClient(baseUrl, apiKey);
   }
 
-  async searchByImdb(imdbId: string): Promise<ProwlarrRelease[]> {
+  async searchByImdb(
+    imdbId: string,
+    options?: ProwlarrSearchOptions
+  ): Promise<ProwlarrRelease[]> {
     const url = new URL(`${rootUrl(this.baseUrl)}/api/v1/search`);
     url.searchParams.set('imdbId', imdbId);
     url.searchParams.set('apikey', this.apiKey);
+    if (options?.type) {
+      url.searchParams.set('type', options.type);
+    }
+    if (options?.categories?.length) {
+      for (const cat of options.categories) {
+        url.searchParams.append('categories', String(cat));
+      }
+    }
     const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
     if (!response.ok) {
       throw new Error(`Prowlarr searchByImdb failed: ${response.status}`);
@@ -35,13 +51,24 @@ export class ProwlarrClient {
     return (await response.json()) as ProwlarrRelease[];
   }
 
-  async searchByQuery(query: string): Promise<ProwlarrRelease[]> {
+  async searchByQuery(
+    query: string,
+    options?: ProwlarrSearchOptions
+  ): Promise<ProwlarrRelease[]> {
     if (!query.trim()) {
       return [];
     }
     const url = new URL(`${rootUrl(this.baseUrl)}/api/v1/search`);
     url.searchParams.set('query', query);
     url.searchParams.set('apikey', this.apiKey);
+    if (options?.type) {
+      url.searchParams.set('type', options.type);
+    }
+    if (options?.categories?.length) {
+      for (const cat of options.categories) {
+        url.searchParams.append('categories', String(cat));
+      }
+    }
     const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
     if (!response.ok) {
       throw new Error(`Prowlarr searchByQuery failed: ${response.status}`);

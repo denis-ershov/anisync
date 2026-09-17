@@ -142,9 +142,10 @@ const COMMON_WORDS = new Set([
 function tokenize(value: string): string[] {
   const prepared = value
     .toLowerCase()
-    .replace(/([a-z])(\d)/g, '$1 $2')
-    .replace(/(\d)([a-z])/g, '$1 $2');
-  return prepared.match(/[0-9a-zа-яё]+/gi) ?? [];
+    .replace(/ё/g, 'е')
+    .replace(/([a-zа-я])(\d)/gi, '$1 $2')
+    .replace(/(\d)([a-zа-я])/gi, '$1 $2');
+  return prepared.match(/[0-9a-zа-я]+/gi) ?? [];
 }
 
 function titleTokens(value: string): string[] {
@@ -295,39 +296,160 @@ function yearMatchesRelease(
   return options?.requireYearInTitle ? false : true;
 }
 
-const SUBTITLE_ONLY_PATTERNS: RegExp[] = [
-  /(?:^|[^a-zа-яё0-9])ст(?:$|[^a-zа-яё0-9])/i,
-  /(?:^|[^a-zа-яё0-9])стр(?:$|[^a-zа-яё0-9])/i,
-  /(?:^|[^a-zа-яё0-9])subs?(?:$|[^a-zа-яё0-9])/i,
-  /субтит/i,
+export type ItemAudioContext = {
+  isRussianOrigin?: boolean;
+  tracker?: string | null;
+};
+
+export function isRussianTitleOrigin(
+  title?: string | null,
+  originalTitle?: string | null
+): boolean {
+  const orig = (originalTitle || '').trim();
+  const main = (title || '').trim();
+  if (/[а-яё]/i.test(orig) && !/[a-z]/i.test(orig)) {
+    return true;
+  }
+  if (!orig && /[а-яё]/i.test(main) && !/[a-z]/i.test(main)) {
+    return true;
+  }
+  if (/[а-яё]/i.test(orig) && /[а-яё]/i.test(main) && !/[a-z]/i.test(orig)) {
+    return true;
+  }
+  return false;
+}
+
+const EXPLICIT_SUBTITLE_ONLY_PATTERNS: RegExp[] = [
+  /только\s+субтитр/i,
+  /sub[\s.\-_]?only/i,
   /soft[\s.\-_]?sub/i,
   /hard[\s.\-_]?sub/i,
-  /sub[\s.\-_]?only/i,
-  /только\s+субтитр/i,
 ];
 
-const RUSSIAN_VOICE_PATTERNS: RegExp[] = [
-  /(?:^|[^a-zа-яё0-9])(?:avo|dvo|mvo|hvdvo|3vo)(?:$|[^a-zа-яё0-9])/i,
-  /дубляж/i,
+const GENERAL_SUBTITLE_PATTERNS: RegExp[] = [
+  /(?:^|[^a-zа-я0-9])ст(?:$|[^a-zа-я0-9])/i,
+  /(?:^|[^a-zа-я0-9])стр(?:$|[^a-zа-я0-9])/i,
+  /(?:^|[^a-zа-я0-9])subs?(?:$|[^a-zа-я0-9])/i,
+  /субтит/i,
+];
+
+export const RUSSIAN_VOICE_PATTERNS: RegExp[] = [
+  // Сокращения типов звука трекеров
+  /(?:^|[^a-zа-я0-9])(?:avo|dvo|mvo|hvdvo|3vo|дб|пд|пм|лд|лм)(?:$|[^a-zа-я0-9])/i,
+  /(?:^|[^a-zа-я0-9])(?:п\.?о|л\.?о)\.?\s*(?:перевод|озвуч|закадр|голос)/i,
+  // Дубляж и перевод
+  /дубл/i,
   /озвуч/i,
   /закадр/i,
-  /многоголосый/i,
+  /многоголос/i,
+  /двухголос/i,
+  /одноголос/i,
+  /авторск/i,
   /проф\.?\s*перевод/i,
-  /русск(?:ая|ий|ое|ие|ую)?\s*(?:озвуч|дорож|дуб)/i,
-  /(?:^|[^a-zа-яё0-9])(?:rus|рус)(?:$|[^a-zа-яё0-9])/i,
+  /русск(?:ая|ий|ое|ие|ую)?\s*(?:озвуч|дорож|дуб|перевод|звук)/i,
+  /(?:^|[^a-zа-я0-9])(?:rus|рус)(?:$|[^a-zа-я0-9])/i,
+  // Релизные маркеры качественного дубляжа/перевода
+  /лицензи/i,
+  /чистый\s*звук/i,
+  // Студии озвучки (включая все студии из трекеров и настроек)
+  /\bred\s*head\s*sound\b/i,
+  /\brhs\b/i,
+  /\bhd\s*rezka(?:\s*studio)?\b/i,
+  /\bhdrezka(?:\s*studio)?\b/i,
+  /\brezka\b/i,
+  /\bрезка\b/i,
+  /\blostfilm\b/i,
+  /\bлостфильм\b/i,
+  /\bnewcomers\b/i,
+  /\bньюкамерс\b/i,
+  /\btvshows\b/i,
+  /\bтвшоуз\b/i,
+  /\balexfilm\b/i,
+  /\bалексфильм\b/i,
+  /\bviruseproject\b/i,
+  /\bвируспроджект\b/i,
+  /\bkubik(?:\s*v\s*kube|\s*studio|³)?\b/i,
+  /\bкубик\b/i,
+  /\bкубик\s*в\s*кубе\b/i,
+  /\bквк\b/i,
+  /\bwinmedia\b/i,
+  /\bвинмедиа\b/i,
+  /\bsyncmer\b/i,
+  /\bсинкмер\b/i,
+  /\ble[\s.\-_]?production\b/i,
+  /\bcoldfilm\b/i,
+  /\bколдфильм\b/i,
+  /\bdragon\s*money\s*studio\b/i,
+  /\btvo[eё]\b/i,
+  /\bnewstudio\b/i,
+  /\bньюстудио\b/i,
+  /\bпифагор\b/i,
+  /\bpythagor\b/i,
+  /\bflarrow\s*films\b/i,
+  /\bневафильм\b/i,
+  /\bкураж[\s.\-_]?бамбей\b/i,
+  /\bjaskier\b/i,
+  /\bяскьер\b/i,
+  /\bbaibako\b/i,
+  /\bбайбако\b/i,
+  /\banilibria\b/i,
+  /\bанилибрия\b/i,
+  /\banidub\b/i,
+  /\bанидаб\b/i,
+  /\banimevost\b/i,
+  /\bанимевост\b/i,
+  /\bshiza\s*project\b/i,
+  /\bукраинск/i,
+  /\bukrainian\b/i,
 ];
 
 function isSubtitleOnlyRelease(text: string): boolean {
-  return SUBTITLE_ONLY_PATTERNS.some((pattern) => pattern.test(text));
+  if (EXPLICIT_SUBTITLE_ONLY_PATTERNS.some((pattern) => pattern.test(text))) {
+    return true;
+  }
+  const hasSub = GENERAL_SUBTITLE_PATTERNS.some((pattern) => pattern.test(text));
+  if (!hasSub) {
+    return false;
+  }
+  // Если есть субтитры, но также есть голосовая дорожка — это НЕ subtitle-only!
+  return !hasRussianVoiceTrack(text);
 }
 
 function hasRussianVoiceTrack(text: string): boolean {
   return RUSSIAN_VOICE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
+const INTERNATIONAL_TRACKERS = new Set([
+  '1337x',
+  'yts',
+  'torrentgalaxy',
+  'tgx',
+  'eztv',
+  'rarbg',
+  'limetorrents',
+  'glodls',
+  'badass-torrents',
+  'torlock',
+  'magnetdl',
+]);
+
+function isInternationalTracker(trackerName?: string | null): boolean {
+  if (!trackerName) {
+    return false;
+  }
+  const lower = trackerName.toLowerCase();
+  for (const t of INTERNATIONAL_TRACKERS) {
+    if (lower.includes(t)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function matchesPreferredAudio(
   release: ProwlarrRelease,
-  preferredAudio: string | null | undefined
+  preferredAudio: string | null | undefined,
+  context?: ItemAudioContext
 ): boolean {
   if (!preferredAudio) {
     return true;
@@ -344,16 +466,25 @@ export function matchesPreferredAudio(
   );
   const audioText = `${title}\n${description}`;
 
+  // Для отечественного контента (например «Холоп 3») русский звук является родным и оригинальным
+  if (context?.isRussianOrigin) {
+    if (audioLower === 'russian' || audioLower === 'rus' || audioLower === 'ru') {
+      return true;
+    }
+    if (
+      audioLower === 'original' ||
+      audioLower === 'original_sub' ||
+      audioLower === 'original-with-sub' ||
+      audioLower === 'orig_sub'
+    ) {
+      return true;
+    }
+  }
+
   if (audioLower === 'russian' || audioLower === 'rus' || audioLower === 'ru') {
     if (hasRussianVoiceTrack(audioText)) {
-      // «RUS Sub» / «СТ» без реальной дорожки — не считаем русской озвучкой.
       if (isSubtitleOnlyRelease(audioText)) {
-        const strongVoice =
-          /(?:^|[^a-zа-яё0-9])(?:avo|dvo|mvo|hvdvo|3vo)(?:$|[^a-zа-яё0-9])/i.test(
-            audioText
-          ) ||
-          /дубляж|озвуч|закадр|многоголосый|проф\.?\s*перевод/i.test(audioText);
-        return strongVoice;
+        return false;
       }
       return true;
     }
@@ -371,19 +502,29 @@ export function matchesPreferredAudio(
       'eng',
       'english',
       'original',
+      'orig',
       'оригинал',
-      ' sub',
-      'sub]',
+      'sub',
       'субтитр',
-      ' ст ',
-      '/ст/',
-      '/ст ',
-      ' ст/',
+      'ст',
+      'multi',
     ];
-    return (
-      originalSubMarkers.some((marker) => audioText.toLowerCase().includes(marker)) ||
-      isSubtitleOnlyRelease(audioText)
-    );
+    if (originalSubMarkers.some((marker) => audioText.toLowerCase().includes(marker))) {
+      return true;
+    }
+    if (isSubtitleOnlyRelease(audioText)) {
+      return true;
+    }
+    // Зарубежные сцен-релизы с международных трекеров по умолчанию содержат оригинальный звук
+    const tracker = release.indexer || release.tracker || context?.tracker;
+    if (isInternationalTracker(tracker)) {
+      return true;
+    }
+    // Стандартные сцен-теги англоязычных релизов без дубляжа
+    if (/\b(?:web-dl|webrip|bluray|bdrip|remux|hdtv)\b/i.test(title) && !hasRussianVoiceTrack(title)) {
+      return true;
+    }
+    return false;
   }
 
   return audioText.toLowerCase().includes(audioLower);
@@ -401,11 +542,24 @@ export function filterResultsByImdbOrTitle(
     return results;
   }
 
+  const rawValues = [(originalTitle || '').trim(), (title || '').trim()].filter(Boolean);
   const aliases: string[][] = [];
-  for (const value of [(originalTitle || '').toLowerCase().trim(), (title || '').toLowerCase().trim()]) {
-    const tokens = titleTokens(value);
-    if (tokens.length && !aliases.some((alias) => alias.join('\0') === tokens.join('\0'))) {
-      aliases.push(tokens);
+
+  for (const raw of rawValues) {
+    const fullTokens = titleTokens(raw);
+    if (fullTokens.length && !aliases.some((alias) => alias.join('\0') === fullTokens.join('\0'))) {
+      aliases.push(fullTokens);
+    }
+    // Если название содержит подзаголовок (например "Слово пацана. Кровь на асфальте" или "Фонари: Начало")
+    const parts = raw.split(/[:.·•-]/);
+    if (parts.length > 1) {
+      const firstPartTokens = titleTokens(parts[0]);
+      if (
+        firstPartTokens.length >= 2 &&
+        !aliases.some((alias) => alias.join('\0') === firstPartTokens.join('\0'))
+      ) {
+        aliases.push(firstPartTokens);
+      }
     }
   }
 
@@ -467,7 +621,8 @@ export function filterResultsByImdbOrTitle(
 export function filterReleasesByPreferences(
   results: ProwlarrRelease[],
   preferredQuality?: string | null,
-  preferredAudio?: string | null
+  preferredAudio?: string | null,
+  context?: ItemAudioContext
 ): ProwlarrRelease[] {
   const qualityVariants: Record<string, string[]> = {
     '1080p': ['1080p', '1080', 'full hd', 'fhd'],
@@ -528,8 +683,16 @@ export function filterReleasesByPreferences(
       }
     }
 
-    return qualityMatch && matchesPreferredAudio(release, preferredAudio);
+    return qualityMatch && matchesPreferredAudio(release, preferredAudio, context);
   });
+}
+
+function cleanQueryString(value: string): string {
+  return value
+    .replace(/[.:;,\-_/|\\[\]()]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ');
 }
 
 export function buildSearchQueries(input: {
@@ -540,17 +703,17 @@ export function buildSearchQueries(input: {
   year?: string | null;
   targetSeason?: number | null;
 }): string[] {
-  const titles: string[] = [];
+  const rawTitles: string[] = [];
   if (input.originalTitle?.trim()) {
-    titles.push(input.originalTitle.trim());
+    rawTitles.push(input.originalTitle.trim());
   }
   if (input.title?.trim() && input.title.trim() !== (input.originalTitle || '').trim()) {
-    titles.push(input.title.trim());
+    rawTitles.push(input.title.trim());
   }
-  if (!titles.length && input.imdbId) {
-    titles.push(input.imdbId.trim());
+  if (!rawTitles.length && input.imdbId) {
+    rawTitles.push(input.imdbId.trim());
   }
-  if (!titles.length) {
+  if (!rawTitles.length) {
     return [];
   }
 
@@ -562,41 +725,48 @@ export function buildSearchQueries(input: {
   }
 
   const queries: string[] = [];
-  for (const baseTitle of titles) {
-    if (input.itemType === 'tv' && seasonNum) {
-      const seasonVariants = [
-        `сезон ${seasonNum}`,
-        `s${String(seasonNum).padStart(2, '0')}`,
-        `season ${seasonNum}`,
-      ];
-      for (const sv of seasonVariants) {
+  for (const raw of rawTitles) {
+    const cleanBase = cleanQueryString(raw);
+    const variants = [cleanBase];
+
+    // Если есть подзаголовок, также добавляем главную часть (например "Слово пацана")
+    const parts = raw.split(/[:.·•-]/);
+    if (parts.length > 1) {
+      const cleanShort = cleanQueryString(parts[0]);
+      if (cleanShort && cleanShort !== cleanBase && cleanShort.split(/\s+/).length >= 2) {
+        variants.push(cleanShort);
+      }
+    }
+
+    for (const baseTitle of variants) {
+      if (input.itemType === 'tv' && seasonNum) {
+        // Запросы под разные стили оформления сезонов на трекерах (RuTracker: "1 сезон", зарубежные: "s01")
         if (year) {
-          queries.push(`${baseTitle} ${year} ${sv}`);
+          queries.push(`${baseTitle} ${year} ${seasonNum} сезон`);
+          queries.push(`${baseTitle} ${year} s${String(seasonNum).padStart(2, '0')}`);
+          queries.push(`${baseTitle} ${year} сезон ${seasonNum}`);
+          queries.push(`${baseTitle} ${year} season ${seasonNum}`);
+          queries.push(`${baseTitle} ${year}`);
+        } else {
+          queries.push(`${baseTitle} ${seasonNum} сезон`);
+          queries.push(`${baseTitle} s${String(seasonNum).padStart(2, '0')}`);
+          queries.push(`${baseTitle} сезон ${seasonNum}`);
+          queries.push(baseTitle);
         }
-        // Без года — только если год неизвестен (иначе ловим соседние сезоны/ремейки).
-        if (!year) {
-          queries.push(`${baseTitle} ${sv}`);
-        }
-      }
-      if (!year) {
-        queries.push(baseTitle);
-      } else {
+      } else if (year) {
         queries.push(`${baseTitle} ${year}`);
+      } else {
+        queries.push(baseTitle);
       }
-    } else if (year) {
-      // Фильмы/прочее с годом: только запросы с годом.
-      queries.push(`${baseTitle} ${year}`);
-    } else {
-      queries.push(baseTitle);
     }
   }
 
   const unique: string[] = [];
   const seen = new Set<string>();
   for (const query of queries) {
-    const clean = query.split(/\s+/).join(' ');
-    if (!seen.has(clean)) {
-      seen.add(clean);
+    const clean = query.split(/\s+/).join(' ').trim();
+    if (clean && !seen.has(clean.toLowerCase())) {
+      seen.add(clean.toLowerCase());
       unique.push(clean);
     }
   }

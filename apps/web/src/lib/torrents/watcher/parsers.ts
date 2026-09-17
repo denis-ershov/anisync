@@ -5,6 +5,7 @@ export function extractSeasonFromTitle(title: string | null | undefined): number
 
   const titleLower = title.toLowerCase();
   const patterns = [
+    /(?:^|[^0-9a-zа-яё])s(\d{1,2})\s*e\d{1,3}/i,
     /(?:^|[^0-9a-zа-яё])(\d{1,2})\s*(?:сезон|season)(?:[^0-9a-zа-яё]|$)/i,
     /(?:^|[^0-9a-zа-яё])s(?:eason)?\s*(\d{1,2})(?:[^0-9a-zа-яё]|$)/i,
     /(?:^|[^0-9a-zа-яё])сезон\s*(\d{1,2})(?:[^0-9a-zа-яё]|$)/i,

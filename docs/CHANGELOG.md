@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-17 (fix: torrent voice audio filtering, domestic russian cinema search & prowlarr multi-indexer support)
+
+**Файлы:**
+- `apps/web/src/lib/torrents/watcher/parsers.ts`
+- `apps/web/src/lib/torrents/watcher/filters.ts`
+- `apps/web/src/lib/integrations/prowlarr/client.ts`
+- `apps/web/src/lib/services/torrent-watcher-service.ts`
+- `apps/web/tests/torrent-watcher.test.ts`
+- `docs/modules/TORRENTS_ARCHITECTURE.md`
+
+**Изменения:**
+1. **Умный фильтр озвучки (`russian`, `original`, студии):**
+   - Расширен словарь `RUSSIAN_VOICE_PATTERNS` всеми актуальными студиями озвучки: `Red Head Sound` / `RHS`, `HDrezka Studio` / `HDrezka в Кубе (Kubik³)` / `Rezka`, `LostFilm`, `NewComers`, `TVShows`, `AlexFilm`, `ViruseProject`, `Kubik`, `WinMedia`, `Syncmer`, `Le-Production`, `Coldfilm`, `Dragon Money Studio`, `Дубляж (TVOЁ)`, `NewStudio`, `Пифагор`, `Flarrow Films`, `Невафильм`, `Кураж-Бамбей`, `Jaskier`, `AniLibria`, `AniDUB`, `AnimeVost`, `SHIZA Project` и др.
+   - Добавлены сокращения типов звука: `дб`, `пд`, `пм`, `лд`, `лм`, а также `лицензия` и `чистый звук`.
+   - Устранено ложное срабатывание «только субтитры» на релизах с аудиодорожками и субтитрами.
+   - Реализована поддержка оригинального звука (`original`) для сцен-релизов с международных трекеров (YTS, 1337x, EZTV, TGx) без обязательного наличия слова «original» в заголовке.
+2. **Полноценная поддержка отечественного (русского) кино и сериалов:**
+   - Внедрена функция `isRussianTitleOrigin` и контекст `isRussianOrigin`: для российских и советских фильмов (например, «Холоп 3», «Слово пацана», «Мастер и Маргарита») оригинальный звук является русским по умолчанию. Раздачи больше не отсекаются при выборе `russian` или `original`.
+   - В `buildSearchQueries` добавлена генерация поисковых запросов под отечественные стандарты трекеров (`"1 сезон"`, `"сезон 1"`, `"s01"`), а также очистка от спецсимволов и разделение составных названий с подзаголовками.
+   - В `tokenize` и `titleTokens` реализована нормализация буквы `ё` к `е` и разделение цифр и букв в кириллице.
+3. **Опрос всех настроенных индексаторов Prowlarr и защита от монополизации выдачи:**
+   - В `ProwlarrClient` добавлена поддержка категорий (`categories: 2000` для фильмов, `5000` для ТВ) и типов поиска.
+   - В `searchForItem` устранен досрочный `break` в цикле по поисковым запросам — запросы по оригинальному и русскому названиям выполняются в полном объеме, результаты объединяются и дедуплицируются.
+   - Текстовый поиск теперь выполняется параллельно с поиском по IMDb, обеспечивая опрос трекеров без поддержки IMDb (RuTracker, NNM-Club, Rutor).
+   - В `listReleaseCandidates` реализован алгоритм Fair Representation: квота до 8 лучших раздач от каждого ответившего индексатора с последующим дозаполнением до общего лимита в 50 кандидатов, что предотвращает монополизацию топ-30 одним зарубежным трекером с тысячами сидеров.
+4. **Исправление парсинга сезонов в названиях раздач:**
+   - В `extractSeasonFromTitle` добавлена поддержка паттерна `s(\d{1,2})e`, корректно распознающая сезон из обозначений вроде `S4E1-6 of 10` и `S1E1-5 of 8`.
+5. **Тестирование:**
+   - Добавлены тесты на реальные кейсы (Тед Лассо с перечислением студий, Фонари, Холоп 3, Dragon Money Studio, YTS scene, нормализация буквы ё, составные названия). 103 из 103 тестов проходят успешно.
+
 ## 2026-09-02 (feat: torrent metadata sync, manual card refresh & opt-in auto-refresh switch)
 
 **Файлы:**
