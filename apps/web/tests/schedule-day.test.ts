@@ -6,6 +6,7 @@ import {
   belongsToScheduleDay,
   getLatestAiredInstant,
   isRecentlyAiredForToday,
+  sortScheduleAnimeByAirTime,
 } from '@/lib/integrations/schedule-day';
 import { formatNextEpisodeShort, zonedDateKey } from '@/lib/timezone';
 
@@ -172,5 +173,67 @@ test('formatNextEpisodeShort stays compact and distinguishes today vs tomorrow',
       locale: 'ru',
     }),
     'через 7 дн.'
+  );
+});
+
+test('sortScheduleAnimeByAirTime sorts earlier air time first', () => {
+  const animes = [
+    {
+      title: 'Шальной последний босс явился! 2',
+      next_episode_date: '2026-09-26T16:30:00+03:00',
+    },
+    {
+      title: 'Власть книжного червя: Приёмная дочь лорда',
+      next_episode_date: '2026-09-26T11:30:00+03:00',
+    },
+    {
+      title: 'Утренний тайтл',
+      next_episode_date: '2026-09-26T08:00:00+03:00',
+    },
+    {
+      title: 'Тайтл без даты',
+      next_episode_date: null,
+    },
+    {
+      title: 'Вечерний тайтл',
+      next_episode_date: '2026-09-26T23:00:00+03:00',
+    },
+  ];
+
+  const sorted = sortScheduleAnimeByAirTime(animes);
+
+  assert.deepEqual(
+    sorted.map((a) => a.title),
+    [
+      'Утренний тайтл',                                // 08:00
+      'Власть книжного червя: Приёмная дочь лорда',    // 11:30
+      'Шальной последний босс явился! 2',              // 16:30
+      'Вечерний тайтл',                                // 23:00
+      'Тайтл без даты',                                // null в конце
+    ]
+  );
+});
+
+test('sortScheduleAnimeByAirTime tie-breaks identical air time by title', () => {
+  const animes = [
+    {
+      title: 'Яблоко',
+      nextEpisodeDate: '2026-09-26T14:00:00+03:00',
+    },
+    {
+      title: 'Апельсин',
+      nextEpisodeDate: '2026-09-26T14:00:00+03:00',
+    },
+    {
+      title: 'Банан',
+      nextEpisodeDate: '2026-09-26T14:00:00+03:00',
+    },
+  ];
+
+  const sorted = sortScheduleAnimeByAirTime(animes);
+
+  assert.deepEqual(
+    sorted.map((a) => a.title),
+    ['Апельсин', 'Банан', 'Яблоко']
   );
 });

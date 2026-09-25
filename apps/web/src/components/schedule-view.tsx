@@ -10,6 +10,7 @@ import type { IntegrationServiceName, LibraryStatus } from '@/lib/integrations/p
 import {
   belongsToCatchingUp,
   belongsToScheduleDay,
+  sortScheduleAnimeByAirTime,
 } from '@/lib/integrations/schedule-day';
 import { addDaysToDateKey, resolveTimeZone, zonedDateKey } from '@/lib/timezone';
 
@@ -284,15 +285,17 @@ export function ScheduleView() {
   const getCatchingUpAnime = () => {
     const now = new Date();
     const timeZone = user?.settings?.timezone;
-    return animeList.filter((anime) =>
-      belongsToCatchingUp(
-        {
-          watchStatus: anime.watch_status as LibraryStatus,
-          nextEpisodeDate: anime.next_episode_date,
-          airedOn: anime.aired_on,
-        },
-        now,
-        { timeZone }
+    return sortScheduleAnimeByAirTime(
+      animeList.filter((anime) =>
+        belongsToCatchingUp(
+          {
+            watchStatus: anime.watch_status as LibraryStatus,
+            nextEpisodeDate: anime.next_episode_date,
+            airedOn: anime.aired_on,
+          },
+          now,
+          { timeZone }
+        )
       )
     );
   };
@@ -308,16 +311,18 @@ export function ScheduleView() {
       // Noon UTC avoids DST edge when formatting calendar labels
       const labelDate = new Date(Date.UTC(y, m - 1, d, 12));
 
-      const animesForDay = animeList.filter((anime) =>
-        belongsToScheduleDay(
-          {
-            watchStatus: anime.watch_status as LibraryStatus,
-            nextEpisodeDate: anime.next_episode_date,
-            airedOn: anime.aired_on,
-          },
-          index,
-          now,
-          { timeZone }
+      const animesForDay = sortScheduleAnimeByAirTime(
+        animeList.filter((anime) =>
+          belongsToScheduleDay(
+            {
+              watchStatus: anime.watch_status as LibraryStatus,
+              nextEpisodeDate: anime.next_episode_date,
+              airedOn: anime.aired_on,
+            },
+            index,
+            now,
+            { timeZone }
+          )
         )
       );
 
