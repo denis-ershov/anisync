@@ -105,7 +105,7 @@ export function formatZonedTime(date: Date, timeZone?: string | null, locale = '
 
 /**
  * Short next-episode label (no "приблизительно").
- * Examples: "через 40 мин", "через 3 ч", "сегодня 18:30", "через 6 дн."
+ * Examples: "через 40 мин", "через 3 ч", "сегодня 18:30", "завтра 16:30", "через 6 дн."
  */
 export function formatNextEpisodeShort(
   episodeAt: Date,
@@ -122,26 +122,32 @@ export function formatNextEpisodeShort(
 
   const minutes = Math.round(diffMs / 60000);
   const hours = Math.round(diffMs / 3600000);
-  const sameDay = zonedDateKey(episodeAt, tz) === zonedDateKey(now, tz);
+  const todayKey = zonedDateKey(now, tz);
+  const episodeKey = zonedDateKey(episodeAt, tz);
+  const daysDiff = diffDateKeys(todayKey, episodeKey);
 
   if (minutes < 60) {
     return locale === 'ru' ? `через ${Math.max(1, minutes)} мин` : `in ${Math.max(1, minutes)}m`;
   }
 
-  if (sameDay || hours < 24) {
-    if (hours <= 6) {
-      return locale === 'ru' ? `через ${hours} ч` : `in ${hours}h`;
-    }
-    const time = formatZonedTime(episodeAt, tz, locale);
-    return locale === 'ru' ? `сегодня ${time}` : `today ${time}`;
-  }
-
-  const days = Math.max(1, Math.round(diffMs / 86400000));
-  if (days <= 7) {
-    return locale === 'ru' ? `через ${days} дн.` : `in ${days}d`;
+  if (hours <= 6) {
+    return locale === 'ru' ? `через ${hours} ч` : `in ${hours}h`;
   }
 
   const time = formatZonedTime(episodeAt, tz, locale);
+
+  if (daysDiff <= 0) {
+    return locale === 'ru' ? `сегодня ${time}` : `today ${time}`;
+  }
+
+  if (daysDiff === 1) {
+    return locale === 'ru' ? `завтра ${time}` : `tomorrow ${time}`;
+  }
+
+  if (daysDiff >= 2 && daysDiff <= 7) {
+    return locale === 'ru' ? `через ${daysDiff} дн.` : `in ${daysDiff}d`;
+  }
+
   const date = new Intl.DateTimeFormat(locale === 'ru' ? 'ru-RU' : 'en-US', {
     timeZone: tz,
     day: 'numeric',

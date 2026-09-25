@@ -108,27 +108,69 @@ test('timezone shifts calendar day for UTC midnight airings', () => {
   assert.equal(belongsToScheduleDay(anime, 0, now, { timeZone: 'UTC' }), true);
 });
 
-test('formatNextEpisodeShort stays compact', () => {
-  const now = new Date('2026-07-24T12:00:00+03:00');
-  assert.match(
+test('formatNextEpisodeShort stays compact and distinguishes today vs tomorrow', () => {
+  const now = new Date('2026-07-24T12:00:00+03:00'); // Пятница 12:00
+
+  // Меньше часа
+  assert.equal(
     formatNextEpisodeShort(new Date('2026-07-24T12:40:00+03:00'), now, {
       timeZone: 'Europe/Moscow',
       locale: 'ru',
     }),
-    /мин/
+    'через 40 мин'
   );
-  assert.match(
+
+  // В пределах 6 часов сегодня
+  assert.equal(
     formatNextEpisodeShort(new Date('2026-07-24T15:00:00+03:00'), now, {
       timeZone: 'Europe/Moscow',
       locale: 'ru',
     }),
-    /ч/
+    'через 3 ч'
   );
-  assert.match(
+
+  // Сегодня, но больше 6 часов
+  assert.equal(
+    formatNextEpisodeShort(new Date('2026-07-24T21:30:00+03:00'), now, {
+      timeZone: 'Europe/Moscow',
+      locale: 'ru',
+    }),
+    'сегодня 21:30'
+  );
+
+  // Завтра (больше 6 часов): должно быть «завтра 16:30», а НЕ «сегодня»!
+  const tomorrowAfternoon = new Date('2026-07-25T16:30:00+03:00');
+  const formattedTomorrow = formatNextEpisodeShort(tomorrowAfternoon, now, {
+    timeZone: 'Europe/Moscow',
+    locale: 'ru',
+  });
+  assert.equal(formattedTomorrow, 'завтра 16:30');
+  assert.doesNotMatch(formattedTomorrow, /сегодня/);
+
+  // Английская локаль для завтра
+  assert.equal(
+    formatNextEpisodeShort(tomorrowAfternoon, now, {
+      timeZone: 'Europe/Moscow',
+      locale: 'en',
+    }),
+    'tomorrow 16:30'
+  );
+
+  // Через 6 дней
+  assert.equal(
     formatNextEpisodeShort(new Date('2026-07-30T12:00:00+03:00'), now, {
       timeZone: 'Europe/Moscow',
       locale: 'ru',
     }),
-    /дн/
+    'через 6 дн.'
+  );
+
+  // Через 7 дней
+  assert.equal(
+    formatNextEpisodeShort(new Date('2026-07-31T12:00:00+03:00'), now, {
+      timeZone: 'Europe/Moscow',
+      locale: 'ru',
+    }),
+    'через 7 дн.'
   );
 });
