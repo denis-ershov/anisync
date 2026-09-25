@@ -56,23 +56,24 @@ test('future day match still works for tomorrow', () => {
   assert.equal(belongsToScheduleDay(anime, 0, now, TZ), false);
 });
 
-test('after Shiki moves next +7d, today still shows implied previous airing', () => {
-  const now = new Date('2026-07-24T19:30:00+03:00');
+test('anime with next episode in 7 days (same weekday) does not go to today, goes to catching-up', () => {
+  const now = new Date('2026-07-24T19:30:00+03:00'); // Пятница
   const anime = {
     watchStatus: 'watching' as const,
-    nextEpisodeDate: '2026-07-31T17:00:00+03:00',
+    nextEpisodeDate: '2026-07-31T17:00:00+03:00', // Следующая пятница (+7 дней)
   };
 
   const latest = getLatestAiredInstant(anime, now, TZ);
-  assert.ok(latest);
-  assert.equal(latest!.toISOString(), new Date('2026-07-24T17:00:00+03:00').toISOString());
-  assert.equal(isRecentlyAiredForToday(anime, now, TZ), true);
-  assert.equal(belongsToScheduleDay(anime, 0, now, TZ), true);
-  assert.equal(belongsToCatchingUp(anime, now, TZ), false);
-  assert.equal(belongsToScheduleDay(anime, 6, now, TZ), false);
+  assert.equal(latest, null);
+  assert.equal(isRecentlyAiredForToday(anime, now, TZ), false);
+  assert.equal(belongsToScheduleDay(anime, 0, now, TZ), false);
+  for (let dayIndex = 1; dayIndex <= 6; dayIndex += 1) {
+    assert.equal(belongsToScheduleDay(anime, dayIndex, now, TZ), false);
+  }
+  assert.equal(belongsToCatchingUp(anime, now, TZ), true);
 });
 
-test('exactly +7 next without today implication goes to catching-up', () => {
+test('episode in +6 days matches day 6 (last day of 7-day schedule)', () => {
   const now = new Date('2026-07-24T12:00:00+03:00');
   const anime = {
     watchStatus: 'watching' as const,
@@ -80,6 +81,18 @@ test('exactly +7 next without today implication goes to catching-up', () => {
   };
 
   assert.equal(belongsToScheduleDay(anime, 6, now, TZ), true);
+  assert.equal(belongsToScheduleDay(anime, 0, now, TZ), false);
+  assert.equal(belongsToCatchingUp(anime, now, TZ), false);
+});
+
+test('episode airing later today is in today schedule, not catching-up', () => {
+  const now = new Date('2026-07-24T12:00:00+03:00');
+  const anime = {
+    watchStatus: 'watching' as const,
+    nextEpisodeDate: '2026-07-24T18:00:00+03:00',
+  };
+
+  assert.equal(belongsToScheduleDay(anime, 0, now, TZ), true);
   assert.equal(belongsToCatchingUp(anime, now, TZ), false);
 });
 

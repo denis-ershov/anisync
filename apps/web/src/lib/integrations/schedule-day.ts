@@ -75,17 +75,15 @@ export function getRawScheduleInstant(anime: ScheduleAnimeDateFields): Date | nu
 
 /**
  * Момент последнего (уже вышедшего) эфира.
- *
- * Shikimori после выхода серии сразу двигает `nextEpisodeAt` на следующий слот (+7д).
- * Тогда «сегодняшний» эфир исчезает из UI, если смотреть только на next.
- * Для недельного цикла восстанавливаем предыдущий слот: next − 7 дней.
+ * Возвращает дату эфира только в том случае, если она уже наступила (<= now).
+ * Для дат в будущем прошлый эфир не синтезируется.
  */
 export function getLatestAiredInstant(
   anime: ScheduleAnimeDateFields,
   now: Date = new Date(),
   options?: ScheduleDayOptions
 ): Date | null {
-  const tz = zone(options);
+  void options;
   const next = getRawScheduleInstant(anime);
   if (!next) {
     return null;
@@ -95,28 +93,12 @@ export function getLatestAiredInstant(
     return next;
   }
 
-  const todayKey = zonedDateKey(now, tz);
-  const nextKey = zonedDateKey(next, tz);
-  const daysUntil = diffDateKeys(todayKey, nextKey);
-
-  if (daysUntil >= 5 && daysUntil <= 9) {
-    const previous = new Date(next);
-    previous.setTime(previous.getTime() - 7 * 24 * 60 * 60 * 1000);
-    return previous;
-  }
-
-  if (daysUntil >= 12 && daysUntil <= 16) {
-    const previous = new Date(next);
-    previous.setTime(previous.getTime() - 14 * 24 * 60 * 60 * 1000);
-    return previous;
-  }
-
   return null;
 }
 
 /**
  * Эфир привязан к календарному «сегодня» в TZ пользователя
- * (в т.ч. после сдвига next на +7д, если implied previous — сегодня).
+ * (только если серия уже фактически вышла сегодня).
  * Не использует rolling 24h через границу суток.
  */
 export function isRecentlyAiredForToday(

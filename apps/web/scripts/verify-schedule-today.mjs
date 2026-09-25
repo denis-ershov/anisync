@@ -50,21 +50,14 @@ function getLatestAiredInstant(nextEpisodeDate, now) {
   const next = new Date(nextEpisodeDate);
   if (Number.isNaN(next.getTime())) return null;
   if (next.getTime() <= now.getTime()) return next;
-  const today = startOfLocalDay(now);
-  const nextDay = startOfLocalDay(next);
-  const daysUntil = Math.round((nextDay - today) / 86400000);
-  if (daysUntil >= 5 && daysUntil <= 9) {
-    const previous = new Date(next);
-    previous.setDate(previous.getDate() - 7);
-    return previous;
-  }
   return null;
 }
 
 function isToday(nextEpisodeDate, now) {
-  const instant = getLatestAiredInstant(nextEpisodeDate, now);
-  if (!instant) return false;
-  return toDateKey(startOfLocalDay(instant)) === toDateKey(startOfLocalDay(now));
+  if (!nextEpisodeDate) return false;
+  const next = new Date(nextEpisodeDate);
+  if (Number.isNaN(next.getTime())) return false;
+  return toDateKey(startOfLocalDay(next)) === toDateKey(startOfLocalDay(now));
 }
 
 const sql = postgres(process.env.DATABASE_URL, { prepare: false, max: 1 });
