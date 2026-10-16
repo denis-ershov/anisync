@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
-import { db, torrentReleases, torrentWatchlist } from '@/lib/db';
+import { db, torrentReleases, torrentWatchlist, type TorrentMetadataRefreshField } from '@/lib/db';
 import { MovieDigitalReleaseDateService } from '@/lib/services/movie-digital-release-date-service';
 import {
   findContentByImdb,
@@ -218,11 +218,15 @@ export class TorrentLocalStore {
     return items;
   }
 
-  static async refreshMetadata(userId: number, itemId: number): Promise<TorrentWatchlistItem> {
+  static async refreshMetadata(
+    userId: number,
+    itemId: number,
+    fields?: TorrentMetadataRefreshField[]
+  ): Promise<TorrentWatchlistItem> {
     const { TorrentMetadataRefreshService } = await import(
       '@/lib/services/torrent-metadata-refresh-service'
     );
-    return TorrentMetadataRefreshService.refreshSingle(userId, itemId);
+    return TorrentMetadataRefreshService.refreshSingle(userId, itemId, { fields });
   }
 
   static async add(

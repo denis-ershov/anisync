@@ -35,6 +35,15 @@ const releaseTypes = ['movie', 'show'] as const;
 const releaseWatchlistStatuses = ['watching', 'plan', 'watched'] as const;
 const userListTypes = ['favorite', 'not_interested'] as const;
 const torrentMediaTypes = ['movie', 'tv'] as const;
+export const torrentMetadataRefreshFields = [
+  'posters',
+  'ratings',
+  'genres',
+  'plot',
+  'details',
+  'episodes',
+] as const;
+export type TorrentMetadataRefreshField = (typeof torrentMetadataRefreshFields)[number];
 
 export type ReleaseContentType = (typeof releaseTypes)[number];
 export type ReleaseWatchlistStatus = (typeof releaseWatchlistStatuses)[number];
@@ -94,6 +103,10 @@ export const userSettings = pgTable(
       .default({ inApp: true, telegram: false, email: false })
       .notNull(),
     autoRefreshTorrentMetadata: boolean('auto_refresh_torrent_metadata').default(false).notNull(),
+    torrentMetadataRefreshFields: jsonb('torrent_metadata_refresh_fields')
+      .$type<TorrentMetadataRefreshField[]>()
+      .default(['posters', 'ratings', 'genres', 'plot', 'details', 'episodes'])
+      .notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

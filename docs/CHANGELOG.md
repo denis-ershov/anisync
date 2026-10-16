@@ -1,5 +1,59 @@
 # Changelog
 
+## 2026-10-16 (feat: гибкая гранулярная настройка автообновления метаданных торрентов)
+
+**Файлы:**
+- `apps/web/src/lib/db/schema.ts`
+- `apps/web/src/lib/types.ts`
+- `apps/web/src/lib/services/user-service.ts`
+- `apps/web/src/lib/services/torrent-metadata-refresh-service.ts`
+- `apps/web/src/lib/services/torrent-local-store.ts`
+- `apps/web/src/lib/services/torrent-facade.ts`
+- `apps/web/src/app/api/torrents/watchlist/[id]/refresh/route.ts`
+- `apps/web/src/modules/torrents/api.ts`
+- `apps/web/src/modules/torrents/hooks.ts`
+- `apps/web/src/components/torrents/torrent-metadata-refresh-settings.tsx`
+- `apps/web/src/components/torrents/torrents-watchlist-view.tsx`
+- `apps/web/messages/ru.json`
+- `apps/web/messages/en.json`
+- `apps/web/drizzle/0010_torrent_metadata_refresh_fields.sql`
+- `apps/web/drizzle/meta/_journal.json`
+- `apps/web/tests/torrent-metadata-refresh.test.ts`
+- `docs/modules/TORRENT_METADATA_SYNC_ARCHITECTURE.md`
+
+**Изменения:**
+1. **Гранулярные категории метаданных:**
+   - Введена схема разделения метаданных TMDB/IMDb на 6 независимых категорий:
+     - `posters` (Постеры): `posterUrl`
+     - `ratings` (Рейтинг): `rating`
+     - `genres` (Категории и жанры): `genre`
+     - `plot` (Описание): `plot`
+     - `details` (Название и год): `title`, `originalTitle`, `year`, `runtime`
+     - `episodes` (Сезоны и даты): `totalSeasons`, `totalEpisodes`, `nextEpisode*`, `digitalReleaseDate`
+2. **Схема базы данных и настройки пользователя (`user_settings`):**
+   - Добавлена колонка `torrent_metadata_refresh_fields` (тип `jsonb`, по умолчанию включены все 6 категорий).
+   - Создана миграция `0010_torrent_metadata_refresh_fields.sql` с безопасным добавлением колонки через `ADD COLUMN IF NOT EXISTS`.
+   - В `user-service.ts` реализована санитизация входных данных: валидация ключей, удаление дубликатов, безопасный фоллбек.
+3. **Сервисный слой (`TorrentMetadataRefreshService`):**
+   - Добавлена чистая функция `computeMetadataUpdate(row, metadata, fields)` для детерминированного расчёта диффа обновления: обновляются строго выбранные категории, остальные поля в `torrent_watchlist` гарантированно не затрагиваются.
+   - Метод `refreshSingle` теперь принимает опциональный параметр `options.fields`; при отсутствии параметра поля считываются из сохранённого профиля пользователя.
+   - Метод пакетной тихой сверки `reconcileStaleIfEnabled` считывает настройки полей один раз на пользователя и передаёт их в фоновый пул обработки.
+4. **API и хуки фронтенда:**
+   - `POST /api/torrents/watchlist/[id]/refresh` поддерживает опциональное тело `{ fields: [...] }` для ручного обновления конкретного набора полей с сохранением полной обратной совместимости при вызове без тела.
+   - Хук `useRefreshTorrentWatchlistItem` расширен для поддержки вызова как с ID (`number`), так и с объектом `{ id, fields }`.
+5. **Пользовательский интерфейс (UI/UX Mobile First):**
+   - Создан компонент `TorrentMetadataRefreshSettings` в стиле Linear/Apple с поддержкой экранов от iPhone SE до 4K.
+   - В верхней строке отображается бейдж количества активных полей, кнопка «Настроить поля» и переключатель автообновления.
+   - Раскрывающаяся панель содержит кнопки быстрого выбора («Выбрать все» / «Снять все») и сетку интерактивных карточек с иконками, заголовками и описаниями категорий (минимальная область нажатия >= 44px).
+   - При попытке отключить все категории выводится предупреждающий баннер.
+   - Все текстовые строки локализованы в `ru.json` и `en.json`.
+6. **Тестирование:**
+   - Добавлены модульные тесты в `apps/web/tests/torrent-metadata-refresh.test.ts` проверяющие частичное обновление полей (только рейтинг и постеры, только категории, пустое множество полей, сохранение пользовательских настроек раздач).
+
+**Обоснование:** обеспечивает пользователю полный контроль над тем, какие именно данные перезаписываются при автоматической фоновой или ручной актуализации метаданных, предотвращая нежелательное затирание кастомных описаний, названий или категорий.
+
+---
+
 ## 2026-10-16 (fix: устранение ошибки и пустой выдачи при поиске кандидатов торрентов)
 
 **Файлы:**

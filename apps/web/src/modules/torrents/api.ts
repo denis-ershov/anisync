@@ -5,6 +5,7 @@ import type {
   TorrentWatchlistItem,
   TorrentWatchlistUpdateInput,
 } from '@/lib/torrents/types';
+import type { TorrentMetadataRefreshField } from '@/lib/types';
 
 async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -141,9 +142,14 @@ export async function fetchTorrentReleases(imdbId: string) {
   return parseJson<TorrentReleaseItem[]>(response);
 }
 
-export async function refreshTorrentWatchlistItem(id: number) {
+export async function refreshTorrentWatchlistItem(
+  id: number,
+  fields?: TorrentMetadataRefreshField[]
+) {
   const response = await fetch(`/api/torrents/watchlist/${id}/refresh`, {
     method: 'POST',
+    headers: fields ? { 'Content-Type': 'application/json' } : undefined,
+    body: fields ? JSON.stringify({ fields }) : undefined,
     credentials: 'include',
   });
   return parseJson<TorrentWatchlistItem>(response);

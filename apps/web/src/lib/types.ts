@@ -22,6 +22,12 @@ export interface User {
 
 export type PlatformModule = 'anime' | 'releases' | 'torrents';
 
+export {
+  torrentMetadataRefreshFields,
+  type TorrentMetadataRefreshField,
+} from '@/lib/db/schema';
+import type { TorrentMetadataRefreshField } from '@/lib/db/schema';
+
 export interface NotificationPreferences {
   inApp?: boolean;
   telegram?: boolean;
@@ -41,6 +47,7 @@ export interface UserSettings {
   enabledModules: PlatformModule[];
   notificationPreferences: NotificationPreferences;
   autoRefreshTorrentMetadata?: boolean;
+  torrentMetadataRefreshFields?: TorrentMetadataRefreshField[];
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +75,7 @@ export interface UpdateUserSettingsData {
   enabledModules?: PlatformModule[];
   notificationPreferences?: NotificationPreferences;
   autoRefreshTorrentMetadata?: boolean;
+  torrentMetadataRefreshFields?: TorrentMetadataRefreshField[];
 }
 
 export interface LoginData {

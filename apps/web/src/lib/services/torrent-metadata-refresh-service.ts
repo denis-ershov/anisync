@@ -1,6 +1,13 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
-import { db, torrentReleases, torrentWatchlist, userSettings } from '@/lib/db';
+import {
+  db,
+  torrentMetadataRefreshFields,
+  torrentReleases,
+  torrentWatchlist,
+  userSettings,
+  type TorrentMetadataRefreshField,
+} from '@/lib/db';
 import { findContentByImdb, getShowEpisodeForDisplay } from '@/lib/integrations/tmdb/client';
 import { MovieDigitalReleaseDateService } from '@/lib/services/movie-digital-release-date-service';
 import { createLogger } from '@/lib/observability/logger';
@@ -13,10 +20,110 @@ export const STALE_TORRENT_METADATA_MS = Number.parseInt(
   10
 );
 
+export const DEFAULT_TORRENT_METADATA_REFRESH_FIELDS: TorrentMetadataRefreshField[] = [
+  ...torrentMetadataRefreshFields,
+];
+
+export function normalizeRefreshFields(fields?: unknown): TorrentMetadataRefreshField[] {
+  if (!Array.isArray(fields)) {
+    return [...DEFAULT_TORRENT_METADATA_REFRESH_FIELDS];
+  }
+  const allowed = new Set<string>(DEFAULT_TORRENT_METADATA_REFRESH_FIELDS);
+  return fields.filter((f): f is TorrentMetadataRefreshField => allowed.has(f));
+}
+
+export function computeMetadataUpdate(
+  row: typeof torrentWatchlist.$inferSelect,
+  metadata: {
+    title?: string | null;
+    originalTitle?: string | null;
+    type?: 'movie' | 'tv' | null;
+    posterUrl?: string | null;
+    year?: string | null;
+    genre?: string | null;
+    plot?: string | null;
+    rating?: string | null;
+    runtime?: string | null;
+    totalSeasons?: number | null;
+    totalEpisodes?: number | null;
+    tmdbId?: number | null;
+  },
+  fields: TorrentMetadataRefreshField[]
+): Partial<typeof torrentWatchlist.$inferInsert> {
+  const update: Partial<typeof torrentWatchlist.$inferInsert> = {};
+  const active = new Set(fields);
+
+  if (active.has('posters')) {
+    if (metadata.posterUrl !== undefined) {
+      update.posterUrl = metadata.posterUrl ?? row.posterUrl;
+    }
+  }
+
+  if (active.has('ratings')) {
+    if (metadata.rating !== undefined) {
+      update.rating = metadata.rating ?? row.rating;
+    }
+  }
+
+  if (active.has('genres')) {
+    if (metadata.genre !== undefined) {
+      update.genre = metadata.genre ?? row.genre;
+    }
+  }
+
+  if (active.has('plot')) {
+    if (metadata.plot !== undefined) {
+      update.plot = metadata.plot ?? row.plot;
+    }
+  }
+
+  if (active.has('details')) {
+    if (metadata.title) {
+      update.title = metadata.title;
+    }
+    if (metadata.originalTitle !== undefined) {
+      update.originalTitle = metadata.originalTitle ?? row.originalTitle;
+    }
+    if (metadata.year !== undefined) {
+      update.year = metadata.year ?? row.year;
+    }
+    if (metadata.runtime !== undefined) {
+      update.runtime = metadata.runtime ?? row.runtime;
+    }
+    if (metadata.type !== undefined) {
+      update.type = metadata.type ?? row.type;
+    }
+  }
+
+  if (active.has('episodes')) {
+    if (metadata.totalSeasons !== undefined) {
+      update.totalSeasons = metadata.totalSeasons ?? row.totalSeasons;
+    }
+    if (metadata.totalEpisodes !== undefined) {
+      update.totalEpisodes = metadata.totalEpisodes ?? row.totalEpisodes;
+    }
+  }
+
+  // tmdbId is an internal linkage id; populate if missing
+  if (!row.tmdbId && metadata.tmdbId) {
+    update.tmdbId = metadata.tmdbId;
+  }
+
+  return update;
+}
+
 const BATCH_RECONCILE_CONCURRENCY = 3;
 
+export interface RefreshSingleOptions {
+  fields?: TorrentMetadataRefreshField[];
+}
+
 export class TorrentMetadataRefreshService {
-  static async refreshSingle(userId: number, itemId: number): Promise<TorrentWatchlistItem> {
+  static async refreshSingle(
+    userId: number,
+    itemId: number,
+    options?: RefreshSingleOptions
+  ): Promise<TorrentWatchlistItem> {
     const [row] = await db
       .select()
       .from(torrentWatchlist)
@@ -27,6 +134,16 @@ export class TorrentMetadataRefreshService {
       throw new Error('Watchlist item not found');
     }
 
+    let activeFields = options?.fields;
+    if (!activeFields) {
+      const [settings] = await db
+        .select({ fields: userSettings.torrentMetadataRefreshFields })
+        .from(userSettings)
+        .where(eq(userSettings.userId, userId))
+        .limit(1);
+      activeFields = normalizeRefreshFields(settings?.fields);
+    }
+
     const metadata = await findContentByImdb(row.imdbId).catch((err) => {
       log.error({ err, imdbId: row.imdbId, itemId }, 'Failed to fetch fresh metadata from IMDb/TMDB');
       return null;
@@ -35,21 +152,11 @@ export class TorrentMetadataRefreshService {
     let updatedRow = row;
 
     if (metadata) {
+      const updateData = computeMetadataUpdate(row, metadata, activeFields);
       const [persisted] = await db
         .update(torrentWatchlist)
         .set({
-          title: metadata.title || row.title,
-          originalTitle: metadata.originalTitle ?? row.originalTitle,
-          type: metadata.type ?? row.type,
-          posterUrl: metadata.posterUrl ?? row.posterUrl,
-          year: metadata.year ?? row.year,
-          genre: metadata.genre ?? row.genre,
-          plot: metadata.plot ?? row.plot,
-          rating: metadata.rating ?? row.rating,
-          runtime: metadata.runtime ?? row.runtime,
-          totalSeasons: metadata.totalSeasons ?? row.totalSeasons,
-          totalEpisodes: metadata.totalEpisodes ?? row.totalEpisodes,
-          tmdbId: metadata.tmdbId ?? row.tmdbId,
+          ...updateData,
           updatedAt: new Date(),
         })
         .where(and(eq(torrentWatchlist.id, itemId), eq(torrentWatchlist.userId, userId)))
@@ -77,7 +184,7 @@ export class TorrentMetadataRefreshService {
     let nextEpisodeNumber: number | null = null;
     let nextEpisodeDate: string | null = null;
 
-    if (updatedRow.tmdbId) {
+    if (updatedRow.tmdbId && activeFields.includes('episodes')) {
       if (updatedRow.type === 'tv') {
         const episode = await getShowEpisodeForDisplay(updatedRow.tmdbId).catch(() => null);
         if (episode?.airDate) {
@@ -132,7 +239,10 @@ export class TorrentMetadataRefreshService {
     rows: (typeof torrentWatchlist.$inferSelect)[]
   ): Promise<void> {
     const [settings] = await db
-      .select({ autoRefresh: userSettings.autoRefreshTorrentMetadata })
+      .select({
+        autoRefresh: userSettings.autoRefreshTorrentMetadata,
+        fields: userSettings.torrentMetadataRefreshFields,
+      })
       .from(userSettings)
       .where(eq(userSettings.userId, userId))
       .limit(1);
@@ -141,6 +251,7 @@ export class TorrentMetadataRefreshService {
       return;
     }
 
+    const fields = normalizeRefreshFields(settings.fields);
     const staleBefore = new Date(Date.now() - STALE_TORRENT_METADATA_MS);
     const staleRows = rows.filter(
       (row) => !row.updatedAt || row.updatedAt < staleBefore
@@ -156,7 +267,7 @@ export class TorrentMetadataRefreshService {
         const chunk = staleRows.slice(i, i + BATCH_RECONCILE_CONCURRENCY);
         await Promise.all(
           chunk.map((row) =>
-            this.refreshSingle(userId, row.id).catch((err) => {
+            this.refreshSingle(userId, row.id, { fields }).catch((err) => {
               log.warn({ err, itemId: row.id }, 'Silent background torrent metadata reconcile failed');
             })
           )

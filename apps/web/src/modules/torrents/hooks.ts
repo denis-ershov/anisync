@@ -17,6 +17,7 @@ import {
   notifyTorrentReleaseCandidate,
 } from '@/lib/torrents/api';
 import type { TorrentReleaseCandidate, TorrentWatchlistUpdateInput } from '@/lib/torrents/types';
+import type { TorrentMetadataRefreshField } from '@/lib/types';
 import { torrentQueryKeys } from '@/lib/torrents/query-keys';
 
 const defaultQueryOptions = {
@@ -158,7 +159,12 @@ export function useNotifyTorrentRelease() {
 export function useRefreshTorrentWatchlistItem() {
   const invalidateWatchlist = useInvalidateTorrentWatchlist();
   return useMutation({
-    mutationFn: refreshTorrentWatchlistItem,
+    mutationFn: (args: number | { id: number; fields?: TorrentMetadataRefreshField[] }) => {
+      if (typeof args === 'number') {
+        return refreshTorrentWatchlistItem(args);
+      }
+      return refreshTorrentWatchlistItem(args.id, args.fields);
+    },
     onSuccess: invalidateWatchlist,
   });
 }

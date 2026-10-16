@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
-import { db, userSettings, userSessions, users } from '@/lib/db';
+import { db, userSettings, userSessions, users, torrentMetadataRefreshFields, type TorrentMetadataRefreshField } from '@/lib/db';
 import { env } from '@/lib/config';
 import type { User, UserSettings } from '@/lib/db/schema';
 import type {
@@ -39,6 +39,14 @@ function toAuthUser(user: User, settings: UserSettings): AuthUser {
       enabledModules: settings.enabledModules ?? ['anime'],
       notificationPreferences: settings.notificationPreferences ?? { inApp: true },
       autoRefreshTorrentMetadata: settings.autoRefreshTorrentMetadata ?? false,
+      torrentMetadataRefreshFields: settings.torrentMetadataRefreshFields ?? [
+        'posters',
+        'ratings',
+        'genres',
+        'plot',
+        'details',
+        'episodes',
+      ],
       createdAt: toIsoString(settings.createdAt),
       updatedAt: toIsoString(settings.updatedAt),
     },
@@ -242,6 +250,16 @@ export class UserSettingsService {
     }
     if (settingsData.autoRefreshTorrentMetadata !== undefined) {
       updateData.autoRefreshTorrentMetadata = settingsData.autoRefreshTorrentMetadata;
+    }
+    if (settingsData.torrentMetadataRefreshFields !== undefined) {
+      const allowed = new Set<string>(torrentMetadataRefreshFields);
+      const incoming = Array.isArray(settingsData.torrentMetadataRefreshFields)
+        ? settingsData.torrentMetadataRefreshFields
+        : [];
+      const sanitized = incoming.filter((f): f is TorrentMetadataRefreshField =>
+        allowed.has(f as TorrentMetadataRefreshField)
+      );
+      updateData.torrentMetadataRefreshFields = Array.from(new Set(sanitized));
     }
 
     const nextPrimary =

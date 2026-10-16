@@ -25,8 +25,24 @@ async function postHandler(request: NextRequest, context: SloRouteContext) {
     return NextResponse.json({ error: 'Invalid item id' }, { status: 400 });
   }
 
+  let fields: import('@/lib/db').TorrentMetadataRefreshField[] | undefined;
   try {
-    const item = await refreshTorrentMetadata(userId, itemId);
+    const text = await request.text();
+    if (text) {
+      const body = JSON.parse(text);
+      if (body && Array.isArray(body.fields)) {
+        const { normalizeRefreshFields } = await import(
+          '@/lib/services/torrent-metadata-refresh-service'
+        );
+        fields = normalizeRefreshFields(body.fields);
+      }
+    }
+  } catch {
+    // Body is optional
+  }
+
+  try {
+    const item = await refreshTorrentMetadata(userId, itemId, fields);
     return NextResponse.json(item);
   } catch (error) {
     return torrentServiceErrorResponse(error);

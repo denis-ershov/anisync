@@ -4,6 +4,7 @@ import type {
   TorrentWatchlistItem,
   TorrentWatchlistUpdateInput,
 } from '@/lib/torrents/types';
+import type { TorrentMetadataRefreshField } from '@/lib/db';
 import { TorrentLocalStore } from '@/lib/services/torrent-local-store';
 import { TorrentWatcherService } from '@/lib/services/torrent-watcher-service';
 
@@ -83,6 +84,10 @@ export async function notifyTorrentRelease(
   return TorrentWatcherService.notifyRelease(userId, itemId, input);
 }
 
-export async function refreshTorrentMetadata(userId: number, itemId: number) {
-  return TorrentLocalStore.refreshMetadata(userId, itemId);
+export async function refreshTorrentMetadata(
+  userId: number,
+  itemId: number,
+  fields?: TorrentMetadataRefreshField[]
+) {
+  return TorrentLocalStore.refreshMetadata(userId, itemId, fields);
 }
