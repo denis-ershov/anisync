@@ -141,7 +141,13 @@ function resetFormState(item: TorrentWatchlistItem) {
   };
 }
 
-export function TorrentPreferencesDialog({ item }: { item: TorrentWatchlistItem }) {
+export function TorrentPreferencesDialog({
+  item,
+  trigger,
+}: {
+  item: TorrentWatchlistItem;
+  trigger?: React.ReactNode;
+}) {
   const t = useTranslations('Torrents.preferences');
   const [open, setOpen] = useState(false);
   const [metadataOpen, setMetadataOpen] = useState(false);
@@ -265,14 +271,18 @@ export function TorrentPreferencesDialog({ item }: { item: TorrentWatchlistItem 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className="min-h-11 flex-1 sm:flex-none"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Settings2 className="size-4" aria-hidden />
-          <span className="ml-2">{t('action')}</span>
-        </Button>
+        {trigger ? (
+          trigger
+        ) : (
+          <Button
+            variant="outline"
+            className="min-h-11 flex-1 sm:flex-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Settings2 className="size-4" aria-hidden />
+            <span className="ml-2">{t('action')}</span>
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>

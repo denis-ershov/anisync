@@ -59,7 +59,7 @@ export function TorrentsWatchlistView() {
       {isLoading ? (
         <div className={catalogCardGridClassName}>
           {Array.from({ length: Math.min(pageSize, 10) }).map((_, index) => (
-            <Skeleton key={index} className="aspect-[2/3] w-full rounded-xl" />
+            <Skeleton key={index} className="h-36 sm:h-auto sm:aspect-[2/3] w-full rounded-xl" />
           ))}
         </div>
       ) : errorMessage ? (

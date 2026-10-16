@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-10-16 (fix: исправление поиска торрентов, разделение SDR/HDR, сквозное ранжирование кандидатов и Mobile First редизайн карточек)
+
+**Файлы:**
+- `apps/web/src/lib/torrents/watcher/filters.ts`
+- `apps/web/src/lib/torrents/watcher/identity.ts`
+- `apps/web/src/lib/services/torrent-watcher-service.ts`
+- `apps/web/src/components/torrents/torrent-watchlist-card.tsx`
+- `apps/web/src/components/torrents/torrent-preferences-dialog.tsx`
+- `apps/web/src/components/torrents/torrents-watchlist-view.tsx`
+- `apps/web/tests/torrent-watcher.test.ts`
+- `docs/modules/TORRENTS_ARCHITECTURE.md`
+
+**Изменения:**
+1. **Разделение CamelCase / PascalCase и генерация поисковых запросов:**
+   - Внедрена утилита `splitCamelCase`, разделяющая составные названия (`VisionQuest` -> `Vision Quest`).
+   - Функция `buildSearchQueries` теперь генерирует варианты запросов как со слитным, так и с раздельным написанием (`Vision Quest 2026`, `VisionQuest 2026`, `Квест Вижна 2026`), а также базовые запросы без года для онгоингов, что решает проблему нулевой выдачи в поиске трекеров (RuTracker/Kinozal).
+   - Токенизатор `tokenize` и `titleTokens` обновлён для поддержки CamelCase-разделения, гарантируя корректное сопоставление в `filterResultsByImdbOrTitle`.
+2. **Точное разделение качества (Resolution + Dynamic Range) SDR vs HDR / Dolby Vision:**
+   - Разработан парсер `detectReleaseQuality`, строго разделяющий разрешение (`2160p`, `1080p`, `720p`, `480p`) и динамический диапазон (`SDR`, `HDR`, `DV`).
+   - В `filterReleasesByPreferences` устранена ошибка `qualityPref.includes(qualityStr)`, из-за которой любой 2160p релиз ошибочно подходил и под `2160p SDR`, и под `2160p HDR`. Теперь `2160p SDR` принимает исключительно 4K релизы без HDR (или с явным маркером SDR), а `2160p HDR` — исключительно HDR10, HDR10+, Dolby Vision и HLG.
+   - Функция `qualityLabel` в `identity.ts` теперь возвращает информативные метки (`2160p HDR`, `2160p SDR`, `2160p DV`, `1080p`).
+   - В `RUSSIAN_VOICE_PATTERNS` добавлена поддержка релизных суффиксов трекеров `- RUSSIAN`.
+3. **Сквозной отбор и ранжирование кандидатов без преждевременной обрезки:**
+   - В `TorrentWatcherService.listReleaseCandidates` устранён преждевременный срез по квотам трекеров (`TOTAL_LIMIT = 50`) до сортировки по предпочтениям.
+   - Все найденные со всех трекеров раздачи дедуплицируются и ранжируются сквозным образом: закрепленные (pinned) -> совпадение с предпочтениями (качество + аудио) -> число сидеров -> размер. Срез применяется строго к уже отсортированному релевантному списку.
+   - В авто-watcher (`processItem`) поиск проверяет все варианты, а лимит применяется строго к отправке уведомлений (`maxReleasesCount`).
+4. **Mobile First редизайн карточки торрента (`TorrentWatchlistCard`):**
+   - На экранах `< sm` (смартфоны) карточка переведена в горизонтальный формат (media card) высотой ~140px с компактным постером (96px, aspect 2/3), лаконичными метаданными и удобными сенсорными кнопками (touch target >= 36-40px). На экран мобильного устройства теперь умещается 4–5 карточек вместо одной гигантской карточки в 800px.
+   - На экранах `sm` и шире сохранена классическая 5-колоночная сетка вертикальных постеров.
+   - В `TorrentPreferencesDialog` добавлен опциональный параметр `trigger` для кастомных компактных кнопок.
+   - Скелетон загрузки в `TorrentsWatchlistView` адаптирован под отзывчивую высоту карточек.
+5. **Тестирование:**
+   - Добавлены тесты в `torrent-watcher.test.ts`:
+     - Разделение PascalCase/CamelCase слов (`VisionQuest` -> `Vision Quest`).
+     - Генерация поисковых запросов для слитных названий.
+     - Сопоставление `VisionQuest` с раздачами `Vision Quest`.
+     - Детекция разрешений и цветового диапазона (SDR, HDR, DV).
+     - Строгое разграничение фильтров `2160p SDR`, `2160p HDR` и мульти-выбора `1080p, 2160p SDR`.
+   - Все 119 unit-тестов успешно пройдены (`npm test`).
+   - Production-сборка Next.js (`npm run build`) и проверка типов (`npm run typecheck`) завершены успешно.
+
 ## 2026-10-16 (feat: гибкая гранулярная настройка автообновления метаданных торрентов)
 
 **Файлы:**

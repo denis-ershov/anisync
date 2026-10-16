@@ -555,45 +555,25 @@ export class TorrentWatcherService {
     const pinned = pinnedIdentities(item);
     const releases = await searchForItem(client, item, { skipPreferencesFilter: true });
 
-    // Fair representation: распределение выдачи, чтобы один трекер не монополизировал результаты
-    const byTracker = new Map<string, ProwlarrRelease[]>();
-    for (const release of releases) {
-      const trackerKey = (release.indexer || release.tracker || 'other').toLowerCase();
-      const list = byTracker.get(trackerKey) ?? [];
-      list.push(release);
-      byTracker.set(trackerKey, list);
-    }
-
-    const selected: ProwlarrRelease[] = [];
     const seenPrimary = new Set<string>();
+    const deduplicated: ProwlarrRelease[] = [];
 
-    // Гарантируем до 8 лучших релизов от каждого ответившего индексатора
-    const PER_TRACKER_QUOTA = 8;
-    for (const list of byTracker.values()) {
-      for (const release of list.slice(0, PER_TRACKER_QUOTA)) {
+    for (const release of releases) {
+      try {
         const id = computeReleaseIdentity(release).primary;
         if (id && !seenPrimary.has(id)) {
           seenPrimary.add(id);
-          selected.push(release);
+          deduplicated.push(release);
         }
-      }
-    }
-
-    // Дозаполняем оставшиеся места до лимита 50 из общего пула по количеству сидеров
-    const TOTAL_LIMIT = 50;
-    for (const release of releases) {
-      if (selected.length >= TOTAL_LIMIT) break;
-      const id = computeReleaseIdentity(release).primary;
-      if (id && !seenPrimary.has(id)) {
-        seenPrimary.add(id);
-        selected.push(release);
+      } catch {
+        // Skip releases with uncomputable identity
       }
     }
 
     const isRussianOrigin = isRussianTitleOrigin(item.title, item.originalTitle);
 
-    // Сортируем итоговую выдачу: закрепленные первыми, затем подходящие по предпочтениям, затем по сидерам и размеру
-    selected.sort((a, b) => {
+    // Сортируем ВЕСЬ найденный пул: сначала закрепленные, затем подходящие по предпочтениям, затем по сидерам и размеру
+    deduplicated.sort((a, b) => {
       const pinA = Number(releaseMatchesPinned(a, pinned));
       const pinB = Number(releaseMatchesPinned(b, pinned));
       if (pinA !== pinB) return pinB - pinA;
@@ -614,6 +594,9 @@ export class TorrentWatcherService {
       if (seedersDiff !== 0) return seedersDiff;
       return (mapSize(b.size) ?? 0) - (mapSize(a.size) ?? 0);
     });
+
+    const CANDIDATES_DISPLAY_LIMIT = 100;
+    const selected = deduplicated.slice(0, CANDIDATES_DISPLAY_LIMIT);
 
     return selected.flatMap((release) => {
       try {

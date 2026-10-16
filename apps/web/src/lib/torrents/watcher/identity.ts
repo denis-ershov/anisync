@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { detectReleaseQuality } from '@/lib/torrents/watcher/filters';
 
 export type ProwlarrRelease = {
   title?: string;
@@ -182,6 +183,10 @@ export function buildReleaseContentHash(
 }
 
 export function qualityLabel(release: ProwlarrRelease): string | null {
+  const detected = detectReleaseQuality(release.title || '', release.quality);
+  if (detected.label) {
+    return detected.label;
+  }
   const quality = release.quality;
   if (quality && typeof quality === 'object' && quality.resolution) {
     return String(quality.resolution);

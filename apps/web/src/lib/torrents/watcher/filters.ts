@@ -185,8 +185,13 @@ const SEASON_EPISODE_CONTEXT_WORDS = new Set([
   'k',
 ]);
 
-function tokenize(value: string): string[] {
-  const prepared = value
+export function splitCamelCase(value: string): string {
+  return value.replace(/([a-zа-я])([A-ZА-Я])/g, '$1 $2');
+}
+
+function tokenize(value: string, shouldSplitCamel = true): string[] {
+  const source = shouldSplitCamel ? splitCamelCase(value) : value;
+  const prepared = source
     .toLowerCase()
     .replace(/ё/g, 'е')
     .replace(/\b(?:viii|vii|vi|iv|iii|ii|ix|x|v)\b/gi, (roman) => {
@@ -197,8 +202,8 @@ function tokenize(value: string): string[] {
   return prepared.match(/[0-9a-zа-я]+/gi) ?? [];
 }
 
-function titleTokens(value: string): string[] {
-  const rawTokens = tokenize(value);
+export function titleTokens(value: string, shouldSplitCamel = true): string[] {
+  const rawTokens = tokenize(value, shouldSplitCamel);
   const result: string[] = [];
 
   for (let i = 0; i < rawTokens.length; i += 1) {
@@ -448,7 +453,7 @@ export const RUSSIAN_VOICE_PATTERNS: RegExp[] = [
   /авторск/i,
   /проф\.?\s*перевод/i,
   /русск(?:ая|ий|ое|ие|ую)?\s*(?:озвуч|дорож|дуб|перевод|звук)/i,
-  /(?:^|[^a-zа-я0-9])(?:rus|рус)(?:$|[^a-zа-я0-9])/i,
+  /(?:^|[^a-zа-я0-9])(?:rus|рус|russian)(?:$|[^a-zа-я0-9])/i,
   // Релизные маркеры качественного дубляжа/перевода
   /лицензи/i,
   /чистый\s*звук/i,
@@ -647,14 +652,18 @@ export function filterResultsByImdbOrTitle(
   const aliases: string[][] = [];
 
   for (const raw of rawValues) {
-    const fullTokens = titleTokens(raw);
+    const fullTokens = titleTokens(raw, true);
     if (fullTokens.length && !aliases.some((alias) => alias.join('\0') === fullTokens.join('\0'))) {
       aliases.push(fullTokens);
+    }
+    const noCamelTokens = titleTokens(raw, false);
+    if (noCamelTokens.length && !aliases.some((alias) => alias.join('\0') === noCamelTokens.join('\0'))) {
+      aliases.push(noCamelTokens);
     }
     // Если название содержит подзаголовок (например "Слово пацана. Кровь на асфальте" или "Фонари: Начало")
     const parts = raw.split(/[:.·•-]/);
     if (parts.length > 1) {
-      const firstPartTokens = titleTokens(parts[0]);
+      const firstPartTokens = titleTokens(parts[0], true);
       if (
         firstPartTokens.length >= 2 &&
         !aliases.some((alias) => alias.join('\0') === firstPartTokens.join('\0'))
@@ -699,7 +708,7 @@ export function filterResultsByImdbOrTitle(
       return true;
     }
 
-    const releaseTokens = titleTokens(releaseTitle);
+    const releaseTokens = titleTokens(releaseTitle, true);
     const hasTitleMatch = aliases.some((alias) => containsSequence(releaseTokens, alias));
     if (!hasTitleMatch) {
       return false;
@@ -717,92 +726,190 @@ export function filterResultsByImdbOrTitle(
   });
 }
 
+export type VideoResolution = '2160p' | '1080p' | '720p' | '480p';
+export type DynamicRange = 'DV' | 'HDR' | 'SDR';
+
+export type DetectedQuality = {
+  resolution: VideoResolution | null;
+  dynamicRange: DynamicRange;
+  label: string;
+};
+
+export function detectReleaseQuality(
+  title: string,
+  rawQuality?: unknown
+): DetectedQuality {
+  const cleanTitle = (title || '').toLowerCase();
+
+  // 1. Resolution
+  let resolution: VideoResolution | null = null;
+  if (/\b(?:2160p?|4k|uhd|ultra[\s._-]?hd)\b/i.test(cleanTitle)) {
+    resolution = '2160p';
+  } else if (/\b(?:1080p?|1080i|fhd|full[\s._-]?hd)\b/i.test(cleanTitle)) {
+    resolution = '1080p';
+  } else if (
+    /\b(?:720p?|1280x720)\b/i.test(cleanTitle) ||
+    (/\bhd\b/i.test(cleanTitle) && !/\b(?:fhd|uhd|hdtv)\b/i.test(cleanTitle))
+  ) {
+    resolution = '720p';
+  } else if (/\b(?:480p?|576p?|sd|dvd|dvdrip)\b/i.test(cleanTitle)) {
+    resolution = '480p';
+  }
+
+  // Fallback to rawQuality if resolution not determined from title
+  if (!resolution && rawQuality) {
+    let resValue = '';
+    if (typeof rawQuality === 'object' && rawQuality !== null) {
+      const obj = rawQuality as Record<string, unknown>;
+      resValue = String(obj.resolution || obj.name || '').toLowerCase();
+    } else {
+      resValue = String(rawQuality).toLowerCase();
+    }
+
+    if (resValue.includes('2160') || resValue.includes('4k')) {
+      resolution = '2160p';
+    } else if (resValue.includes('1080')) {
+      resolution = '1080p';
+    } else if (resValue.includes('720')) {
+      resolution = '720p';
+    } else if (resValue.includes('480') || resValue.includes('576')) {
+      resolution = '480p';
+    }
+  }
+
+  // 2. Dynamic Range
+  let dynamicRange: DynamicRange = 'SDR';
+  const hasDv = /\b(?:dolby[\s._-]?vision|dovi|dv)\b/i.test(cleanTitle);
+  const hasHdr = /\b(?:hdr10\+|hdr10|hdr|hlg)\b/i.test(cleanTitle);
+
+  if (hasDv) {
+    dynamicRange = 'DV';
+  } else if (hasHdr) {
+    dynamicRange = 'HDR';
+  } else {
+    dynamicRange = 'SDR';
+  }
+
+  // 3. Label
+  let label = '';
+  if (resolution === '2160p') {
+    if (dynamicRange === 'DV') {
+      label = '2160p DV';
+    } else if (dynamicRange === 'HDR') {
+      label = '2160p HDR';
+    } else {
+      label = '2160p SDR';
+    }
+  } else if (resolution) {
+    if (dynamicRange === 'DV' || dynamicRange === 'HDR') {
+      label = `${resolution} ${dynamicRange}`;
+    } else {
+      label = resolution;
+    }
+  } else if (rawQuality && typeof rawQuality === 'object' && (rawQuality as Record<string, unknown>).name) {
+    label = String((rawQuality as Record<string, unknown>).name);
+  }
+
+  return {
+    resolution,
+    dynamicRange,
+    label,
+  };
+}
+
 export function filterReleasesByPreferences(
   results: ProwlarrRelease[],
   preferredQuality?: string | null,
   preferredAudio?: string | null,
   context?: ItemAudioContext
 ): ProwlarrRelease[] {
-  const qualityVariants: Record<string, string[]> = {
-    '1080p': ['1080p', '1080', 'full hd', 'fhd'],
-    '2160p SDR': ['2160p sdr', '2160 sdr', '4k sdr', 'uhd sdr', 'ultra hd sdr'],
-    '2160p HDR': [
-      '2160p hdr',
-      '2160 hdr',
-      '4k hdr',
-      'uhd hdr',
-      'ultra hd hdr',
-      'hdr10',
-      'hdr10+',
-      'dolby vision',
-    ],
-    '720p': ['720p', '720', 'hd'],
-    '480p': ['480p', '480', 'sd'],
-  };
-
   return results.filter((release) => {
     if (hasJunkReleaseMarkers(release)) {
       return false;
     }
 
-    const title = (release.title || '').toLowerCase();
-    const titleClean = title.replace(/[,._\-/\[\]()]+/g, ' ').replace(/\s+/g, ' ');
-    let qualityStr = '';
-    if (release.quality && typeof release.quality === 'object') {
-      qualityStr = String(release.quality.resolution || '').toLowerCase();
-    } else if (release.quality) {
-      qualityStr = String(release.quality).toLowerCase();
+    if (!matchesPreferredAudio(release, preferredAudio, context)) {
+      return false;
     }
 
-    let qualityMatch = true;
-    if (preferredQuality) {
-      const qualityList = preferredQuality
-        .split(',')
-        .map((q) => q.trim().toLowerCase())
-        .filter(Boolean);
-      qualityMatch = false;
+    if (!preferredQuality) {
+      return true;
+    }
 
-      for (const qualityPref of qualityList) {
-        if (qualityPref.includes('2160p sdr') || qualityPref.includes('4k sdr')) {
-          const has4k = /\b(?:2160p?|4k|uhd)\b/i.test(title);
-          const hasHdr = /\b(?:hdr|hdr10\+?|dolby\s*vision|dv|dovi)\b/i.test(title);
-          const hasSdr = /\bsdr\b/i.test(title);
-          if (has4k && (hasSdr || !hasHdr)) {
-            qualityMatch = true;
-            break;
-          }
-        }
-        if (qualityPref.includes('2160p hdr') || qualityPref.includes('4k hdr')) {
-          const has4k = /\b(?:2160p?|4k|uhd)\b/i.test(title);
-          const hasHdr = /\b(?:hdr|hdr10\+?|dolby\s*vision|dv|dovi)\b/i.test(title);
-          if (has4k && hasHdr) {
-            qualityMatch = true;
-            break;
-          }
-        }
+    const qualityList = preferredQuality
+      .split(',')
+      .map((q) => q.trim().toLowerCase())
+      .filter(Boolean);
 
-        for (const [variantKey, variants] of Object.entries(qualityVariants)) {
-          if (qualityPref.includes(variantKey.toLowerCase()) || variantKey.toLowerCase().includes(qualityPref)) {
-            if (variants.some((variant) => qualityStr.includes(variant) || title.includes(variant) || titleClean.includes(variant))) {
-              qualityMatch = true;
-              break;
-            }
-          }
+    if (!qualityList.length || qualityList.includes('any') || qualityList.includes('*')) {
+      return true;
+    }
+
+    const detected = detectReleaseQuality(release.title || '', release.quality);
+
+    for (const pref of qualityList) {
+      // 2160p SDR / 4K SDR
+      if (pref === '2160p sdr' || pref === '4k sdr' || pref === 'uhd sdr') {
+        if (detected.resolution === '2160p' && detected.dynamicRange === 'SDR') {
+          return true;
         }
-        if (!qualityMatch) {
-          qualityMatch =
-            qualityPref.includes(qualityStr) ||
-            title.includes(qualityPref) ||
-            titleClean.includes(qualityPref) ||
-            qualityStr.includes(qualityPref);
+        continue;
+      }
+
+      // 2160p HDR / 4K HDR
+      if (pref === '2160p hdr' || pref === '4k hdr' || pref === 'uhd hdr') {
+        if (
+          detected.resolution === '2160p' &&
+          (detected.dynamicRange === 'HDR' || detected.dynamicRange === 'DV')
+        ) {
+          return true;
         }
-        if (qualityMatch) {
-          break;
+        continue;
+      }
+
+      // General 2160p / 4K (any dynamic range)
+      if (pref === '2160p' || pref === '4k' || pref === 'uhd') {
+        if (detected.resolution === '2160p') {
+          return true;
         }
+        continue;
+      }
+
+      // 1080p
+      if (pref === '1080p' || pref === '1080' || pref === 'fhd') {
+        if (detected.resolution === '1080p') {
+          return true;
+        }
+        continue;
+      }
+
+      // 720p
+      if (pref === '720p' || pref === '720' || pref === 'hd') {
+        if (detected.resolution === '720p') {
+          return true;
+        }
+        continue;
+      }
+
+      // 480p / SD
+      if (pref === '480p' || pref === '480' || pref === 'sd') {
+        if (detected.resolution === '480p') {
+          return true;
+        }
+        continue;
+      }
+
+      // Exact label match or title substring match if custom
+      if (detected.label && detected.label.toLowerCase() === pref) {
+        return true;
+      }
+      const titleLower = (release.title || '').toLowerCase();
+      if (titleLower.includes(pref)) {
+        return true;
       }
     }
 
-    return qualityMatch && matchesPreferredAudio(release, preferredAudio, context);
+    return false;
   });
 }
 
@@ -824,10 +931,20 @@ export function buildSearchQueries(input: {
 }): string[] {
   const rawTitles: string[] = [];
   if (input.originalTitle?.trim()) {
-    rawTitles.push(input.originalTitle.trim());
+    const orig = input.originalTitle.trim();
+    rawTitles.push(orig);
+    const splitOrig = splitCamelCase(orig);
+    if (splitOrig !== orig) {
+      rawTitles.push(splitOrig);
+    }
   }
   if (input.title?.trim() && input.title.trim() !== (input.originalTitle || '').trim()) {
-    rawTitles.push(input.title.trim());
+    const tit = input.title.trim();
+    rawTitles.push(tit);
+    const splitTit = splitCamelCase(tit);
+    if (splitTit !== tit) {
+      rawTitles.push(splitTit);
+    }
   }
   if (!rawTitles.length && input.imdbId) {
     rawTitles.push(input.imdbId.trim());
@@ -874,6 +991,10 @@ export function buildSearchQueries(input: {
         }
       } else if (year) {
         queries.push(`${baseTitle} ${year}`);
+        // Для сериалов также полезно включить базовое название без года
+        if (input.itemType === 'tv') {
+          queries.push(baseTitle);
+        }
       } else {
         queries.push(baseTitle);
       }

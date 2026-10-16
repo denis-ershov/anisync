@@ -8,6 +8,7 @@ import {
 } from '@/lib/torrents/watcher/identity';
 import {
   buildSearchQueries,
+  detectReleaseQuality,
   filterReleasesByPreferences,
   filterResultsByImdbOrTitle,
   filterResultsBySeason,
@@ -15,6 +16,7 @@ import {
   hasJunkReleaseMarkers,
   isRussianTitleOrigin,
   matchesPreferredAudio,
+  splitCamelCase,
 } from '@/lib/torrents/watcher/filters';
 import { extractEpisodeInfo, extractSeasonFromTitle } from '@/lib/torrents/watcher/parsers';
 import { torrentBytesToMagnet } from '@/lib/torrents/watcher/torrent-file';
@@ -444,6 +446,132 @@ test('computeReleaseIdentity and extractInfoHashFromMagnet handle malformed URI 
   assert.ok(identity.primary != null);
   assert.ok(identity.aliases.length > 0);
 });
+
+test('splitCamelCase correctly separates PascalCase and CamelCase words', () => {
+  assert.equal(splitCamelCase('VisionQuest'), 'Vision Quest');
+  assert.equal(splitCamelCase('Severance'), 'Severance');
+  assert.equal(splitCamelCase('DaredevilBornAgain'), 'Daredevil Born Again');
+  assert.equal(splitCamelCase('SpiderMan'), 'Spider Man');
+});
+
+test('buildSearchQueries splits CamelCase titles like VisionQuest into Vision Quest', () => {
+  const queries = buildSearchQueries({
+    imdbId: 'tt23112594',
+    title: 'Квест Вижна',
+    originalTitle: 'VisionQuest',
+    itemType: 'tv',
+    year: '2026',
+    targetSeason: null,
+  });
+
+  assert.ok(queries.includes('Vision Quest 2026'));
+  assert.ok(queries.includes('VisionQuest 2026'));
+  assert.ok(queries.includes('Квест Вижна 2026'));
+  assert.ok(queries.includes('Vision Quest'));
+  assert.ok(queries.includes('Квест Вижна'));
+});
+
+test('filterResultsByImdbOrTitle matches releases with spaced title (Vision Quest) when input is VisionQuest', () => {
+  const releases = [
+    { title: 'Квест Вижна / Vision Quest / S01 (2026) WEB-DL 1080p' },
+    { title: 'VisionQuest (2026) 720p' },
+    { title: 'Comedy Club (2026.10.16) HDTV' },
+  ];
+
+  const matched = filterResultsByImdbOrTitle(
+    releases,
+    'tt23112594',
+    'Квест Вижна',
+    'VisionQuest',
+    '2026',
+    'tv'
+  );
+
+  const titles = matched.map((r) => r.title);
+  assert.ok(titles.includes('Квест Вижна / Vision Quest / S01 (2026) WEB-DL 1080p'));
+  assert.ok(titles.includes('VisionQuest (2026) 720p'));
+  assert.equal(titles.includes('Comedy Club (2026.10.16) HDTV'), false);
+});
+
+test('detectReleaseQuality accurately distinguishes resolutions and dynamic ranges (SDR vs HDR vs DV)', () => {
+  const sdr2160 = detectReleaseQuality(
+    'American Horror Story: 13 - S13E1-8 - 2026 5 x MVO, DVO, Sub 4K, HEVC, SDR WEBDL 2160p - RUSSIAN'
+  );
+  assert.equal(sdr2160.resolution, '2160p');
+  assert.equal(sdr2160.dynamicRange, 'SDR');
+  assert.equal(sdr2160.label, '2160p SDR');
+
+  const hdr2160 = detectReleaseQuality(
+    'House of the Dragon S02 2160p WEB-DL DDP5.1 Atmos H.265 HDR10'
+  );
+  assert.equal(hdr2160.resolution, '2160p');
+  assert.equal(hdr2160.dynamicRange, 'HDR');
+  assert.equal(hdr2160.label, '2160p HDR');
+
+  const dv2160 = detectReleaseQuality(
+    'Dune Part Two 2024 2160p UHD BluRay x265 TrueHD Atmos 7.1 DV HEVC'
+  );
+  assert.equal(dv2160.resolution, '2160p');
+  assert.equal(dv2160.dynamicRange, 'DV');
+  assert.equal(dv2160.label, '2160p DV');
+
+  const fhd1080 = detectReleaseQuality('Ted Lasso S03 1080p WEB-DL');
+  assert.equal(fhd1080.resolution, '1080p');
+  assert.equal(fhd1080.dynamicRange, 'SDR');
+  assert.equal(fhd1080.label, '1080p');
+});
+
+test('filterReleasesByPreferences strictly differentiates 2160p SDR and 2160p HDR without confusing them', () => {
+  const sdrRelease = {
+    title: 'Series S01 4K HEVC SDR WEBDL 2160p - RUSSIAN',
+    quality: { resolution: '2160' },
+  };
+  const hdrRelease = {
+    title: 'Series S01 4K HEVC HDR10 WEBDL 2160p - RUSSIAN',
+    quality: { resolution: '2160' },
+  };
+  const dvRelease = {
+    title: 'Series S01 4K HEVC Dolby Vision WEBDL 2160p - RUSSIAN',
+    quality: { resolution: '2160' },
+  };
+  const fhdRelease = {
+    title: 'Series S01 1080p WEB-DL - RUSSIAN',
+    quality: { resolution: '1080' },
+  };
+
+  // 1. Поиск строго 2160p SDR
+  const sdrOnly = filterReleasesByPreferences(
+    [sdrRelease, hdrRelease, dvRelease, fhdRelease],
+    '2160p SDR',
+    'russian'
+  );
+  assert.equal(sdrOnly.length, 1);
+  assert.equal(sdrOnly[0].title, sdrRelease.title);
+
+  // 2. Поиск строго 2160p HDR
+  const hdrOnly = filterReleasesByPreferences(
+    [sdrRelease, hdrRelease, dvRelease, fhdRelease],
+    '2160p HDR',
+    'russian'
+  );
+  assert.equal(hdrOnly.length, 2);
+  assert.ok(hdrOnly.some((r) => r.title === hdrRelease.title));
+  assert.ok(hdrOnly.some((r) => r.title === dvRelease.title));
+  assert.equal(hdrOnly.some((r) => r.title === sdrRelease.title), false);
+
+  // 3. Мульти-выбор: 1080p, 2160p SDR (как в запросе пользователя)
+  const mixed = filterReleasesByPreferences(
+    [sdrRelease, hdrRelease, dvRelease, fhdRelease],
+    '1080p, 2160p SDR',
+    'russian'
+  );
+  assert.equal(mixed.length, 2);
+  assert.ok(mixed.some((r) => r.title === sdrRelease.title));
+  assert.ok(mixed.some((r) => r.title === fhdRelease.title));
+  assert.equal(mixed.some((r) => r.title === hdrRelease.title), false);
+  assert.equal(mixed.some((r) => r.title === dvRelease.title), false);
+});
+
 
 
 
