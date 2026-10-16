@@ -185,13 +185,8 @@ const SEASON_EPISODE_CONTEXT_WORDS = new Set([
   'k',
 ]);
 
-export function splitCamelCase(value: string): string {
-  return value.replace(/([a-zа-я])([A-ZА-Я])/g, '$1 $2');
-}
-
-function tokenize(value: string, shouldSplitCamel = true): string[] {
-  const source = shouldSplitCamel ? splitCamelCase(value) : value;
-  const prepared = source
+function tokenize(value: string): string[] {
+  const prepared = value
     .toLowerCase()
     .replace(/ё/g, 'е')
     .replace(/\b(?:viii|vii|vi|iv|iii|ii|ix|x|v)\b/gi, (roman) => {
@@ -202,8 +197,8 @@ function tokenize(value: string, shouldSplitCamel = true): string[] {
   return prepared.match(/[0-9a-zа-я]+/gi) ?? [];
 }
 
-export function titleTokens(value: string, shouldSplitCamel = true): string[] {
-  const rawTokens = tokenize(value, shouldSplitCamel);
+export function titleTokens(value: string): string[] {
+  const rawTokens = tokenize(value);
   const result: string[] = [];
 
   for (let i = 0; i < rawTokens.length; i += 1) {
@@ -652,18 +647,14 @@ export function filterResultsByImdbOrTitle(
   const aliases: string[][] = [];
 
   for (const raw of rawValues) {
-    const fullTokens = titleTokens(raw, true);
+    const fullTokens = titleTokens(raw);
     if (fullTokens.length && !aliases.some((alias) => alias.join('\0') === fullTokens.join('\0'))) {
       aliases.push(fullTokens);
-    }
-    const noCamelTokens = titleTokens(raw, false);
-    if (noCamelTokens.length && !aliases.some((alias) => alias.join('\0') === noCamelTokens.join('\0'))) {
-      aliases.push(noCamelTokens);
     }
     // Если название содержит подзаголовок (например "Слово пацана. Кровь на асфальте" или "Фонари: Начало")
     const parts = raw.split(/[:.·•-]/);
     if (parts.length > 1) {
-      const firstPartTokens = titleTokens(parts[0], true);
+      const firstPartTokens = titleTokens(parts[0]);
       if (
         firstPartTokens.length >= 2 &&
         !aliases.some((alias) => alias.join('\0') === firstPartTokens.join('\0'))
@@ -708,7 +699,7 @@ export function filterResultsByImdbOrTitle(
       return true;
     }
 
-    const releaseTokens = titleTokens(releaseTitle, true);
+    const releaseTokens = titleTokens(releaseTitle);
     const hasTitleMatch = aliases.some((alias) => containsSequence(releaseTokens, alias));
     if (!hasTitleMatch) {
       return false;
@@ -931,20 +922,10 @@ export function buildSearchQueries(input: {
 }): string[] {
   const rawTitles: string[] = [];
   if (input.originalTitle?.trim()) {
-    const orig = input.originalTitle.trim();
-    rawTitles.push(orig);
-    const splitOrig = splitCamelCase(orig);
-    if (splitOrig !== orig) {
-      rawTitles.push(splitOrig);
-    }
+    rawTitles.push(input.originalTitle.trim());
   }
   if (input.title?.trim() && input.title.trim() !== (input.originalTitle || '').trim()) {
-    const tit = input.title.trim();
-    rawTitles.push(tit);
-    const splitTit = splitCamelCase(tit);
-    if (splitTit !== tit) {
-      rawTitles.push(splitTit);
-    }
+    rawTitles.push(input.title.trim());
   }
   if (!rawTitles.length && input.imdbId) {
     rawTitles.push(input.imdbId.trim());

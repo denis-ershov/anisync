@@ -16,7 +16,6 @@ import {
   hasJunkReleaseMarkers,
   isRussianTitleOrigin,
   matchesPreferredAudio,
-  splitCamelCase,
 } from '@/lib/torrents/watcher/filters';
 import { extractEpisodeInfo, extractSeasonFromTitle } from '@/lib/torrents/watcher/parsers';
 import { torrentBytesToMagnet } from '@/lib/torrents/watcher/torrent-file';
@@ -447,14 +446,7 @@ test('computeReleaseIdentity and extractInfoHashFromMagnet handle malformed URI 
   assert.ok(identity.aliases.length > 0);
 });
 
-test('splitCamelCase correctly separates PascalCase and CamelCase words', () => {
-  assert.equal(splitCamelCase('VisionQuest'), 'Vision Quest');
-  assert.equal(splitCamelCase('Severance'), 'Severance');
-  assert.equal(splitCamelCase('DaredevilBornAgain'), 'Daredevil Born Again');
-  assert.equal(splitCamelCase('SpiderMan'), 'Spider Man');
-});
-
-test('buildSearchQueries splits CamelCase titles like VisionQuest into Vision Quest', () => {
+test('buildSearchQueries preserves exact original title VisionQuest without splitting', () => {
   const queries = buildSearchQueries({
     imdbId: 'tt23112594',
     title: 'Квест Вижна',
@@ -464,16 +456,17 @@ test('buildSearchQueries splits CamelCase titles like VisionQuest into Vision Qu
     targetSeason: null,
   });
 
-  assert.ok(queries.includes('Vision Quest 2026'));
   assert.ok(queries.includes('VisionQuest 2026'));
   assert.ok(queries.includes('Квест Вижна 2026'));
-  assert.ok(queries.includes('Vision Quest'));
+  assert.ok(queries.includes('VisionQuest'));
   assert.ok(queries.includes('Квест Вижна'));
+  // Проверяем, что исходный тайтл не разделялся
+  assert.equal(queries.includes('Vision Quest 2026'), false);
 });
 
-test('filterResultsByImdbOrTitle matches releases with spaced title (Vision Quest) when input is VisionQuest', () => {
+test('filterResultsByImdbOrTitle matches exact VisionQuest release and rejects irrelevant titles', () => {
   const releases = [
-    { title: 'Квест Вижна / Vision Quest / S01 (2026) WEB-DL 1080p' },
+    { title: 'Квест Вижна / VisionQuest / S01 (2026) WEB-DL 1080p' },
     { title: 'VisionQuest (2026) 720p' },
     { title: 'Comedy Club (2026.10.16) HDTV' },
   ];
@@ -488,7 +481,7 @@ test('filterResultsByImdbOrTitle matches releases with spaced title (Vision Ques
   );
 
   const titles = matched.map((r) => r.title);
-  assert.ok(titles.includes('Квест Вижна / Vision Quest / S01 (2026) WEB-DL 1080p'));
+  assert.ok(titles.includes('Квест Вижна / VisionQuest / S01 (2026) WEB-DL 1080p'));
   assert.ok(titles.includes('VisionQuest (2026) 720p'));
   assert.equal(titles.includes('Comedy Club (2026.10.16) HDTV'), false);
 });
