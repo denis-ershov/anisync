@@ -383,4 +383,67 @@ test('filterResultsByImdbOrTitle and filterReleasesByPreferences correctly proce
   assert.equal(matchedForKholop1[0].title, 'Холоп (2019) BDRip 1080p');
 });
 
+test('filterResultsBySeason matches Season 1 for unlabelled packs but rejects Season 2+', () => {
+  const releases = [
+    { title: 'Квест Вижна (2021) WEB-DL 1080p' },
+    { title: 'Vision Quest S01 1080p' },
+    { title: 'Vision Quest S02 1080p' },
+  ];
+
+  // Для 1 сезона: пропускает и явный S01, и релиз без явной метки сезона
+  const season1 = filterResultsBySeason(releases, 1);
+  assert.equal(season1.length, 2);
+  assert.ok(season1.some((r) => r.title === 'Квест Вижна (2021) WEB-DL 1080p'));
+  assert.ok(season1.some((r) => r.title === 'Vision Quest S01 1080p'));
+
+  // Для 2 сезона: берет только S02, отсекая релиз без метки
+  const season2 = filterResultsBySeason(releases, 2);
+  assert.equal(season2.length, 1);
+  assert.equal(season2[0].title, 'Vision Quest S02 1080p');
+});
+
+test('filterResultsByImdbOrTitle allows later release years for ongoing TV shows while rejecting old remakes', () => {
+  const releases = [
+    // Релиз 3 сезона 2024 года для сериала с премьерой в 2020
+    { title: 'Тед Лассо / Ted Lasso (3 сезон: 1-12 серии) (2024) WEB-DL 1080p' },
+    // Старый ремейк/сериал 1995 года
+    { title: 'Ted Lasso (1995) DVDRip' },
+    // Релиз первого сезона в год премьеры
+    { title: 'Ted Lasso S01 (2020) 1080p' },
+  ];
+
+  const matched = filterResultsByImdbOrTitle(
+    releases,
+    'tt10986410',
+    'Тед Лассо',
+    'Ted Lasso',
+    '2020',
+    'tv'
+  );
+
+  const matchedTitles = matched.map((r) => r.title);
+  assert.ok(matchedTitles.includes('Тед Лассо / Ted Lasso (3 сезон: 1-12 серии) (2024) WEB-DL 1080p'));
+  assert.ok(matchedTitles.includes('Ted Lasso S01 (2020) 1080p'));
+  // Старый ремейк должен быть отсечен
+  assert.equal(matchedTitles.includes('Ted Lasso (1995) DVDRip'), false);
+});
+
+test('computeReleaseIdentity and extractInfoHashFromMagnet handle malformed URI percent-encoding without throwing', () => {
+  // Невалидные проценты в ссылке / магнете
+  const malformedMagnet = 'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=test%&tr=http%3A%2F%2Ftracker%D0%malformed';
+  const hash = extractInfoHashFromMagnet(malformedMagnet);
+  assert.equal(hash, '0123456789abcdef0123456789abcdef01234567');
+
+  const malformedRelease = {
+    title: 'Test Release [1080p]',
+    guid: 'http://tracker.example/viewtopic.php?id=12345%&tracker=RuTracker%D0%',
+    downloadUrl: 'http://tracker.example/download.php?t=67890%zz',
+  };
+
+  const identity = computeReleaseIdentity(malformedRelease);
+  assert.ok(identity.primary != null);
+  assert.ok(identity.aliases.length > 0);
+});
+
+
 

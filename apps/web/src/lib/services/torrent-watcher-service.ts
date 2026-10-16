@@ -13,6 +13,7 @@ import {
   filterReleasesByPreferences,
   filterResultsByImdbOrTitle,
   filterResultsBySeason,
+  hasJunkReleaseMarkers,
   isRussianTitleOrigin,
 } from '@/lib/torrents/watcher/filters';
 import {
@@ -81,19 +82,28 @@ async function resolveInfoHash(
 
 async function searchForItem(
   client: ProwlarrClient,
-  item: WatchlistRow
+  item: WatchlistRow,
+  options?: {
+    skipPreferencesFilter?: boolean;
+  }
 ): Promise<ProwlarrRelease[]> {
   const categories =
-    item.type === 'movie' ? [2000] : item.type === 'tv' ? [5000] : undefined;
+    item.type === 'movie' ? [2000, 2070] : item.type === 'tv' ? [5000, 5070] : undefined;
 
-  let results: ProwlarrRelease[] = [];
-  try {
-    results = await client.searchByImdb(item.imdbId, {
-      categories,
-      type: item.type === 'tv' ? 'tvsearch' : 'movie',
-    });
-  } catch (error) {
-    log.warn({ err: error, imdbId: item.imdbId }, 'IMDb search failed');
+  const searchTasks: Promise<ProwlarrRelease[]>[] = [];
+
+  if (item.imdbId && item.imdbId.trim()) {
+    searchTasks.push(
+      client
+        .searchByImdb(item.imdbId, {
+          categories,
+          type: item.type === 'tv' ? 'tvsearch' : 'movie',
+        })
+        .catch((error) => {
+          log.warn({ err: error, imdbId: item.imdbId }, 'IMDb search failed');
+          return [];
+        })
+    );
   }
 
   const queries = buildSearchQueries({
@@ -105,32 +115,56 @@ async function searchForItem(
     targetSeason: item.targetSeason,
   });
 
-  const merged = new Map<string, ProwlarrRelease>();
-  for (const release of results) {
-    const identity = computeReleaseIdentity(release);
-    const key = identity.primary || release.guid || release.infoHash || release.title;
-    if (key) {
-      merged.set(String(key).toLowerCase(), release);
-    }
+  log.info({ itemId: item.id, queries }, '[search] Text queries to run');
+  for (const query of queries) {
+    searchTasks.push(
+      client
+        .searchByQuery(query, { categories })
+        .catch((error) => {
+          log.warn({ err: error, query }, 'Query search failed');
+          return [];
+        })
+    );
   }
 
-  // Опрашиваем по текстовым запросам без досрочного break, чтобы охватить все индексаторы
-  for (const query of queries) {
-    try {
-      const byQuery = await client.searchByQuery(query, { categories });
-      for (const release of byQuery) {
-        const identity = computeReleaseIdentity(release);
-        const key = identity.primary || release.guid || release.infoHash || release.title;
-        if (key) {
-          merged.set(String(key).toLowerCase(), release);
+  // Опрашиваем IMDb и текстовые запросы параллельно, чтобы не упираться в таймауты обратного прокси
+  const taskResults = await Promise.allSettled(searchTasks);
+  const merged = new Map<string, ProwlarrRelease>();
+
+  for (const task of taskResults) {
+    if (task.status === 'fulfilled') {
+      for (const release of task.value) {
+        try {
+          const identity = computeReleaseIdentity(release);
+          const key = identity.primary || release.guid || release.infoHash || release.title;
+          if (key) {
+            merged.set(String(key).toLowerCase(), release);
+          }
+        } catch (err) {
+          log.warn({ err, title: release.title }, 'Skipping release with invalid identity');
         }
       }
-    } catch (error) {
-      log.warn({ err: error, query }, 'Query search failed');
     }
   }
 
-  results = Array.from(merged.values());
+  let results = Array.from(merged.values());
+
+  log.info(
+    {
+      itemId: item.id,
+      imdbId: item.imdbId,
+      title: item.title,
+      originalTitle: item.originalTitle,
+      type: item.type,
+      preferredAudio: item.preferredAudio,
+      preferredQuality: item.preferredQuality,
+      targetSeason: item.targetSeason,
+      year: item.year,
+      rawCount: results.length,
+      rawTitles: results.map((r) => r.title).slice(0, 20),
+    },
+    '[search] Raw merged results'
+  );
 
   let filtered = filterResultsByImdbOrTitle(
     results,
@@ -141,18 +175,70 @@ async function searchForItem(
     item.type
   );
 
+  log.info(
+    {
+      itemId: item.id,
+      afterImdbTitleFilter: filtered.length,
+      dropped: results.length - filtered.length,
+      droppedTitles: results
+        .filter((r) => !filtered.includes(r))
+        .map((r) => r.title)
+        .slice(0, 15),
+    },
+    '[search] After filterResultsByImdbOrTitle'
+  );
+
   if (item.type === 'tv' && item.targetSeason) {
+    const beforeSeason = filtered.length;
+    const beforeSeasonList = [...filtered];
     filtered = filterResultsBySeason(filtered, item.targetSeason);
+    log.info(
+      {
+        itemId: item.id,
+        targetSeason: item.targetSeason,
+        afterSeasonFilter: filtered.length,
+        dropped: beforeSeason - filtered.length,
+        droppedTitles: beforeSeasonList
+          .filter((r) => !filtered.includes(r))
+          .map((r) => r.title)
+          .slice(0, 15),
+      },
+      '[search] After filterResultsBySeason'
+    );
   }
 
   const isRussianOrigin = isRussianTitleOrigin(item.title, item.originalTitle);
 
-  filtered = filterReleasesByPreferences(
-    filtered,
-    item.preferredQuality,
-    item.preferredAudio,
-    { isRussianOrigin }
-  );
+  if (!options?.skipPreferencesFilter) {
+    const beforePrefs = filtered.length;
+    const beforePrefsList = [...filtered];
+
+    filtered = filterReleasesByPreferences(
+      filtered,
+      item.preferredQuality,
+      item.preferredAudio,
+      { isRussianOrigin }
+    );
+
+    log.info(
+      {
+        itemId: item.id,
+        isRussianOrigin,
+        preferredAudio: item.preferredAudio,
+        preferredQuality: item.preferredQuality,
+        afterPreferencesFilter: filtered.length,
+        dropped: beforePrefs - filtered.length,
+        droppedTitles: beforePrefsList
+          .filter((r) => !filtered.includes(r))
+          .map((r) => r.title)
+          .slice(0, 15),
+      },
+      '[search] After filterReleasesByPreferences'
+    );
+  } else {
+    // В режиме ручного поиска кандидатов фильтруем CAM/TS мусор, но сохраняем все релизы
+    filtered = filtered.filter((release) => !hasJunkReleaseMarkers(release));
+  }
 
   return filtered.sort((a, b) => {
     const seedersDiff = (b.seeders ?? 0) - (a.seeders ?? 0);
@@ -467,7 +553,7 @@ export class TorrentWatcherService {
     if (!client) throw new Error('Prowlarr is not configured');
 
     const pinned = pinnedIdentities(item);
-    const releases = await searchForItem(client, item);
+    const releases = await searchForItem(client, item, { skipPreferencesFilter: true });
 
     // Fair representation: распределение выдачи, чтобы один трекер не монополизировал результаты
     const byTracker = new Map<string, ProwlarrRelease[]>();
@@ -504,35 +590,55 @@ export class TorrentWatcherService {
       }
     }
 
-    // Сортируем итоговую выдачу: закрепленные первыми, затем по сидерам и размеру
+    const isRussianOrigin = isRussianTitleOrigin(item.title, item.originalTitle);
+
+    // Сортируем итоговую выдачу: закрепленные первыми, затем подходящие по предпочтениям, затем по сидерам и размеру
     selected.sort((a, b) => {
       const pinA = Number(releaseMatchesPinned(a, pinned));
       const pinB = Number(releaseMatchesPinned(b, pinned));
       if (pinA !== pinB) return pinB - pinA;
+
+      const prefMatchA = Number(
+        filterReleasesByPreferences([a], item.preferredQuality, item.preferredAudio, {
+          isRussianOrigin,
+        }).length > 0
+      );
+      const prefMatchB = Number(
+        filterReleasesByPreferences([b], item.preferredQuality, item.preferredAudio, {
+          isRussianOrigin,
+        }).length > 0
+      );
+      if (prefMatchA !== prefMatchB) return prefMatchB - prefMatchA;
+
       const seedersDiff = (b.seeders ?? 0) - (a.seeders ?? 0);
       if (seedersDiff !== 0) return seedersDiff;
       return (mapSize(b.size) ?? 0) - (mapSize(a.size) ?? 0);
     });
 
     return selected.flatMap((release) => {
-      const identity = computeReleaseIdentity(release);
-      if (!identity.primary) return [];
-      const links = resolveReleaseLinks(release);
-      return [
-        {
-          releaseKey: identity.primary,
-          aliases: identity.aliases,
-          title: release.title ?? identity.primary,
-          quality: qualityLabel(release),
-          size: mapSize(release.size),
-          seeders: release.seeders ?? null,
-          tracker: release.indexer || release.tracker || null,
-          pinned: releaseMatchesPinned(release, pinned),
-          magnetUrl: links.magnet,
-          downloadUrl: links.downloadUrl,
-          infoUrl: links.infoUrl,
-        },
-      ];
+      try {
+        const identity = computeReleaseIdentity(release);
+        if (!identity.primary) return [];
+        const links = resolveReleaseLinks(release);
+        return [
+          {
+            releaseKey: identity.primary,
+            aliases: identity.aliases,
+            title: release.title ?? identity.primary,
+            quality: qualityLabel(release),
+            size: mapSize(release.size),
+            seeders: release.seeders ?? null,
+            tracker: release.indexer || release.tracker || null,
+            pinned: releaseMatchesPinned(release, pinned),
+            magnetUrl: links.magnet,
+            downloadUrl: links.downloadUrl,
+            infoUrl: links.infoUrl,
+          },
+        ];
+      } catch (err) {
+        log.warn({ err, releaseTitle: release.title }, 'Candidate mapping error');
+        return [];
+      }
     });
   }
 
@@ -564,7 +670,7 @@ export class TorrentWatcherService {
       throw new Error('Invalid release candidate');
     }
 
-    const releases = await searchForItem(client, item);
+    const releases = await searchForItem(client, item, { skipPreferencesFilter: true });
     const release =
       releases.find((candidate) =>
         computeReleaseIdentity(candidate).aliases.some((alias) => wanted.has(alias))

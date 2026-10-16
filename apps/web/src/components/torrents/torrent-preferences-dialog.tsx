@@ -447,7 +447,13 @@ export function TorrentPreferencesDialog({ item }: { item: TorrentWatchlistItem 
           ) : candidates.isLoading ? (
             <Loader2 className="size-5 animate-spin" aria-label={t('loading')} />
           ) : candidates.error ? (
-            <p className="text-sm text-destructive">{t('candidatesError')}</p>
+            <p className="text-sm text-destructive">
+              {candidates.error instanceof Error &&
+              candidates.error.message &&
+              candidates.error.message !== 'Request failed'
+                ? candidates.error.message
+                : t('candidatesError')}
+            </p>
           ) : (
             <>
               {notifyFeedback === 'ok' ? (

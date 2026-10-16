@@ -5,7 +5,11 @@ import {
   assertTorrentServiceReady,
   torrentServiceErrorResponse,
 } from '@/lib/api/torrents-module';
+import { createLogger } from '@/lib/observability/logger';
 import { TorrentWatcherService } from '@/lib/services/torrent-watcher-service';
+
+export const maxDuration = 60;
+const log = createLogger('api:torrents:candidates');
 
 export async function GET(
   request: NextRequest,
@@ -22,6 +26,8 @@ export async function GET(
   try {
     return NextResponse.json(await TorrentWatcherService.listReleaseCandidates(userId, itemId));
   } catch (error) {
+    log.error({ err: error, itemId, userId }, 'GET /api/torrents/watchlist/[id]/candidates failed');
     return torrentServiceErrorResponse(error);
   }
 }
+

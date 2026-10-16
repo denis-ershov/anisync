@@ -348,7 +348,13 @@ export function filterResultsBySeason(
       foundSeasons.add(Number.parseInt(match[1], 10));
     }
 
-    return foundSeasons.size > 0 && foundSeasons.has(targetSeason);
+    if (foundSeasons.size > 0) {
+      return foundSeasons.has(targetSeason);
+    }
+    // Если раздача не содержит явных меток сезона:
+    // для 1 сезона допускаем (паки/минисериалы без явного S01),
+    // для последующих сезонов (2, 3...) раздача без указания сезона не подходит.
+    return targetSeason === 1;
   });
 }
 
@@ -367,7 +373,7 @@ function extractReleaseYears(title: string): Set<string> {
 function yearMatchesRelease(
   itemYear: string | null | undefined,
   releaseTitle: string,
-  options?: { requireYearInTitle?: boolean }
+  options?: { requireYearInTitle?: boolean; isTv?: boolean }
 ): boolean {
   const year = normalizeYear(itemYear);
   if (!year) {
@@ -376,6 +382,11 @@ function yearMatchesRelease(
   const releaseYears = extractReleaseYears(releaseTitle);
   if (releaseYears.size > 0) {
     const num = Number(year);
+    if (options?.isTv) {
+      // Для сериалов год релиза сезона может быть позже года премьеры (напр. Сезон 3 в 2024 при премьере 2020).
+      // Отсекаем только явно старые релизы до премьеры сериала (старые ремейки).
+      return Array.from(releaseYears).some((y) => Number(y) >= num - 1);
+    }
     return (
       releaseYears.has(year) ||
       releaseYears.has(String(num - 1)) ||
@@ -695,10 +706,12 @@ export function filterResultsByImdbOrTitle(
     }
 
     if (itemType === 'movie' && normalizedYear) {
-      return yearMatchesRelease(normalizedYear, releaseTitle, { requireYearInTitle: true });
+      // Не используем requireYearInTitle — большинство русских раздач (Kinozal, RuTracker)
+      // не содержат год в заголовке, но при этом являются верными результатами.
+      return yearMatchesRelease(normalizedYear, releaseTitle);
     }
     if (normalizedYear) {
-      return yearMatchesRelease(normalizedYear, releaseTitle);
+      return yearMatchesRelease(normalizedYear, releaseTitle, { isTv: itemType === 'tv' });
     }
     return true;
   });

@@ -42,35 +42,40 @@ function normalizeMagnet(raw: string | null | undefined): string | null {
 }
 
 export function resolveReleaseLinks(release: ProwlarrRelease): ResolvedReleaseLinks {
-  let magnet = normalizeMagnet(release.magnetUrl || release.magnet || release.magnetLink);
+  try {
+    let magnet = normalizeMagnet(release.magnetUrl || release.magnet || release.magnetLink);
 
-  if (!magnet) {
-    const infoHash = release.infoHash || release.info_hash;
-    if (infoHash) {
-      const hash = String(infoHash).trim();
-      if (/^[0-9a-fA-F]{40}$/.test(hash) || /^[A-Z2-7a-z2-7]{32}$/.test(hash)) {
-        magnet = `magnet:?xt=urn:btih:${hash}`;
+    if (!magnet) {
+      const infoHash = release.infoHash || release.info_hash;
+      if (infoHash) {
+        const hash = String(infoHash).trim();
+        if (/^[0-9a-fA-F]{40}$/.test(hash) || /^[A-Z2-7a-z2-7]{32}$/.test(hash)) {
+          magnet = `magnet:?xt=urn:btih:${hash}`;
+        }
       }
     }
+
+    if (magnet && !extractInfoHashFromMagnet(magnet) && !magnet.startsWith('magnet:')) {
+      magnet = null;
+    }
+
+    const downloadUrl = rewriteProwlarrPublicUrl(
+      release.downloadUrl && /^https?:\/\//i.test(release.downloadUrl) ? release.downloadUrl : null
+    );
+
+    const guidOrLink = release.guid || release.link;
+    let infoUrl: string | null = null;
+    if (guidOrLink && /^https?:\/\//i.test(String(guidOrLink))) {
+      infoUrl = String(guidOrLink).trim();
+    }
+
+    if (infoUrl && (infoUrl === downloadUrl || infoUrl === magnet)) {
+      infoUrl = null;
+    }
+
+    return { magnet, downloadUrl, infoUrl };
+  } catch {
+    return { magnet: null, downloadUrl: null, infoUrl: null };
   }
-
-  if (magnet && !extractInfoHashFromMagnet(magnet) && !magnet.startsWith('magnet:')) {
-    magnet = null;
-  }
-
-  const downloadUrl = rewriteProwlarrPublicUrl(
-    release.downloadUrl && /^https?:\/\//i.test(release.downloadUrl) ? release.downloadUrl : null
-  );
-
-  const guidOrLink = release.guid || release.link;
-  let infoUrl: string | null = null;
-  if (guidOrLink && /^https?:\/\//i.test(String(guidOrLink))) {
-    infoUrl = String(guidOrLink).trim();
-  }
-
-  if (infoUrl && (infoUrl === downloadUrl || infoUrl === magnet)) {
-    infoUrl = null;
-  }
-
-  return { magnet, downloadUrl, infoUrl };
 }
+

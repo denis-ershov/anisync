@@ -24,6 +24,14 @@ export type ProwlarrRelease = {
   indexerId?: number;
 };
 
+export function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export function extractInfoHashFromMagnet(magnetUrl?: string | null): string | null {
   if (!magnetUrl) {
     return null;
@@ -34,7 +42,7 @@ export function extractInfoHashFromMagnet(magnetUrl?: string | null): string | n
     return null;
   }
 
-  const infoHash = decodeURIComponent(match[1]).trim();
+  const infoHash = safeDecodeURIComponent(match[1]).trim();
   if (/^[0-9a-fA-F]{40}$/.test(infoHash)) {
     return infoHash.toLowerCase();
   }
@@ -83,7 +91,7 @@ export function extractTrackerId(value: unknown, trackerName: string): string | 
   }
 
   const match = /[?&](?:t|id)=([^&#]+)/.exec(rawValue);
-  return match?.[1] ? decodeURIComponent(match[1]).trim() : null;
+  return match?.[1] ? safeDecodeURIComponent(match[1]).trim() : null;
 }
 
 export function buildTrackerReleaseIdentity(
@@ -117,34 +125,44 @@ export function computeReleaseIdentity(release: ProwlarrRelease): {
   primary: string | null;
   aliases: string[];
 } {
-  const guid = release.guid || release.downloadUrl || release.link;
-  const downloadUrl = release.downloadUrl;
-  const trackerName = release.indexer || release.tracker || '';
-  const magnet = release.magnetUrl || release.magnet || release.magnetLink;
-  const btih = extractInfoHashFromMagnet(magnet);
-  const infoHashField = release.infoHash || release.info_hash;
-  const trackerId =
-    extractTrackerId(guid, trackerName) || extractTrackerId(downloadUrl, trackerName);
-  const trackerIdentity = buildTrackerReleaseIdentity(trackerName, trackerId);
+  try {
+    const guid = release.guid || release.downloadUrl || release.link;
+    const downloadUrl = release.downloadUrl;
+    const trackerName = release.indexer || release.tracker || '';
+    const magnet = release.magnetUrl || release.magnet || release.magnetLink;
+    const btih = extractInfoHashFromMagnet(magnet);
+    const infoHashField = release.infoHash || release.info_hash;
+    const trackerId =
+      extractTrackerId(guid, trackerName) || extractTrackerId(downloadUrl, trackerName);
+    const trackerIdentity = buildTrackerReleaseIdentity(trackerName, trackerId);
 
-  const ordered = [btih, infoHashField, trackerIdentity, trackerId, guid, downloadUrl];
-  const aliases: string[] = [];
-  const seen = new Set<string>();
-  let primary: string | null = null;
+    const ordered = [btih, infoHashField, trackerIdentity, trackerId, guid, downloadUrl];
+    const aliases: string[] = [];
+    const seen = new Set<string>();
+    let primary: string | null = null;
 
-  for (const value of ordered) {
-    const normalized = normalizeReleaseIdentity(value);
-    if (!normalized || seen.has(normalized)) {
-      continue;
+    for (const value of ordered) {
+      const normalized = normalizeReleaseIdentity(value);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      aliases.push(normalized);
+      if (primary == null) {
+        primary = normalized;
+      }
     }
-    seen.add(normalized);
-    aliases.push(normalized);
-    if (primary == null) {
-      primary = normalized;
-    }
+
+    return { primary, aliases };
+  } catch {
+    const fallback = normalizeReleaseIdentity(
+      release.guid || release.downloadUrl || release.link || release.title
+    );
+    return {
+      primary: fallback || null,
+      aliases: fallback ? [fallback] : [],
+    };
   }
-
-  return { primary, aliases };
 }
 
 export function buildReleaseContentHash(

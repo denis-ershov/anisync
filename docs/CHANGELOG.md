@@ -1,5 +1,66 @@
 # Changelog
 
+## 2026-10-16 (fix: устранение ошибки и пустой выдачи при поиске кандидатов торрентов)
+
+**Файлы:**
+- `apps/web/src/lib/services/torrent-watcher-service.ts`
+- `apps/web/src/lib/integrations/prowlarr/client.ts`
+- `apps/web/src/lib/torrents/watcher/filters.ts`
+- `apps/web/src/lib/torrents/watcher/identity.ts`
+- `apps/web/src/lib/torrents/watcher/release-links.ts`
+- `apps/web/src/app/api/torrents/watchlist/[id]/candidates/route.ts`
+- `apps/web/src/components/torrents/torrent-preferences-dialog.tsx`
+- `apps/web/tests/torrent-watcher.test.ts`
+- `docs/modules/TORRENTS_ARCHITECTURE.md`
+
+**Изменения:**
+1. **Параллелизация поиска Prowlarr (`searchForItem`):**
+   - Ранее запросы к Prowlarr выполнялись строго последовательно (IMDb + серия текстовых запросов с таймаутом по 30с каждый), что приводило к суммарному ожиданию 50–90 секунд и ошибке `504 Gateway Time-out` на стороне обратного прокси (Nginx/Traefik). При этом в Prowlarr запросы продолжали выполняться в фоне.
+   - Поиск по IMDb и текстовым запросам переведен на параллельное выполнение через `Promise.allSettled`. Таймаут отдельного запроса в `ProwlarrClient` оптимизирован до 20с. Суммарное время ответа сокращено до 5–10 секунд.
+2. **Неотсекающая выдача кандидатов для ручного закрепления (`listReleaseCandidates`):**
+   - Устранен сброс 100% раздач из-за несовпадения текущих настроек пользователя (`preferredAudio`, `preferredQuality`). В режиме ручного поиска кандидатов убирается только CAM/TS мусор, а пользовательские предпочтения используются для приоритизации (сортировки наверх), позволяя пользователю увидеть и закрепить (pin) любую валидную раздачу.
+   - Аналогично в `notifyRelease` поиск раздачи для ручной отправки теперь находит выбранный кандидатом релиз даже при отличии от дефолтных настроек.
+3. **Корректная обработка годов для ТВ-сериалов (`yearMatchesRelease`):**
+   - Для сериалов (`type === 'tv'`) год старта сериала больше не отсекает последующие сезоны (2, 3, 4...), выходящие в более поздние годы. Отсекаются только заведомо старые релизы до премьеры сериала (старые одноименные ремейки).
+4. **Защита от сбоев декодирования URI (`URIError: URI malformed`):**
+   - Добавлена безопасная функция `safeDecodeURIComponent` в `identity.ts` и `release-links.ts`. Невалидные проценты (`%`, `%D0%` и т.д.) в URL трекеров больше не вызывают необработанных исключений и 500 ошибок API.
+5. **Исправление сезонного фильтра (`filterResultsBySeason`):**
+   - Релизы без явной метки сезона допускаются только для 1-го сезона (паки и мини-сериалы), но строго отсекаются для сезонов 2+.
+6. **Диагностика и таймаут эндпоинта:**
+   - В `GET /api/torrents/watchlist/[id]/candidates` добавлен `export const maxDuration = 60` и логирование ошибок через `createLogger`.
+   - В UI диалоге настроек (`torrent-preferences-dialog.tsx`) отображается конкретный текст ошибки при сбое.
+
+**Обоснование:** восстанавливает работоспособность ручного поиска кандидатов раздач из Prowlarr в веб-интерфейсе и устраняет ложные таймауты и отсечения результатов.
+
+---
+
+
+
+**Файлы:**
+- `apps/web/src/lib/integrations/trakt/client.ts`
+- `apps/web/src/lib/integrations/watchmode/client.ts`
+
+**Изменения:**
+1. **Trakt `403 Forbidden` (`/movies/.../releases/us`):**
+   - Добавлена явная обработка `status === 403`: логируем как `warn` (не `error`), возвращаем `null` без шума.
+   - Ранее каждый запрос к недоступному эндпоинту порождал `log.error` — при массовых фоновых синках это заполняло логи.
+   - Добавлен `ERROR_CACHE_TTL_MS` (24ч по умолчанию): пустой массив дат теперь кэшируется с длинным TTL, поэтому один 403 → одна запись в лог, не повторяется.
+   - Добавлен env-флаг `TRAKT_MOVIE_RELEASES_ENABLED=false` для полного отключения эндпоинта без перезапуска кода.
+   - Все остальные non-ok ответы переведены с `log.error` → `log.warn`.
+
+2. **Watchmode `429 Too Many Requests`:**
+   - Добавлен `sleep` + retry (1 попытка) с задержкой по заголовку `Retry-After`.
+   - После исчерпания попыток — тихий `null` без `log.error`.
+   - `log.error` для HTTP-ошибок заменён на `log.warn`; исключения (сетевые сбои) остаются `log.error`.
+   - `null`-результат теперь кэшируется с `ERROR_CACHE_TTL_MS` (1ч), что исключает повторное долбление API в цикле.
+   - Исправлена утечка apiKey в URL: ключ больше не дублируется в строке пути (`?apiKey=...`) — он добавляется через `searchParams` внутри `getJson`.
+
+**Обоснование:** внешние API (Trakt releases endpoint, Watchmode) недоступны или перегружены для текущего плана/лимита. Без кэша отказов и retry backoff каждый фоновый цикл синхронизации генерировал по N ошибок (по числу фильмов в очереди) — логи засорялись, алёрты срабатывали ложно.
+
+**Откат:** `TRAKT_MOVIE_RELEASES_ENABLED=false` в `.env` полностью отключает Trakt releases. Watchmode отключается через `WATCHMODE_API_KEY=`.
+
+---
+
 ## 2026-09-25 (fix: anime schedule sorting by air time, next week releases in today section & tomorrow releases showing today)
 
 **Файлы:**

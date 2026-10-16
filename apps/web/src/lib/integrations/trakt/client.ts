@@ -6,7 +6,11 @@ const log = createLogger('integrations:trakt');
 
 const BASE = 'https://api.trakt.tv';
 const CALENDAR_CACHE_TTL_MS = Number.parseInt(process.env.TRAKT_CALENDAR_CACHE_TTL_MS ?? '3600000', 10);
+/** TTL для кэширования ответов об ошибках (403/5xx), чтобы не спамить API. */
+const ERROR_CACHE_TTL_MS = Number.parseInt(process.env.TRAKT_ERROR_CACHE_TTL_MS ?? '86400000', 10); // 24h по умолчанию
 const USER_AGENT = process.env.TRAKT_USER_AGENT ?? 'AniSync/1.0 (https://anisync.ru)';
+/** Отключить эндпоинт /movies/.../releases если он недоступен (403 Forbidden). */
+const MOVIE_RELEASES_ENABLED = process.env.TRAKT_MOVIE_RELEASES_ENABLED !== 'false';
 
 export type TraktIds = {
   trakt?: number;
@@ -95,9 +99,16 @@ async function getJson<T>(path: string, attempt = 0): Promise<T | null> {
       return null;
     }
 
+    if (res.status === 403) {
+      // 403 Forbidden — эндпоинт требует OAuth или недоступен на текущем плане.
+      // Логируем как warn (не error) и возвращаем null без шума.
+      log.warn({ status: 403, path }, 'Trakt request forbidden (403) — endpoint may require OAuth or paid plan');
+      return null;
+    }
+
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      log.error(
+      log.warn(
         { status: res.status, path, body: body.slice(0, 300) },
         'Trakt request failed'
       );
@@ -170,6 +181,11 @@ export async function getMovieDigitalReleaseDatesByTmdb(
   tmdbId: number,
   country = 'us',
 ): Promise<string[]> {
+  // Эндпоинт может быть отключён через TRAKT_MOVIE_RELEASES_ENABLED=false
+  if (!MOVIE_RELEASES_ENABLED) {
+    return [];
+  }
+
   const key = `trakt:movie-digital-releases:${tmdbId}:${country}`;
   const cached = await cacheRead<{ value: string[] }>(key);
   if (cached) {
@@ -185,6 +201,9 @@ export async function getMovieDigitalReleaseDatesByTmdb(
     .filter((date): date is string => Boolean(date))
     .sort((a, b) => a.localeCompare(b));
 
-  await cacheWrite(key, { value: dates }, CALENDAR_CACHE_TTL_MS);
+  // Кэшируем результат: для пустого массива используем короткий TTL,
+  // чтобы со временем подтянуть данные когда они появятся.
+  const ttl = dates.length > 0 ? CALENDAR_CACHE_TTL_MS : ERROR_CACHE_TTL_MS;
+  await cacheWrite(key, { value: dates }, ttl);
   return dates;
 }
