@@ -466,8 +466,16 @@ test('buildSearchQueries preserves exact original title VisionQuest without spli
 
 test('filterResultsByImdbOrTitle matches exact VisionQuest release and rejects irrelevant titles', () => {
   const releases = [
+    { title: 'VisionQuest [S01E01-02 of 08] (2026) WEB-DL 1080p | P, D RUS' },
+    { title: 'VisionQuest - S1E1-2 - 2026 Sub WEBRip 1080p - RUSSIAN' },
+    { title: 'VisionQuest / S1E1-2 of 8 [2026, HDR10, Dolby Vision, WEB-DL 2160p] [Hybrid] MVO + Dub + Original + ) RUS' },
+    { title: 'VisionQuest - S1E1-2 - 2026 DUB, MVO, Sub 4K, HEVC, HDR, HDR10+, Dolby Vision P8 WEBDL 2160p - RUSSIAN' },
+    { title: 'VisionQuest - S1E1-2 - 2026 DUB (HDrezka Studio), MVO (HDrezka Studio), Sub WEBDL 1080p - RUSSIAN' },
+    { title: 'VisionQuest - S1E1-2 - 2026 DUB (HDrezka Studio), MVO (HDrezka Studio), Sub WEBDL (AVC) - RUSSIAN' },
+    { title: 'VisionQuest / S1E1-2 of 8 [2026, WEB-DL] RUS' },
+    { title: 'VisionQuest - S1E1-2 - 2026 DUB, Sub 4K, HEVC, HDR10+ WEBDL 2160p - RUSSIAN' },
+    { title: 'VisionQuest - S1E1-2 - 2026 MVO (HDrezka Studio) WEBDL - RUSSIAN' },
     { title: 'Квест Вижна / VisionQuest / S01 (2026) WEB-DL 1080p' },
-    { title: 'VisionQuest (2026) 720p' },
     { title: 'Comedy Club (2026.10.16) HDTV' },
   ];
 
@@ -481,8 +489,18 @@ test('filterResultsByImdbOrTitle matches exact VisionQuest release and rejects i
   );
 
   const titles = matched.map((r) => r.title);
+  // Все 9 реальных раздач из Prowlarr должны сопоставиться
+  assert.equal(matched.length, 10);
+  assert.ok(titles.includes('VisionQuest [S01E01-02 of 08] (2026) WEB-DL 1080p | P, D RUS'));
+  assert.ok(titles.includes('VisionQuest - S1E1-2 - 2026 Sub WEBRip 1080p - RUSSIAN'));
+  assert.ok(titles.includes('VisionQuest / S1E1-2 of 8 [2026, HDR10, Dolby Vision, WEB-DL 2160p] [Hybrid] MVO + Dub + Original + ) RUS'));
+  assert.ok(titles.includes('VisionQuest - S1E1-2 - 2026 DUB, MVO, Sub 4K, HEVC, HDR, HDR10+, Dolby Vision P8 WEBDL 2160p - RUSSIAN'));
+  assert.ok(titles.includes('VisionQuest - S1E1-2 - 2026 DUB (HDrezka Studio), MVO (HDrezka Studio), Sub WEBDL 1080p - RUSSIAN'));
+  assert.ok(titles.includes('VisionQuest - S1E1-2 - 2026 DUB (HDrezka Studio), MVO (HDrezka Studio), Sub WEBDL (AVC) - RUSSIAN'));
+  assert.ok(titles.includes('VisionQuest / S1E1-2 of 8 [2026, WEB-DL] RUS'));
+  assert.ok(titles.includes('VisionQuest - S1E1-2 - 2026 DUB, Sub 4K, HEVC, HDR10+ WEBDL 2160p - RUSSIAN'));
+  assert.ok(titles.includes('VisionQuest - S1E1-2 - 2026 MVO (HDrezka Studio) WEBDL - RUSSIAN'));
   assert.ok(titles.includes('Квест Вижна / VisionQuest / S01 (2026) WEB-DL 1080p'));
-  assert.ok(titles.includes('VisionQuest (2026) 720p'));
   assert.equal(titles.includes('Comedy Club (2026.10.16) HDTV'), false);
 });
 

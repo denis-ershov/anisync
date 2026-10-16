@@ -87,8 +87,10 @@ async function searchForItem(
     skipPreferencesFilter?: boolean;
   }
 ): Promise<ProwlarrRelease[]> {
+  const TV_CATEGORIES = [5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 8000];
+  const MOVIE_CATEGORIES = [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060, 2070, 2080, 8000];
   const categories =
-    item.type === 'movie' ? [2000, 2070] : item.type === 'tv' ? [5000, 5070] : undefined;
+    item.type === 'movie' ? MOVIE_CATEGORIES : item.type === 'tv' ? TV_CATEGORIES : undefined;
 
   const searchTasks: Promise<ProwlarrRelease[]>[] = [];
 

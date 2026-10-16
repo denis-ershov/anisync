@@ -125,7 +125,6 @@ const COMMON_WORDS = new Set([
   'hdr',
   'hdr10',
   'dolby',
-  'vision',
   'profile',
   'bit',
   '10-bit',
@@ -137,6 +136,7 @@ const COMMON_WORDS = new Set([
   'nf',
   'dv',
   'hybrid',
+  'dl',
   // Кодеки и разрешения после разделения букв и цифр
   '1080',
   '2160',
@@ -246,7 +246,43 @@ export function titleTokens(value: string): string[] {
   return result;
 }
 
-function containsSequence(tokens: string[], sequence: string[]): boolean {
+/**
+ * Очищает название раздачи от технического мусора, сезонности, серий, кодеков и студий
+ * перед извлечением ключевых токенов названия.
+ */
+export function cleanReleaseTitleForTokens(title: string): string {
+  return title
+    // Блоки тех. метаданных и релизных параметров в квадратных скобках
+    .replace(/\[\s*(?:s\d+|e\d+|\d+bit|\d+-bit|h[\s.\-_]?264|h[\s.\-_]?265|x264|x265|hevc|avc|2160p|1080p|720p|480p|4k|8k|sdr|hdr|dv|web|bdrip|remux|bluray|hybrid|rus|eng|dub|mvo|avo)[^\]]*\]/gi, ' ')
+    // Сезоны и серии во всех форматах (S01E01-02, S1E1-2, S1, E1-2, 1-2 серии, 1-2 of 8, etc.)
+    .replace(/\b[sс]\s*\d+\s*[eе]\s*\d+(?:\s*-\s*(?:[eе]\s*)?\d+)?(?:\s+(?:of|из)\s+\d+)?\b/gi, ' ')
+    .replace(/\b[sс]\s*\d+(?:\s*-\s*[sс]?\s*\d+)?\b/gi, ' ')
+    .replace(/\b[eе]\s*\d+(?:\s*-\s*[eе]?\s*\d+)?\b/gi, ' ')
+    .replace(/\b\d+\s*-\s*\d+\s*(?:of|из)\s*\d+\b/gi, ' ')
+    .replace(/\b\d+\s*-\s*\d+\s*(?:сери[яий]|эпизод(?:а|ов)?|eps?|episodes?)\b/gi, ' ')
+    .replace(/\b(?:of|из)\s*\d+\b/gi, ' ')
+    .replace(/\b(?:\d+\s*)?(?:сезон(?:а|ов|ы)?|season|seasons)\s*(?:\d+)?(?:\s*-\s*\d+)?\b/gi, ' ')
+    .replace(/\b(?:\d+\s*)?(?:сери[яий]|эпизод(?:а|ов)?|eps?|episodes?)\s*(?:\d+)?(?:\s*-\s*\d+)?\b/gi, ' ')
+    // Технические теги видео / аудио / источника
+    .replace(/\b(?:hdr10\+?|hdr10plus|hdr|dolby[\s.\-_]?vision|dv)(?:\s*p\d+)?\b/gi, ' ')
+    .replace(/\b\d+[\s.\-_]?bit\b/gi, ' ')
+    .replace(/\b(?:web[\s.\-_]?(?:dl|rip)|bd[\s.\-_]?rip|dvd[\s.\-_]?rip|remux|blu[\s.\-_]?ray|uhdtv|hdtv)\b/gi, ' ')
+    .replace(/\b(?:hevc|avc|h[\s.\-_]?264|h[\s.\-_]?265|x[\s.\-_]?264|x[\s.\-_]?265|av1)\b/gi, ' ')
+    .replace(/\b(?:1080[pi]|2160[pi]|720[pi]|480[pi]|4k|8k|uhd|fhd|hd)\b/gi, ' ')
+    .replace(/\b(?:dub|sub|subs|mvo|dvo|avo|hybrid|original)\b/gi, ' ')
+    .replace(/\b(?:russian|rus|eng|multi)\b/gi, ' ')
+    .replace(/\b(?:hdrezka(?:\s*studio)?|lostfilm|red\s*head\s*sound|rhs|newcomers|tvshows|alexfilm|viruseproject|kubik(?:\s*v\s*kube)?)\b/gi, ' ')
+    .replace(/\b(?:лицензи[яи]|чистый\s*звук)\b/gi, ' ')
+    .replace(/\b(?:p,\s*d|дб|пд|пм|лд|лм)\b/gi, ' ')
+    // Года
+    .replace(/\b(?:19|20)\d{2}\b/g, ' ');
+}
+
+function containsSequence(
+  tokens: string[],
+  sequence: string[],
+  options?: { isMovie?: boolean }
+): boolean {
   if (!sequence.length || sequence.length > tokens.length) {
     return false;
   }
@@ -255,9 +291,10 @@ function containsSequence(tokens: string[], sequence: string[]): boolean {
       const lastSeqToken = sequence[sequence.length - 1];
       const isSeqEndingInNumber = /^\d+$/.test(lastSeqToken);
       const nextToken = tokens[start + sequence.length];
-      // Если искомое название не заканчивается номером сиквела, но в релизе сразу идет номер (напр. 'холоп' -> '3'),
-      // это сиквел — пропускаем данное вхождение
-      if (!isSeqEndingInNumber && nextToken && /^\d+$/.test(nextToken)) {
+      // Защита от сиквелов применима ТОЛЬКО для фильмов, когда искомое название НЕ заканчивается цифрой
+      // и сразу за ним следует номер части сиквела (напр. фильм 'Холоп' не должен находить 'Холоп 2' или 'Холоп 3').
+      // Для ТВ-сериалов цифры после названия относятся к сезонам/эпизодам и фильтруются filterResultsBySeason.
+      if (options?.isMovie && !isSeqEndingInNumber && nextToken && /^\d+$/.test(nextToken)) {
         continue;
       }
       return true;
@@ -699,8 +736,12 @@ export function filterResultsByImdbOrTitle(
       return true;
     }
 
-    const releaseTokens = titleTokens(releaseTitle);
-    const hasTitleMatch = aliases.some((alias) => containsSequence(releaseTokens, alias));
+    const cleanedTitle = cleanReleaseTitleForTokens(releaseTitle);
+    const releaseTokens = titleTokens(cleanedTitle);
+    const isMovie = itemType === 'movie';
+    const hasTitleMatch = aliases.some((alias) =>
+      containsSequence(releaseTokens, alias, { isMovie })
+    );
     if (!hasTitleMatch) {
       return false;
     }
