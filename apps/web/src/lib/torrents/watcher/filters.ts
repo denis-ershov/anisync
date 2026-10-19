@@ -253,11 +253,13 @@ export function titleTokens(value: string): string[] {
 export function cleanReleaseTitleForTokens(title: string): string {
   return title
     // Блоки тех. метаданных и релизных параметров в квадратных скобках
-    .replace(/\[\s*(?:s\d+|e\d+|\d+bit|\d+-bit|h[\s.\-_]?264|h[\s.\-_]?265|x264|x265|hevc|avc|2160p|1080p|720p|480p|4k|8k|sdr|hdr|dv|web|bdrip|remux|bluray|hybrid|rus|eng|dub|mvo|avo)[^\]]*\]/gi, ' ')
+    .replace(/\[\s*(?:\d{1,2}x\d+|s\d+|e\d+|\d+bit|\d+-bit|h[\s.\-_]?264|h[\s.\-_]?265|x264|x265|hevc|avc|2160p|1080p|720p|480p|4k|8k|sdr|hdr|dv|web|bdrip|remux|bluray|hybrid|rus|eng|dub|mvo|avo)[^\]]*\]/gi, ' ')
     // Сезоны и серии во всех форматах (S01E01-02, S1E1-2, S1, E1-2, 1-2 серии, 1-2 of 8, etc.)
     .replace(/\b[sс]\s*\d+\s*[eе]\s*\d+(?:\s*-\s*(?:[eе]\s*)?\d+)?(?:\s+(?:of|из)\s+\d+)?\b/gi, ' ')
     .replace(/\b[sс]\s*\d+(?:\s*-\s*[sс]?\s*\d+)?\b/gi, ' ')
     .replace(/\b[eе]\s*\d+(?:\s*-\s*[eе]?\s*\d+)?\b/gi, ' ')
+    // NxMM — формат EZTV / трекеров (3x01, 03x12, 02x01-04 из 10)
+    .replace(/(?:^|[^a-zа-яё0-9])\d{1,2}x\d{1,3}(?:\s*-\s*\d+)?(?:\s+(?:of|из)\s+\d+)?(?=[^a-zа-яё0-9]|$)/gi, ' ')
     .replace(/\b\d+\s*-\s*\d+\s*(?:of|из)\s*\d+\b/gi, ' ')
     .replace(/\b\d+\s*-\s*\d+\s*(?:сери[яий]|эпизод(?:а|ов)?|eps?|episodes?)\b/gi, ' ')
     .replace(/\b(?:of|из)\s*\d+\b/gi, ' ')
@@ -273,7 +275,7 @@ export function cleanReleaseTitleForTokens(title: string): string {
     .replace(/\b(?:russian|rus|eng|multi)\b/gi, ' ')
     .replace(/\b(?:hdrezka(?:\s*studio)?|lostfilm|red\s*head\s*sound|rhs|newcomers|tvshows|alexfilm|viruseproject|kubik(?:\s*v\s*kube)?)\b/gi, ' ')
     .replace(/\b(?:лицензи[яи]|чистый\s*звук)\b/gi, ' ')
-    .replace(/\b(?:p,\s*d|дб|пд|пм|лд|лм)\b/gi, ' ')
+    .replace(/\b(?:p,\s*d|d,\s*p(?:\s*,\s*p2)?|дб|пд|пм|лд|лм)\b/gi, ' ')
     // Года
     .replace(/\b(?:19|20)\d{2}\b/g, ' ');
 }
@@ -325,6 +327,20 @@ export function hasBadAudioMarkers(release: ProwlarrRelease): boolean {
   return hasJunkReleaseMarkers(release);
 }
 
+/**
+ * Нормализует название раздачи перед определением сезона:
+ * - Кириллические С/Е (U+0441/U+0435) заменяет на латинские s/e, чтобы
+ *   стандартные паттерны S01E01 работали и с русскими буквами.
+ */
+function normalizeSeasonTitle(title: string): string {
+  return title
+    .toLowerCase()
+    // Кириллическая С + цифра → s (только в контексте маркера сезона)
+    .replace(/(?:^|[^a-zа-яё0-9])с(\d)/g, (m, d) => m.replace(/с/, 's'))
+    // Кириллическая Е + цифра внутри паттерна SxxExx → e
+    .replace(/(?:s\d{1,2})\s*е(\d)/g, (m) => m.replace(/е/, 'e'));
+}
+
 export function filterResultsBySeason(
   results: ProwlarrRelease[],
   targetSeason: number | null | undefined
@@ -334,53 +350,77 @@ export function filterResultsBySeason(
   }
 
   return results.filter((release) => {
-    const title = (release.title || '').toLowerCase();
+    const title = normalizeSeasonTitle(release.title || '');
     const foundSeasons = new Set<number>();
 
-    for (const match of title.matchAll(/\bs\s*(\d{1,2})\s*-\s*s?\s*(\d{1,2})(?=[^\d]|$)/g)) {
+    // === Диапазоны сезонов ===
+
+    // S01-S03, s1-s3, s1-3
+    for (const match of title.matchAll(/(?:^|[^a-zа-яё0-9])s\s*(\d{1,2})\s*-\s*s?\s*(\d{1,2})(?=[^\d]|$)/g)) {
       const start = Number.parseInt(match[1], 10);
       const end = Number.parseInt(match[2], 10);
-      if (start <= end) {
+      if (start <= end && end <= 50) {
         for (let i = start; i <= end; i += 1) {
           foundSeasons.add(i);
         }
       }
     }
 
+    // "сезон 1-3", "seasons 1-3", "season 1-3"
     for (const match of title.matchAll(
-      /\b(?:сезон|сезона|сезоны|season|seasons)\s*(\d{1,2})\s*-\s*(\d{1,2})\b/g
+      /\b(?:сезон[аыов]*|seasons?)[\s:]*(\d{1,2})\s*-\s*(\d{1,2})\b/g
     )) {
       const start = Number.parseInt(match[1], 10);
       const end = Number.parseInt(match[2], 10);
-      if (start <= end) {
+      if (start <= end && end <= 50) {
         for (let i = start; i <= end; i += 1) {
           foundSeasons.add(i);
         }
       }
     }
 
+    // "1-3 сезон", "1-3 seasons"
     for (const match of title.matchAll(
-      /\b(\d{1,2})\s*-\s*(\d{1,2})\s*(?:сезон|сезона|сезоны|season|seasons)\b/g
+      /\b(\d{1,2})\s*-\s*(\d{1,2})\s*(?:сезон[аыов]*|seasons?)\b/g
     )) {
       const start = Number.parseInt(match[1], 10);
       const end = Number.parseInt(match[2], 10);
-      if (start <= end) {
+      if (start <= end && end <= 50) {
         for (let i = start; i <= end; i += 1) {
           foundSeasons.add(i);
         }
       }
     }
 
-    for (const match of title.matchAll(/\bs\s*(\d{1,2})(?=[^\d]|$)/g)) {
+    // === Одиночные сезоны ===
+
+    // S01E01, S01E01-E08, S3E1, а также просто S01 без E
+    for (const match of title.matchAll(/(?:^|[^a-zа-яё0-9])s\s*(\d{1,2})\s*(?:e\s*\d|[^a-zа-яё0-9]|$)/g)) {
       foundSeasons.add(Number.parseInt(match[1], 10));
     }
+
+    // NxMM — формат EZTV (3x01, 03x12, 02x01-04)
+    for (const match of title.matchAll(/(?:^|[^a-zа-яё0-9])(\d{1,2})x(\d{1,3})(?=[^a-zа-яё0-9]|$)/g)) {
+      foundSeasons.add(Number.parseInt(match[1], 10));
+    }
+
+    // "сезон 3", "season 3", "сезоны 3"
     for (const match of title.matchAll(
-      /\b(?:сезон|сезона|сезоны|season|seasons)\s*(\d{1,2})\b/g
+      /\b(?:сезон[аыов]*|seasons?)[\s:]*(\d{1,2})\b/g
     )) {
       foundSeasons.add(Number.parseInt(match[1], 10));
     }
+
+    // "3 сезон", "3 season"
     for (const match of title.matchAll(
-      /\b(\d{1,2})\s*(?:сезон|сезона|сезоны|season|seasons)\b/g
+      /\b(\d{1,2})\s*(?:сезон[аыов]*|seasons?)\b/g
+    )) {
+      foundSeasons.add(Number.parseInt(match[1], 10));
+    }
+
+    // "(3 сезон: 1-12 серии)" — русские трекеры
+    for (const match of title.matchAll(
+      /\(\s*(\d{1,2})\s*сезон[аыов]*\s*[:]/g
     )) {
       foundSeasons.add(Number.parseInt(match[1], 10));
     }
@@ -472,7 +512,8 @@ const GENERAL_SUBTITLE_PATTERNS: RegExp[] = [
 ];
 
 export const RUSSIAN_VOICE_PATTERNS: RegExp[] = [
-  // Сокращения типов звука трекеров
+  // Сокращения типов звука трекеров (включая pipe-разделители | D |, | P |, | P2 |, | D, P |)
+  /[|/]\s*(?:[dpла]\d?|[dpla]\d?)(?:\s*,\s*(?:[dpла]\d?|[dpla]\d?))*\s*[|/]/i,
   /(?:^|[^a-zа-я0-9])(?:avo|dvo|mvo|hvdvo|3vo|дб|пд|пм|лд|лм)(?:$|[^a-zа-я0-9])/i,
   /(?:^|[^a-zа-я0-9])(?:п\.?о|л\.?о)\.?\s*(?:перевод|озвуч|закадр|голос)/i,
   // Дубляж и перевод
@@ -998,16 +1039,20 @@ export function buildSearchQueries(input: {
 
     for (const baseTitle of variants) {
       if (input.itemType === 'tv' && seasonNum) {
-        // Запросы под разные стили оформления сезонов на трекерах (RuTracker: "1 сезон", зарубежные: "s01")
+        // Запросы под разные стили оформления сезонов на трекерах (RuTracker: "1 сезон", зарубежные: "s01", EZTV: "s1")
+        const sPad = `s${String(seasonNum).padStart(2, '0')}`;
+        const sShort = `s${seasonNum}`;
         if (year) {
           queries.push(`${baseTitle} ${year} ${seasonNum} сезон`);
-          queries.push(`${baseTitle} ${year} s${String(seasonNum).padStart(2, '0')}`);
+          queries.push(`${baseTitle} ${year} ${sPad}`);
+          queries.push(`${baseTitle} ${year} ${sShort}`);
           queries.push(`${baseTitle} ${year} сезон ${seasonNum}`);
           queries.push(`${baseTitle} ${year} season ${seasonNum}`);
           queries.push(`${baseTitle} ${year}`);
         } else {
           queries.push(`${baseTitle} ${seasonNum} сезон`);
-          queries.push(`${baseTitle} s${String(seasonNum).padStart(2, '0')}`);
+          queries.push(`${baseTitle} ${sPad}`);
+          queries.push(`${baseTitle} ${sShort}`);
           queries.push(`${baseTitle} сезон ${seasonNum}`);
           queries.push(baseTitle);
         }

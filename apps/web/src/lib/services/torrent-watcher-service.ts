@@ -23,7 +23,7 @@ import {
   qualityLabel,
   type ProwlarrRelease,
 } from '@/lib/torrents/watcher/identity';
-import { extractEpisodeInfo } from '@/lib/torrents/watcher/parsers';
+import { extractEpisodeInfo, extractSeasonFromTitle } from '@/lib/torrents/watcher/parsers';
 import { resolveReleaseLinks } from '@/lib/torrents/watcher/release-links';
 import { torrentBytesToMagnet } from '@/lib/torrents/watcher/torrent-file';
 import type { TorrentReleaseCandidate } from '@/lib/torrents/types';
@@ -190,14 +190,20 @@ async function searchForItem(
     '[search] After filterResultsByImdbOrTitle'
   );
 
-  if (item.type === 'tv' && item.targetSeason) {
+  const effectiveSeason =
+    item.targetSeason ??
+    (item.type === 'tv'
+      ? extractSeasonFromTitle(item.originalTitle) || extractSeasonFromTitle(item.title)
+      : null);
+
+  if (item.type === 'tv' && effectiveSeason) {
     const beforeSeason = filtered.length;
     const beforeSeasonList = [...filtered];
-    filtered = filterResultsBySeason(filtered, item.targetSeason);
+    filtered = filterResultsBySeason(filtered, effectiveSeason);
     log.info(
       {
         itemId: item.id,
-        targetSeason: item.targetSeason,
+        targetSeason: effectiveSeason,
         afterSeasonFilter: filtered.length,
         dropped: beforeSeason - filtered.length,
         droppedTitles: beforeSeasonList

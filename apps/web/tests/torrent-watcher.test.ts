@@ -403,6 +403,193 @@ test('filterResultsBySeason matches Season 1 for unlabelled packs but rejects Se
   assert.equal(season2[0].title, 'Vision Quest S02 1080p');
 });
 
+test('filterResultsBySeason handles Cyrillic С/Е (U+0441/U+0435) in season markers', () => {
+  const releases = [
+    // Кириллические С и Е в маркере сезона
+    { title: 'МобЛэнд / MobLand / С03Е01 из 10 (2026) WEB-DL 1080p' },
+    { title: 'МобЛэнд / MobLand / С4Е1-6 of 10 (2026) WEB-DL 2160p' },
+    { title: 'Show С01 1080p' },
+    { title: 'Show S02E01 1080p' },
+  ];
+
+  const season3 = filterResultsBySeason(releases, 3);
+  assert.equal(season3.length, 1);
+  assert.ok(season3[0]!.title!.includes('С03Е01'));
+
+  const season4 = filterResultsBySeason(releases, 4);
+  assert.equal(season4.length, 1);
+  assert.ok(season4[0]!.title!.includes('С4Е1'));
+
+  const season1 = filterResultsBySeason(releases, 1);
+  assert.equal(season1.length, 1);
+  assert.ok(season1[0]!.title!.includes('С01'));
+
+  const season2 = filterResultsBySeason(releases, 2);
+  assert.equal(season2.length, 1);
+  assert.ok(season2[0]!.title!.includes('S02'));
+});
+
+test('filterResultsBySeason handles NxMM format (EZTV-style: 3x01, 03x12)', () => {
+  const releases = [
+    { title: 'The.Show.3x01.720p.WEB-DL' },
+    { title: 'The.Show.3x12.1080p.HDTV' },
+    { title: 'The.Show.1x08.720p.WEB-DL' },
+    { title: 'The.Show.S02E01.1080p' },
+  ];
+
+  const season3 = filterResultsBySeason(releases, 3);
+  assert.equal(season3.length, 2);
+  assert.ok(season3.every((r) => r.title!.includes('3x')));
+
+  const season1 = filterResultsBySeason(releases, 1);
+  assert.equal(season1.length, 1);
+  assert.ok(season1[0]!.title!.includes('1x08'));
+});
+
+test('filterResultsBySeason handles "(N сезон: серии)" format from Russian trackers', () => {
+  const releases = [
+    { title: 'Тед Лассо / Ted Lasso (3 сезон: 1-12 серии) (2024) WEB-DL 1080p' },
+    { title: 'Тед Лассо / Ted Lasso (1 сезон: 1-10 серии) (2020) WEB-DL 1080p' },
+    { title: 'Тед Лассо / Ted Lasso S02 (2021) WEB-DL 1080p' },
+  ];
+
+  const season3 = filterResultsBySeason(releases, 3);
+  assert.equal(season3.length, 1);
+  assert.ok(season3[0]!.title!.includes('3 сезон'));
+
+  const season1 = filterResultsBySeason(releases, 1);
+  assert.equal(season1.length, 1);
+  assert.ok(season1[0]!.title!.includes('1 сезон'));
+
+  const season2 = filterResultsBySeason(releases, 2);
+  assert.equal(season2.length, 1);
+  assert.ok(season2[0]!.title!.includes('S02'));
+});
+
+test('filterResultsBySeason matches real MobLand releases from Russian trackers', () => {
+  const releases = [
+    { title: 'МобЛэнд / MobLand / S3E1 04 из 10 (2026) WEB-DL 1080p DUB Red Head Sound RUSSIAN' },
+    { title: 'МобЛэнд / MobLand / S4E1-6 of 10 (2026) WEB-DL 2160p 4K HEVC HDR10+ RUSSIAN' },
+    { title: 'МобЛэнд / MobLand / S5E1 of 10 (2026) WEB-DL 1080p MVO HDrezka RUSSIAN' },
+    { title: 'Гангстерландия / MobLand / S3E1 3 of 10 (2026) WEB-DL AVC DubMix RUSSIAN' },
+    { title: 'MobLand S1-3 (2026) DUB 4K HEVC SDR WEBDL 2160p RUSSIAN' },
+    { title: 'МобЛэнд / MobLand Season 4 (2026) WEB-DL 1080p RUSSIAN' },
+  ];
+
+  const season3 = filterResultsBySeason(releases, 3);
+  assert.ok(season3.some((r) => r.title!.includes('S3E1 04')));
+  assert.ok(season3.some((r) => r.title!.includes('S3E1 3 of')));
+  assert.ok(season3.some((r) => r.title!.includes('S1-3')));
+
+  const season4 = filterResultsBySeason(releases, 4);
+  assert.ok(season4.some((r) => r.title!.includes('S4E1-6')));
+  assert.ok(season4.some((r) => r.title!.includes('Season 4')));
+
+  const season5 = filterResultsBySeason(releases, 5);
+  assert.ok(season5.some((r) => r.title!.includes('S5E1')));
+});
+
+test('25 real MobLand releases: Season 2 filtering, episode parsing, audio & title matching', () => {
+  const realReleases = [
+    { title: 'MobLand - S2E1-4 - 2026 DUB (Red Head Sound), Sub 4K, HEVC, HDR, HDR10+, DV P8 Hybrid 2160p - RUSSIAN' },
+    { title: 'Гангстерленд / MobLand / S2E1-4 of 10 (2026) WEB-DL [H.265/2160p] [4K, HDR10+, DV 8.1, 10-bit] Red Head Sound (обновлен...)' },
+    { title: 'MobLand - S2E1-5 - 2026 DUB, 5 x MVO, DVO, Sub 4K, HEVC, HDR, HDR10+, DV P8 Hybrid 2160p - RUSSIAN' },
+    { title: 'MobLand - S2E1-4 - 2026 DUB (Red Head Sound), MVO (HDrezka Studio), Sub WEBDL (AVC) - RUSSIAN' },
+    { title: 'Гангстерленд / MobLand / S2E1-5 of 10 (2026) WEB-DL [H.265/2160p] [4K, HDR10+, DV 8.1, 10-bit] HDRezka Studio, Kubik, Lostfilm...' },
+    { title: 'MobLand - S2E1-5 - 2026 DUB, 4 x MVO, 2 x DVO, Sub 4K, HEVC, SDR WEBDL 2160p - RUSSIAN' },
+    { title: 'MobLand, S2E1-5 of 10 (2026) WEB-DL 1080p RUS' },
+    { title: 'MobLand - S2E1-5 - 2026 DUB, MVO (LostFilm, HDrezka Studio), DVO (ViruseProject), MVO (ColdFilm), Sub WEBDL 1080p - RUSSI...' },
+    { title: 'Гангстерленд / MobLand / S2E1-5 of 10 (2026) WEB-DL [H.265/2160p] [4K, SDR, 10-bit] NewComers, HDRezka Studio, TVShows...' },
+    { title: 'MobLand - S2E1-4 - 2026 MVO (NewComers), Sub HEVC WEBDL 1080p - RUSSIAN' },
+    { title: 'MobLand [S02E01-05 of 10] (2026) WEB-DL-AVC | P | HDRezka Studio RUS' },
+    { title: 'MobLand - S2E1-5 - 2026 DUB (Red Head Sound), 5 x MVO, DVO, MVO, Sub 4K, HEVC, HDR, HDR10+ WEBDL 2160p - RUSSIAN' },
+    { title: 'MobLand [S02E01-05 of 10] (2026) WEBRip | P2-ViruseProject RUS' },
+    { title: 'MobLand [S02E01-05 of 10] (2026) WEBRip 1080p | P2-ViruseProject RUS' },
+    { title: 'MobLand - S2E1-4 - 2026 DUB (Red Head Sound), Sub WEBDL 720p - RUSSIAN' },
+    { title: 'MobLand, S2E1-4 of 10 (2026) WEB-DL-AVC | Red Head Sound, HD ... RUS' },
+    { title: 'MobLand - S2E1-4 - 2026 DUB (Red Head Sound), 4 x MVO, 2 x DVO, Sub WEBDL (AVC) - RUSSIAN' },
+    { title: 'Гангстерленд / MobLand / [02x01-04 из 10] (2026) WEB-DL-AVC от DoMiNo & selezeN | D, P | Red Head Sound, HDRezka Studio' },
+    { title: 'MobLand - S2E1-4 - 2026 DUB (Red Head Sound), Sub WEBDL 1080p - RUSSIAN' },
+    { title: 'MobLand [S02E01-04 of 10] (2026) WEB-DL-AVC | D, P, P2 | Red Head Sound, LostFilm, RUS' },
+    { title: 'MobLand [S02E01-04 of 10] (2026) WEB-DL-AVC DoMiNo & | D, P | Red Head Sound, HDRezka Studio RUS' },
+    { title: 'Гангстерленд / MobLand / S2E1-4 of 10 (2026) WEB-DL [H.264/1080p] HDRezka Studio, LostFilm, NewComers, TVShows, Red H...' },
+    { title: 'MobLand - S2E1-4 - 2026 MVO (LostFilm), Sub WEBDL - RUSSIAN' },
+    { title: 'MobLand [S02E01-03 of 10] (2026) UHD WEB-DL-HEVC 2160p Scarabey [4K HDR Dolby Vision | D | Red Head Sound RUS' },
+    { title: 'MobLand [S02E01-03 of 10] (2026) WEB-DL 1080p Scarabey | D | Red Head Sound RUS' },
+  ];
+
+  assert.equal(realReleases.length, 25);
+
+  // 1. Каждый из 25 релизов извлекает сезон 2
+  for (const rel of realReleases) {
+    const season = extractSeasonFromTitle(rel.title);
+    assert.equal(season, 2, `Expected season 2 for "${rel.title}", got ${season}`);
+  }
+
+  // 2. Фильтрация по 2 сезону сохраняет ВСЕ 25 раздач
+  const season2Releases = filterResultsBySeason(realReleases, 2);
+  assert.equal(season2Releases.length, 25, 'All 25 releases must be matched for Season 2');
+
+  // 3. Фильтрация по 1 или 3 сезону отсекает ВСЕ 25 раздач
+  const season1Releases = filterResultsBySeason(realReleases, 1);
+  assert.equal(season1Releases.length, 0, 'No releases should match Season 1');
+  const season3Releases = filterResultsBySeason(realReleases, 3);
+  assert.equal(season3Releases.length, 0, 'No releases should match Season 3');
+
+  // 4. Проверка извлечения серий:
+  // Релиз 18: [02x01-04 из 10] -> current: 4, total: 10
+  const ep18 = extractEpisodeInfo(realReleases[17]!.title);
+  assert.deepEqual(ep18, { current: 4, total: 10 });
+
+  // Релиз 2: S2E1-4 of 10 -> current: 4, total: 10
+  const ep2 = extractEpisodeInfo(realReleases[1]!.title);
+  assert.deepEqual(ep2, { current: 4, total: 10 });
+
+  // Релиз 11: [S02E01-05 of 10] -> current: 5, total: 10
+  const ep11 = extractEpisodeInfo(realReleases[10]!.title);
+  assert.deepEqual(ep11, { current: 5, total: 10 });
+
+  // Релиз 24: [S02E01-03 of 10] -> current: 3, total: 10
+  const ep24 = extractEpisodeInfo(realReleases[23]!.title);
+  assert.deepEqual(ep24, { current: 3, total: 10 });
+
+  // Релиз 1: S2E1-4 -> current: 4, total: null
+  const ep1 = extractEpisodeInfo(realReleases[0]!.title);
+  assert.deepEqual(ep1, { current: 4, total: null });
+
+  // Релиз 3: S2E1-5 -> current: 5, total: null
+  const ep3 = extractEpisodeInfo(realReleases[2]!.title);
+  assert.deepEqual(ep3, { current: 5, total: null });
+
+  // 5. Все 25 раздач имеют русский звук (Red Head Sound, Rezka, LostFilm, RUS, | D, P | и т.д.)
+  for (const rel of realReleases) {
+    const hasRu = matchesPreferredAudio(rel, 'russian');
+    assert.equal(hasRu, true, `Expected Russian audio for "${rel.title}"`);
+  }
+
+  // 6. Все 25 раздач проходят проверку по названию и типу ТВ
+  const matched = filterResultsByImdbOrTitle(
+    realReleases,
+    'tt13404944',
+    'Гангстерленд',
+    'MobLand',
+    '2026',
+    'tv'
+  );
+  assert.equal(matched.length, 25, 'All 25 releases must match MobLand / Гангстерленд watchlist entry');
+});
+
+test('extractSeasonFromTitle handles Cyrillic С/Е and NxMM format', () => {
+  assert.equal(extractSeasonFromTitle('МобЛэнд / MobLand / С03Е01 из 10'), 3);
+  assert.equal(extractSeasonFromTitle('Show С4Е1-6 of 10'), 4);
+  assert.equal(extractSeasonFromTitle('The.Show.3x01.720p'), 3);
+  assert.equal(extractSeasonFromTitle('Show 03x12 HDTV'), 3);
+  // Стандартные паттерны продолжают работать
+  assert.equal(extractSeasonFromTitle('Show S01E01'), 1);
+  assert.equal(extractSeasonFromTitle('2 сезон'), 2);
+});
+
+
 test('filterResultsByImdbOrTitle allows later release years for ongoing TV shows while rejecting old remakes', () => {
   const releases = [
     // Релиз 3 сезона 2024 года для сериала с премьерой в 2020
