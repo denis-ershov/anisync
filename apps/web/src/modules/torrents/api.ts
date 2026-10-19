@@ -42,7 +42,10 @@ export async function fetchTorrentHealth() {
 }
 
 export async function fetchTorrentWatchlist() {
-  const response = await fetch('/api/torrents/watchlist', { credentials: 'include' });
+  const response = await fetch('/api/torrents/watchlist', {
+    credentials: 'include',
+    cache: 'no-store',
+  });
   return parseJson<TorrentWatchlistItem[]>(response);
 }
 
@@ -95,6 +98,7 @@ export async function updateTorrentWatchlistItem(
 export async function fetchTorrentReleaseCandidates(id: number) {
   const response = await fetch(`/api/torrents/watchlist/${id}/candidates`, {
     credentials: 'include',
+    cache: 'no-store',
   });
   return parseJson<TorrentReleaseCandidate[]>(response);
 }

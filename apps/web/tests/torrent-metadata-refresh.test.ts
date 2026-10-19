@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { torrentWatchlist } from '@/lib/db';
 import {
   STALE_TORRENT_METADATA_MS,
   DEFAULT_TORRENT_METADATA_REFRESH_FIELDS,
@@ -8,30 +9,16 @@ import {
   computeMetadataUpdate,
 } from '@/lib/services/torrent-metadata-refresh-service';
 
-test('STALE_TORRENT_METADATA_MS defaults to 24 hours', () => {
-  assert.equal(STALE_TORRENT_METADATA_MS, 86_400_000);
-});
-
-test('normalizeRefreshFields returns defaults when undefined or invalid', () => {
-  assert.deepEqual(normalizeRefreshFields(undefined), DEFAULT_TORRENT_METADATA_REFRESH_FIELDS);
-  assert.deepEqual(normalizeRefreshFields(null), DEFAULT_TORRENT_METADATA_REFRESH_FIELDS);
-  assert.deepEqual(normalizeRefreshFields('invalid'), DEFAULT_TORRENT_METADATA_REFRESH_FIELDS);
-
-  // Filters out unknown field strings
-  assert.deepEqual(normalizeRefreshFields(['ratings', 'unknown_field', 'posters']), [
-    'ratings',
-    'posters',
-  ]);
-});
-
-test('computeMetadataUpdate updates ONLY ratings and posters when configured', () => {
-  const existingRow = {
-    id: 42,
+function createRow(
+  overrides: Partial<typeof torrentWatchlist.$inferSelect> = {}
+): typeof torrentWatchlist.$inferSelect {
+  return {
+    id: 1,
     userId: 1,
     imdbId: 'tt0133093',
     title: 'Custom User Title',
     originalTitle: 'The Matrix Original',
-    type: 'movie' as const,
+    type: 'movie',
     enabled: true,
     posterUrl: 'http://old.poster/old.jpg',
     year: '1998',
@@ -56,9 +43,59 @@ test('computeMetadataUpdate updates ONLY ratings and posters when configured', (
     lastNotifiedEpisode: 0,
     seasonEpisodeCount: null,
     telegramChatId: null,
+    digitalReleaseDate: null,
+    nextEpisodeSeason: null,
+    nextEpisodeNumber: null,
+    nextEpisodeDate: null,
+    scheduleUpdatedAt: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
   };
+}
+
+test('STALE_TORRENT_METADATA_MS defaults to 24 hours', () => {
+  assert.equal(STALE_TORRENT_METADATA_MS, 86_400_000);
+});
+
+test('normalizeRefreshFields returns defaults when undefined or invalid', () => {
+  assert.deepEqual(normalizeRefreshFields(undefined), DEFAULT_TORRENT_METADATA_REFRESH_FIELDS);
+  assert.deepEqual(normalizeRefreshFields(null), DEFAULT_TORRENT_METADATA_REFRESH_FIELDS);
+  assert.deepEqual(normalizeRefreshFields('invalid'), DEFAULT_TORRENT_METADATA_REFRESH_FIELDS);
+
+  // Filters out unknown field strings
+  assert.deepEqual(normalizeRefreshFields(['ratings', 'unknown_field', 'posters']), [
+    'ratings',
+    'posters',
+  ]);
+});
+
+test('computeMetadataUpdate updates ONLY ratings and posters when configured', () => {
+  const existingRow = createRow({
+    id: 42,
+    userId: 1,
+    imdbId: 'tt0133093',
+    title: 'Custom User Title',
+    originalTitle: 'The Matrix Original',
+    type: 'movie',
+    enabled: true,
+    posterUrl: 'http://old.poster/old.jpg',
+    year: '1998',
+    genre: 'My Custom Genre',
+    plot: 'My custom plot summary',
+    rating: '7.5',
+    runtime: '130 min',
+    targetSeason: 2,
+    preferredQuality: '2160p HDR (4K)',
+    preferredAudio: 'LostFilm',
+    maxReleasesCount: 1,
+    checkInterval: 30,
+    notifyOnce: true,
+    pinnedReleaseKey: 'hash123',
+    pinnedReleaseAliases: null,
+    pinnedReleaseTitle: 'The.Matrix.1999.UHD',
+    tmdbId: 603,
+  });
 
   const freshMetadata = {
     title: 'The Matrix (TMDB Official)',
@@ -93,13 +130,13 @@ test('computeMetadataUpdate updates ONLY ratings and posters when configured', (
 });
 
 test('computeMetadataUpdate updates ONLY categories/genres when configured', () => {
-  const existingRow = {
+  const existingRow = createRow({
     id: 10,
     userId: 2,
     imdbId: 'tt0903747',
     title: 'Во все тяжкие',
     originalTitle: 'Breaking Bad',
-    type: 'tv' as const,
+    type: 'tv',
     enabled: true,
     posterUrl: 'https://old.poster/bb.jpg',
     year: '2008',
@@ -117,16 +154,9 @@ test('computeMetadataUpdate updates ONLY categories/genres when configured', () 
     pinnedReleaseAliases: null,
     pinnedReleaseTitle: null,
     tmdbId: 1396,
-    lastChecked: null,
     totalSeasons: 5,
     totalEpisodes: 62,
-    lastNotifiedSeason: 0,
-    lastNotifiedEpisode: 0,
-    seasonEpisodeCount: null,
-    telegramChatId: null,
-    createdAt: new Date('2026-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-  };
+  });
 
   const freshMetadata = {
     title: 'Во все тяжкие (Новое)',
@@ -155,13 +185,13 @@ test('computeMetadataUpdate updates ONLY categories/genres when configured', () 
 });
 
 test('computeMetadataUpdate with empty fields array makes no changes', () => {
-  const existingRow = {
+  const existingRow = createRow({
     id: 1,
     userId: 1,
     imdbId: 'tt1234567',
     title: 'Title',
     originalTitle: 'Original',
-    type: 'movie' as const,
+    type: 'movie',
     enabled: true,
     posterUrl: 'http://poster',
     year: '2020',
@@ -179,16 +209,7 @@ test('computeMetadataUpdate with empty fields array makes no changes', () => {
     pinnedReleaseAliases: null,
     pinnedReleaseTitle: null,
     tmdbId: 100,
-    lastChecked: null,
-    totalSeasons: null,
-    totalEpisodes: null,
-    lastNotifiedSeason: 0,
-    lastNotifiedEpisode: 0,
-    seasonEpisodeCount: null,
-    telegramChatId: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
 
   const freshMetadata = {
     title: 'New Title',
@@ -210,13 +231,13 @@ test('computeMetadataUpdate with empty fields array makes no changes', () => {
 });
 
 test('computeMetadataUpdate assigns tmdbId if currently missing in row', () => {
-  const existingRowWithoutTmdb = {
+  const existingRowWithoutTmdb = createRow({
     id: 1,
     userId: 1,
     imdbId: 'tt1234567',
     title: 'Title',
     originalTitle: 'Original',
-    type: 'movie' as const,
+    type: 'movie',
     enabled: true,
     posterUrl: 'http://poster',
     year: '2020',
@@ -234,16 +255,7 @@ test('computeMetadataUpdate assigns tmdbId if currently missing in row', () => {
     pinnedReleaseAliases: null,
     pinnedReleaseTitle: null,
     tmdbId: null, // missing!
-    lastChecked: null,
-    totalSeasons: null,
-    totalEpisodes: null,
-    lastNotifiedSeason: 0,
-    lastNotifiedEpisode: 0,
-    seasonEpisodeCount: null,
-    telegramChatId: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
 
   const update = computeMetadataUpdate(
     existingRowWithoutTmdb,
@@ -268,4 +280,25 @@ test('Stale row filtering detects entries older than threshold', () => {
 
   const staleRows = rows.filter((r) => !r.updatedAt || r.updatedAt < staleBefore);
   assert.deepEqual(staleRows.map((r) => r.id), [1, 3]);
+});
+
+test('Stale schedule filtering detects entries older than 12h or with missing schedule', () => {
+  const now = Date.now();
+  const thresholdMs = 12 * 60 * 60 * 1000; // 12 hours
+  const staleBefore = new Date(now - thresholdMs);
+
+  const rows = [
+    createRow({ id: 101, scheduleUpdatedAt: new Date(now - 14 * 3600 * 1000) }), // Stale (14h)
+    createRow({ id: 102, scheduleUpdatedAt: new Date(now - 2 * 3600 * 1000) }),  // Fresh (2h)
+    createRow({ id: 103, scheduleUpdatedAt: null }),                            // Stale (never populated)
+  ];
+
+  const staleCandidates = rows.filter((r) => !r.scheduleUpdatedAt || r.scheduleUpdatedAt < staleBefore);
+  assert.deepEqual(staleCandidates.map((r) => r.id), [101, 103]);
+});
+
+test('torrentQueryKeys produces correct hierarchical keys for candidates and watchlist', async () => {
+  const { torrentQueryKeys } = await import('@/lib/torrents/query-keys');
+  assert.deepEqual(torrentQueryKeys.watchlist.list(), ['torrents', 'watchlist', 'list']);
+  assert.deepEqual(torrentQueryKeys.watchlist.candidates(42), ['torrents', 'watchlist', 42, 'candidates']);
 });

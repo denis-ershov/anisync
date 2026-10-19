@@ -195,6 +195,27 @@ export class TorrentMetadataRefreshService {
       } else {
         digitalReleaseDate = await MovieDigitalReleaseDateService.resolveDisplay(updatedRow.tmdbId).catch(() => null);
       }
+
+      const [scheduleUpdated] = await db
+        .update(torrentWatchlist)
+        .set({
+          digitalReleaseDate,
+          nextEpisodeSeason,
+          nextEpisodeNumber,
+          nextEpisodeDate,
+          scheduleUpdatedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(torrentWatchlist.id, itemId), eq(torrentWatchlist.userId, userId)))
+        .returning();
+      if (scheduleUpdated) {
+        updatedRow = scheduleUpdated;
+      }
+    } else {
+      digitalReleaseDate = updatedRow.digitalReleaseDate ?? null;
+      nextEpisodeSeason = updatedRow.nextEpisodeSeason ?? null;
+      nextEpisodeNumber = updatedRow.nextEpisodeNumber ?? null;
+      nextEpisodeDate = updatedRow.nextEpisodeDate ?? null;
     }
 
     return {

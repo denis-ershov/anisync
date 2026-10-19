@@ -8,6 +8,9 @@ import {
 import { addTorrentWatchlist, listTorrentWatchlist } from '@/lib/services/torrent-facade';
 import { UserSettingsService } from '@/lib/services/user-service';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   const guard = assertTorrentServiceReady();
   if (guard) {
@@ -21,7 +24,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const items = await listTorrentWatchlist(userId);
-    return NextResponse.json(items);
+    return NextResponse.json(items, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
   } catch (error) {
     return torrentServiceErrorResponse(error);
   }

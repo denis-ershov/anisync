@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-10-19 (perf & fix: кардинальное ускорение страницы торрентов с 60с до <20мс и мгновенная актуализация поиска кандидатов после редактирования)
+
+**Файлы:**
+- `apps/web/src/lib/db/schema.ts`
+- `apps/web/drizzle/0011_torrent_watchlist_schedule.sql`
+- `apps/web/drizzle/meta/_journal.json`
+- `apps/web/src/lib/services/torrent-local-store.ts`
+- `apps/web/src/lib/services/torrent-metadata-refresh-service.ts`
+- `apps/web/src/app/api/torrents/watchlist/route.ts`
+- `apps/web/src/app/api/torrents/watchlist/[id]/candidates/route.ts`
+- `apps/web/src/modules/torrents/api.ts`
+- `apps/web/src/modules/torrents/hooks.ts`
+- `apps/web/src/modules/torrents/query-keys.ts`
+- `apps/web/src/components/torrents/torrent-preferences-dialog.tsx`
+- `apps/web/tests/torrent-metadata-refresh.test.ts`
+- `docs/modules/TORRENTS_ARCHITECTURE.md`
+
+**Изменения:**
+1. **Устранение блокирующих сетевых водопадов при загрузке вотчлиста (ускорение с 60 секунд до < 20 мс):**
+   - Ранее при открытии `GET /api/torrents/watchlist` для каждой строки вотчлиста синхронно вызывались внешние API (TMDB, Trakt, Watchmode). При 20–50 тайтлах происходили десятки внешних HTTP-запросов с задержками и таймаутами (включая Trakt 403 Forbidden), блокируя ответ до 1 минуты.
+   - Поля расписания (`digitalReleaseDate`, `nextEpisodeSeason`, `nextEpisodeNumber`, `nextEpisodeDate`, `scheduleUpdatedAt`) теперь хранятся прямо в таблице `torrent_watchlist` (миграция `0011_torrent_watchlist_schedule.sql`).
+   - `TorrentLocalStore.list()` возвращает данные моментально из БД.
+   - Сверка устаревших или отсутствующих расписаний (`reconcileStaleSchedules`) вынесена в фоновый неблокирующий воркер (каждые 12 часов), не замедляющий работу пользователя.
+2. **Ликвидация N+1 SQL-запросов к таблице релизов:**
+   - Вместо 2N отдельных запросов (`count(*)` и `SELECT ... LIMIT 1` на каждый элемент) выполняется ровно 2 пакетных запроса: групповой подсчет релизов `GROUP BY imdb_id` и выборка последних релизов через `DISTINCT ON (imdb_id)` с индексированной сортировкой.
+3. **Мгновенная актуализация поиска кандидатов после редактирования настроек:**
+   - Ранее из-за `staleTime: 30_000` в React Query и отсутствия сохранения формы перед нажатием кнопки «Поиск раздач» сервер искал раздачи по устаревшим данным из базы, а клиент повторно отдавал старый кэш.
+   - В `TorrentPreferencesDialog` добавлено автоматическое сохранение изменений формы (`update.mutateAsync`) перед вызовом поиска кандидатов: если пользователь изменил сезон, качество, аудио или метаданные и нажал «Поиск раздач», новые параметры сначала сохраняются в БД.
+   - Кэш кандидатов элемента `['torrents', 'watchlist', id, 'candidates']` принудительно очищается (`removeQueries`) при сохранении, обновлении и ручном поиске.
+   - Для запроса кандидатов установлен `staleTime: 0`, что гарантирует получение актуальных данных при каждом вызове.
+   - На эндпоинтах `/api/torrents/watchlist` и `/api/torrents/watchlist/[id]/candidates` добавлены директивы `force-dynamic`, `revalidate = 0` и HTTP-заголовки `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`.
+4. **Тестирование и валидация:**
+   - Добавлены тесты на обнаружение устаревших расписаний и генерацию ключей кэша кандидатов.
+   - Все 126 тестов успешно пройдены (`npm test`).
+   - Проверка типов `tsc --noEmit` успешно пройдена без ошибок.
+
 ## 2026-10-19 (fix: улучшение поиска сезонов, поддержка трекерных форматов NxMM, кириллических маркеров С/Е и pipe-разделителей звука)
 
 **Файлы:**

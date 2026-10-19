@@ -78,6 +78,13 @@
       "when": 1788363266273,
       "tag": "0010_torrent_metadata_refresh_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788363266274,
+      "tag": "0011_torrent_watchlist_schedule",
+      "breakpoints": true
     }
   ]
 }

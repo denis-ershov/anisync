@@ -90,6 +90,7 @@ export function useDeleteTorrentWatchlistItem() {
 
 export function useUpdateTorrentWatchlistItem() {
   const invalidateWatchlist = useInvalidateTorrentWatchlist();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
       id,
@@ -98,16 +99,27 @@ export function useUpdateTorrentWatchlistItem() {
       id: number;
       input: TorrentWatchlistUpdateInput;
     }) => updateTorrentWatchlistItem(id, input),
-    onSuccess: invalidateWatchlist,
+    onSuccess: (_data, variables) => {
+      invalidateWatchlist();
+      void queryClient.invalidateQueries({
+        queryKey: torrentQueryKeys.watchlist.candidates(variables.id),
+      });
+      queryClient.removeQueries({
+        queryKey: torrentQueryKeys.watchlist.candidates(variables.id),
+      });
+    },
   });
 }
 
 export function useTorrentReleaseCandidates(id: number, enabled: boolean) {
   return useQuery({
-    queryKey: [...torrentQueryKeys.watchlist.root, id, 'candidates'],
+    queryKey: torrentQueryKeys.watchlist.candidates(id),
     queryFn: () => fetchTorrentReleaseCandidates(id),
     enabled,
-    ...defaultQueryOptions,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+    gcTime: 60_000,
   });
 }
 
@@ -124,7 +136,7 @@ export function usePinTorrentRelease() {
     onSuccess: (_data, variables) => {
       invalidateWatchlist();
       void queryClient.invalidateQueries({
-        queryKey: [...torrentQueryKeys.watchlist.root, variables.id, 'candidates'],
+        queryKey: torrentQueryKeys.watchlist.candidates(variables.id),
       });
     },
   });
@@ -138,7 +150,7 @@ export function useUnpinTorrentRelease() {
     onSuccess: (_data, id) => {
       invalidateWatchlist();
       void queryClient.invalidateQueries({
-        queryKey: [...torrentQueryKeys.watchlist.root, id, 'candidates'],
+        queryKey: torrentQueryKeys.watchlist.candidates(id),
       });
     },
   });
@@ -158,6 +170,7 @@ export function useNotifyTorrentRelease() {
 
 export function useRefreshTorrentWatchlistItem() {
   const invalidateWatchlist = useInvalidateTorrentWatchlist();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: number | { id: number; fields?: TorrentMetadataRefreshField[] }) => {
       if (typeof args === 'number') {
@@ -165,6 +178,15 @@ export function useRefreshTorrentWatchlistItem() {
       }
       return refreshTorrentWatchlistItem(args.id, args.fields);
     },
-    onSuccess: invalidateWatchlist,
+    onSuccess: (_data, args) => {
+      invalidateWatchlist();
+      const id = typeof args === 'number' ? args : args.id;
+      void queryClient.invalidateQueries({
+        queryKey: torrentQueryKeys.watchlist.candidates(id),
+      });
+      queryClient.removeQueries({
+        queryKey: torrentQueryKeys.watchlist.candidates(id),
+      });
+    },
   });
 }

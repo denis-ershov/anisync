@@ -8,6 +8,8 @@ import {
 import { createLogger } from '@/lib/observability/logger';
 import { TorrentWatcherService } from '@/lib/services/torrent-watcher-service';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 export const maxDuration = 60;
 const log = createLogger('api:torrents:candidates');
 
@@ -24,7 +26,12 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid item id' }, { status: 400 });
   }
   try {
-    return NextResponse.json(await TorrentWatcherService.listReleaseCandidates(userId, itemId));
+    const candidates = await TorrentWatcherService.listReleaseCandidates(userId, itemId);
+    return NextResponse.json(candidates, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
   } catch (error) {
     log.error({ err: error, itemId, userId }, 'GET /api/torrents/watchlist/[id]/candidates failed');
     return torrentServiceErrorResponse(error);

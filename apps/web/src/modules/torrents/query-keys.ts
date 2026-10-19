@@ -7,6 +7,7 @@ export const torrentQueryKeys = {
   watchlist: {
     root: watchlistRoot,
     list: () => [...watchlistRoot, 'list'] as const,
+    candidates: (id: number) => [...watchlistRoot, id, 'candidates'] as const,
   },
   releases: (imdbId: string) => [...torrentsRoot, 'releases', imdbId] as const,
 };

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, Loader2, Pin, PinOff, Send, Settings2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -35,7 +36,8 @@ import {
   useUnpinTorrentRelease,
   useUpdateTorrentWatchlistItem,
 } from '@/lib/torrents/hooks';
-import type { TorrentReleaseCandidate, TorrentWatchlistItem } from '@/lib/torrents/types';
+import { torrentQueryKeys } from '@/lib/torrents/query-keys';
+import type { TorrentReleaseCandidate, TorrentWatchlistItem, TorrentWatchlistUpdateInput } from '@/lib/torrents/types';
 
 const QUALITY_PRESETS = ['1080p', '2160p HDR', '2160p SDR', '720p', '480p'] as const;
 const AUDIO_PRESETS = ['russian', 'original', 'any'] as const;
@@ -162,6 +164,7 @@ export function TorrentPreferencesDialog({
   const [year, setYear] = useState(item.year ?? '');
   const [genre, setGenre] = useState(item.genre ?? '');
   const [posterUrl, setPosterUrl] = useState(item.posterUrl ?? '');
+  const queryClient = useQueryClient();
   const update = useUpdateTorrentWatchlistItem();
   const pin = usePinTorrentRelease();
   const unpin = useUnpinTorrentRelease();
@@ -197,7 +200,43 @@ export function TorrentPreferencesDialog({
     setNotifyKey(null);
   }, [open, item]);
 
-  const searchCandidates = () => {
+  const isDirty =
+    quality !== (item.preferredQuality ?? '') ||
+    audio !== (item.preferredAudio ?? '') ||
+    season !== (item.targetSeason?.toString() ?? '') ||
+    maxReleases !== (item.maxReleasesCount?.toString() ?? '') ||
+    interval !== (item.checkInterval?.toString() ?? '') ||
+    notifyOnce !== item.notifyOnce ||
+    title !== item.title ||
+    originalTitle !== (item.originalTitle ?? '') ||
+    year !== (item.year ?? '') ||
+    genre !== (item.genre ?? '') ||
+    posterUrl !== (item.posterUrl ?? '');
+
+  const buildUpdateInput = (): TorrentWatchlistUpdateInput => ({
+    preferredQuality: quality.trim() || null,
+    preferredAudio: audio.trim() || null,
+    targetSeason: numericValue(season),
+    maxReleasesCount: numericValue(maxReleases),
+    checkInterval: numericValue(interval),
+    notifyOnce,
+    title: title.trim() || item.title,
+    originalTitle: originalTitle.trim() || null,
+    year: year.trim() || null,
+    genre: genre.trim() || null,
+    posterUrl: posterUrl.trim() || null,
+  });
+
+  const searchCandidates = async () => {
+    if (isDirty) {
+      await update.mutateAsync({
+        id: item.id,
+        input: buildUpdateInput(),
+      });
+    }
+    queryClient.removeQueries({
+      queryKey: torrentQueryKeys.watchlist.candidates(item.id),
+    });
     if (candidatesEnabled) {
       void candidates.refetch();
       return;
@@ -249,22 +288,12 @@ export function TorrentPreferencesDialog({
   };
 
   const save = async () => {
-    await update.mutateAsync({
-      id: item.id,
-      input: {
-        preferredQuality: quality.trim() || null,
-        preferredAudio: audio.trim() || null,
-        targetSeason: numericValue(season),
-        maxReleasesCount: numericValue(maxReleases),
-        checkInterval: numericValue(interval),
-        notifyOnce,
-        title: title.trim() || item.title,
-        originalTitle: originalTitle.trim() || null,
-        year: year.trim() || null,
-        genre: genre.trim() || null,
-        posterUrl: posterUrl.trim() || null,
-      },
-    });
+    if (isDirty) {
+      await update.mutateAsync({
+        id: item.id,
+        input: buildUpdateInput(),
+      });
+    }
     setOpen(false);
   };
 

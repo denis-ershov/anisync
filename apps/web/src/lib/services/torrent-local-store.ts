@@ -130,12 +130,7 @@ function mapRow(
   row: typeof torrentWatchlist.$inferSelect,
   releasesCount = 0,
   latest: TorrentWatchlistItem['latestRelease'] = null,
-  schedule: TorrentScheduleMeta = {
-    digitalReleaseDate: null,
-    nextEpisodeSeason: null,
-    nextEpisodeNumber: null,
-    nextEpisodeDate: null,
-  }
+  scheduleOverride?: TorrentScheduleMeta
 ): TorrentWatchlistItem {
   return {
     id: row.id,
@@ -159,23 +154,81 @@ function mapRow(
     releasesCount,
     lastChecked: row.lastChecked ? row.lastChecked.toISOString() : null,
     latestRelease: latest,
-    digitalReleaseDate: schedule.digitalReleaseDate,
-    nextEpisodeSeason: schedule.nextEpisodeSeason,
-    nextEpisodeNumber: schedule.nextEpisodeNumber,
-    nextEpisodeDate: schedule.nextEpisodeDate,
+    digitalReleaseDate: scheduleOverride?.digitalReleaseDate ?? row.digitalReleaseDate ?? null,
+    nextEpisodeSeason: scheduleOverride?.nextEpisodeSeason ?? row.nextEpisodeSeason ?? null,
+    nextEpisodeNumber: scheduleOverride?.nextEpisodeNumber ?? row.nextEpisodeNumber ?? null,
+    nextEpisodeDate: scheduleOverride?.nextEpisodeDate ?? row.nextEpisodeDate ?? null,
   };
 }
 
-async function mapRowWithSchedule(
-  row: typeof torrentWatchlist.$inferSelect,
-  releasesCount = 0,
-  latest: TorrentWatchlistItem['latestRelease'] = null
-): Promise<TorrentWatchlistItem> {
-  const schedule = await enrichTorrentSchedule(row);
-  return mapRow(row, releasesCount, latest, schedule);
+async function resolveReleaseSummary(imdbId: string): Promise<{
+  releasesCount: number;
+  latest: TorrentWatchlistItem['latestRelease'];
+}> {
+  const [countRow] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(torrentReleases)
+    .where(eq(torrentReleases.imdbId, imdbId));
+  const [latest] = await db
+    .select()
+    .from(torrentReleases)
+    .where(eq(torrentReleases.imdbId, imdbId))
+    .orderBy(desc(torrentReleases.createdAt))
+    .limit(1);
+
+  return {
+    releasesCount: Number(countRow?.c ?? 0),
+    latest: latest
+      ? {
+          title: latest.title ?? '',
+          quality: latest.quality,
+          createdAt: latest.createdAt.toISOString(),
+          currentEpisode: latest.currentEpisode,
+          totalEpisodes: latest.totalEpisodes,
+        }
+      : null,
+  };
 }
 
 export class TorrentLocalStore {
+  static async reconcileStaleSchedules(
+    rows: (typeof torrentWatchlist.$inferSelect)[]
+  ): Promise<void> {
+    const STALE_SCHEDULE_MS = 12 * 60 * 60 * 1000; // 12 hours
+    const staleBefore = new Date(Date.now() - STALE_SCHEDULE_MS);
+
+    const candidates = rows.filter(
+      (r) => !r.scheduleUpdatedAt || r.scheduleUpdatedAt < staleBefore
+    );
+
+    if (candidates.length === 0) {
+      return;
+    }
+
+    for (let i = 0; i < candidates.length; i += SCHEDULE_ENRICH_CONCURRENCY) {
+      const batch = candidates.slice(i, i + SCHEDULE_ENRICH_CONCURRENCY);
+      await Promise.allSettled(
+        batch.map(async (row) => {
+          try {
+            const schedule = await enrichTorrentSchedule(row);
+            await db
+              .update(torrentWatchlist)
+              .set({
+                digitalReleaseDate: schedule.digitalReleaseDate,
+                nextEpisodeSeason: schedule.nextEpisodeSeason,
+                nextEpisodeNumber: schedule.nextEpisodeNumber,
+                nextEpisodeDate: schedule.nextEpisodeDate,
+                scheduleUpdatedAt: new Date(),
+              })
+              .where(eq(torrentWatchlist.id, row.id));
+          } catch {
+            // Background silent ignore
+          }
+        })
+      );
+    }
+  }
+
   static async list(userId: number): Promise<TorrentWatchlistItem[]> {
     const rows = await db
       .select()
@@ -183,39 +236,88 @@ export class TorrentLocalStore {
       .where(eq(torrentWatchlist.userId, userId))
       .orderBy(desc(torrentWatchlist.createdAt));
 
+    if (rows.length === 0) {
+      return [];
+    }
+
+    // Фоновая неблокирующая сверка метаданных и устаревших расписаний
     const { TorrentMetadataRefreshService } = await import(
       '@/lib/services/torrent-metadata-refresh-service'
     );
     void TorrentMetadataRefreshService.reconcileStaleIfEnabled(userId, rows).catch(() => undefined);
+    void this.reconcileStaleSchedules(rows).catch(() => undefined);
 
-    const items = await mapPool(rows, SCHEDULE_ENRICH_CONCURRENCY, async (row) => {
-      const [countRow] = await db
-        .select({ c: sql<number>`count(*)::int` })
-        .from(torrentReleases)
-        .where(eq(torrentReleases.imdbId, row.imdbId));
-      const [latest] = await db
-        .select()
-        .from(torrentReleases)
-        .where(eq(torrentReleases.imdbId, row.imdbId))
-        .orderBy(desc(torrentReleases.createdAt))
-        .limit(1);
+    const imdbIds = Array.from(new Set(rows.map((r) => r.imdbId).filter(Boolean)));
+    const countsMap = new Map<string, number>();
+    const latestMap = new Map<string, TorrentWatchlistItem['latestRelease']>();
 
-      return mapRowWithSchedule(
-        row,
-        Number(countRow?.c ?? 0),
-        latest
-          ? {
-              title: latest.title ?? '',
-              quality: latest.quality,
-              createdAt: latest.createdAt.toISOString(),
-              currentEpisode: latest.currentEpisode,
-              totalEpisodes: latest.totalEpisodes,
-            }
-          : null
-      );
-    });
+    if (imdbIds.length > 0) {
+      const [countRows, latestRows] = await Promise.all([
+        db
+          .select({
+            imdbId: torrentReleases.imdbId,
+            c: sql<number>`count(*)::int`,
+          })
+          .from(torrentReleases)
+          .where(inArray(torrentReleases.imdbId, imdbIds))
+          .groupBy(torrentReleases.imdbId),
+        db.execute<{
+          imdb_id: string;
+          title: string | null;
+          quality: string | null;
+          created_at: Date | string;
+          current_episode: number | null;
+          total_episodes: number | null;
+        }>(sql`
+          SELECT DISTINCT ON (imdb_id)
+            imdb_id,
+            title,
+            quality,
+            created_at,
+            current_episode,
+            total_episodes
+          FROM ${torrentReleases}
+          WHERE ${inArray(torrentReleases.imdbId, imdbIds)}
+          ORDER BY imdb_id, ${torrentReleases.createdAt} DESC
+        `),
+      ]);
 
-    return items;
+      for (const c of countRows) {
+        countsMap.set(c.imdbId, Number(c.c ?? 0));
+      }
+
+      const rowsArray = (Array.isArray(latestRows)
+        ? latestRows
+        : (latestRows as unknown as { rows?: unknown[] })?.rows ?? []) as Array<{
+        imdb_id: string;
+        title: string | null;
+        quality: string | null;
+        created_at: Date | string;
+        current_episode: number | null;
+        total_episodes: number | null;
+      }>;
+
+      for (const l of rowsArray) {
+        const createdAtStr =
+          l.created_at instanceof Date
+            ? l.created_at.toISOString()
+            : l.created_at
+            ? new Date(l.created_at).toISOString()
+            : new Date().toISOString();
+
+        latestMap.set(l.imdb_id, {
+          title: l.title ?? '',
+          quality: l.quality,
+          createdAt: createdAtStr,
+          currentEpisode: l.current_episode,
+          totalEpisodes: l.total_episodes,
+        });
+      }
+    }
+
+    return rows.map((row) =>
+      mapRow(row, countsMap.get(row.imdbId) ?? 0, latestMap.get(row.imdbId) ?? null)
+    );
   }
 
   static async refreshMetadata(
@@ -241,10 +343,29 @@ export class TorrentLocalStore {
       .limit(1);
 
     if (existing[0]) {
-      return mapRowWithSchedule(existing[0]);
+      const summary = await resolveReleaseSummary(existing[0].imdbId);
+      return mapRow(existing[0], summary.releasesCount, summary.latest);
     }
 
     const metadata = await findContentByImdb(imdbId).catch(() => null);
+
+    let schedule: TorrentScheduleMeta = {
+      digitalReleaseDate: null,
+      nextEpisodeSeason: null,
+      nextEpisodeNumber: null,
+      nextEpisodeDate: null,
+    };
+    if (metadata?.tmdbId) {
+      try {
+        schedule = await enrichTorrentSchedule({
+          imdbId,
+          type: metadata.type,
+          tmdbId: metadata.tmdbId,
+        } as typeof torrentWatchlist.$inferSelect);
+      } catch {
+        // noop
+      }
+    }
 
     const [row] = await db
       .insert(torrentWatchlist)
@@ -269,12 +390,17 @@ export class TorrentLocalStore {
         maxReleasesCount: 1,
         enabled: true,
         telegramChatId: options?.telegramChatId ?? null,
+        digitalReleaseDate: schedule.digitalReleaseDate,
+        nextEpisodeSeason: schedule.nextEpisodeSeason,
+        nextEpisodeNumber: schedule.nextEpisodeNumber,
+        nextEpisodeDate: schedule.nextEpisodeDate,
+        scheduleUpdatedAt: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning();
 
-    return mapRowWithSchedule(row);
+    return mapRow(row, 0, null, schedule);
   }
 
   static async updatePreferences(
@@ -308,7 +434,8 @@ export class TorrentLocalStore {
     if (!row) {
       throw new Error('Watchlist item not found');
     }
-    return mapRowWithSchedule(row);
+    const summary = await resolveReleaseSummary(row.imdbId);
+    return mapRow(row, summary.releasesCount, summary.latest);
   }
 
   static async pinRelease(
@@ -362,7 +489,8 @@ export class TorrentLocalStore {
         infoHash: nextKey,
       })
       .onConflictDoNothing();
-    return mapRowWithSchedule(row);
+    const summary = await resolveReleaseSummary(row.imdbId);
+    return mapRow(row, summary.releasesCount, summary.latest);
   }
 
   static async unpinRelease(userId: number, itemId: number): Promise<TorrentWatchlistItem> {
@@ -394,7 +522,8 @@ export class TorrentLocalStore {
     if (!row) {
       throw new Error('Watchlist item not found');
     }
-    return mapRowWithSchedule(row);
+    const summary = await resolveReleaseSummary(row.imdbId);
+    return mapRow(row, summary.releasesCount, summary.latest);
   }
 
   static async toggle(userId: number, itemId: number): Promise<TorrentWatchlistItem> {
@@ -414,7 +543,8 @@ export class TorrentLocalStore {
       .where(eq(torrentWatchlist.id, itemId))
       .returning();
 
-    return mapRowWithSchedule(updated);
+    const summary = await resolveReleaseSummary(updated.imdbId);
+    return mapRow(updated, summary.releasesCount, summary.latest);
   }
 
   static async remove(userId: number, itemId: number): Promise<void> {
