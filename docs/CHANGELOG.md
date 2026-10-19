@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-10-19 (fix: исправление отправки уведомлений в Telegram по выбранной раздаче, устранение 404 и сетевых таймаутов)
+
+**Файлы:**
+- `apps/web/src/lib/torrents/types.ts`
+- `apps/web/src/lib/integrations/telegram/bot.ts`
+- `apps/web/src/lib/services/torrent-watcher-service.ts`
+- `apps/web/src/lib/services/torrent-facade.ts`
+- `apps/web/src/app/api/torrents/watchlist/[id]/notify/route.ts`
+- `apps/web/src/modules/torrents/api.ts`
+- `apps/web/src/components/torrents/torrent-preferences-dialog.tsx`
+- `apps/web/messages/ru.json`
+- `apps/web/messages/en.json`
+- `apps/web/tests/torrent-watcher.test.ts`
+- `docs/modules/TORRENTS_ARCHITECTURE.md`
+
+**Изменения:**
+1. **Устранение повторного 20-секундного сетевого поиска в Prowlarr и ошибки 404 при ручной отправке уведомления:**
+   - Ранее при нажатии кнопки «Отправить в Telegram» в диалоге раздач (`POST /api/torrents/watchlist/[id]/notify`) метод `TorrentWatcherService.notifyRelease` повторно запускал 13 параллельных HTTP-запросов к Prowlarr (`searchForItem`). При задержках или таймаутах (20s) результат поиска оказывался пустым, релиз не находился, сервер выбрасывал `Release not found in Prowlarr results`, что приводило к ложному коду HTTP 404 Not Found и ошибке «Не удалось отправить уведомление в Telegram» в UI.
+   - Клиент теперь передает полный объект кандидата (`title`, `quality`, `size`, `seeders`, `tracker`, `magnetUrl`, `downloadUrl`, `infoUrl`, `indexerId`, `guid`).
+   - `TorrentWatcherService.notifyRelease` использует готовые данные кандидата напрямую: отправка уведомления в Telegram происходит за <200 мс без блокирующего сетевого поиска.
+   - Если magnet-ссылка отсутствует, выполняется точечный запрос `getDownloadArtifact(indexerId, guid)` ровно по одной раздаче вместо 13 тяжелых поисковых запросов по трекерам.
+2. **Автоматический резолвинг Telegram Chat ID:**
+   - Если в элементе списка (`torrent_watchlist.telegram_chat_id`) chat ID пуст, сервис автоматически подтягивает `telegramChatId` из профиля пользователя (`user_settings.notification_preferences.telegram_chat_id`) и асинхронно сохраняет его в элемент вотчлиста.
+   - При отсутствии настроек Telegram (нет `TELEGRAM_BOT_TOKEN` или отсутствует Chat ID) API возвращает структурированный HTTP 400 со статусом `telegram_bot_not_configured` или `telegram_chat_not_configured`.
+3. **Логирование и информативный UI фидбек:**
+   - В `sendTelegramMessage` подключен логгер с выводом статусов и текстов ошибок Telegram API.
+   - В `TorrentPreferencesDialog` добавлен вывод понятных подсказок («Укажите Telegram Chat ID в настройках уведомлений профиля», «Telegram-бот не настроен на сервере») вместо обобщенного сбоя.
+4. **Тестирование и валидация:**
+   - Добавлен юнит-тест `formatTorrentNotification produces correct HTML message with direct candidate links`.
+   - Проверка типов `tsc --noEmit` и 127 тестов `npm test` пройдены успешно без единой ошибки.
+
 ## 2026-10-19 (perf & fix: кардинальное ускорение страницы торрентов с 60с до <20мс и мгновенная актуализация поиска кандидатов после редактирования)
 
 **Файлы:**

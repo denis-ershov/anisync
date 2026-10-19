@@ -1,3 +1,7 @@
+import { createLogger } from '@/lib/observability/logger';
+
+const log = createLogger('integrations:telegram');
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -19,20 +23,38 @@ export async function sendTelegramMessage(input: {
 }): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const targetChat = (input.chatId || process.env.TELEGRAM_CHAT_ID || '').trim();
-  if (!token || !targetChat) {
+  if (!token) {
+    log.warn('Telegram send skipped: TELEGRAM_BOT_TOKEN is not configured');
+    return false;
+  }
+  if (!targetChat) {
+    log.warn('Telegram send skipped: target chatId is missing and TELEGRAM_CHAT_ID is empty');
     return false;
   }
 
   const base = `https://api.telegram.org/bot${token}`;
 
   async function post(method: string, body: Record<string, unknown>) {
-    const response = await fetch(`${base}/${method}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15_000),
-    });
-    return response.ok;
+    try {
+      const response = await fetch(`${base}/${method}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        log.warn(
+          { method, status: response.status, body: errBody, targetChat },
+          'Telegram API returned error status'
+        );
+        return false;
+      }
+      return true;
+    } catch (err) {
+      log.warn({ method, err, targetChat }, 'Telegram API request network error');
+      return false;
+    }
   }
 
   for (let attempt = 0; attempt < 3; attempt += 1) {

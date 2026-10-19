@@ -174,11 +174,13 @@ export function TorrentPreferencesDialog({
   const busy = update.isPending || pin.isPending || unpin.isPending || notify.isPending;
   const [notifyKey, setNotifyKey] = useState<string | null>(null);
   const [notifyFeedback, setNotifyFeedback] = useState<'ok' | 'error' | null>(null);
+  const [notifyFeedbackReason, setNotifyFeedbackReason] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setCandidatesEnabled(false);
       setNotifyFeedback(null);
+      setNotifyFeedbackReason(null);
       setNotifyKey(null);
       return;
     }
@@ -197,6 +199,7 @@ export function TorrentPreferencesDialog({
     setPosterUrl(next.posterUrl);
     setMetadataOpen(false);
     setNotifyFeedback(null);
+    setNotifyFeedbackReason(null);
     setNotifyKey(null);
   }, [open, item]);
 
@@ -246,12 +249,24 @@ export function TorrentPreferencesDialog({
 
   const sendNotify = async (candidate: TorrentReleaseCandidate) => {
     setNotifyFeedback(null);
+    setNotifyFeedbackReason(null);
     setNotifyKey(candidate.releaseKey);
     try {
-      await notify.mutateAsync({ id: item.id, candidate });
-      setNotifyFeedback('ok');
-    } catch {
+      const res = await notify.mutateAsync({ id: item.id, candidate });
+      if (res && res.ok && res.telegramOk) {
+        setNotifyFeedback('ok');
+      } else {
+        setNotifyFeedback('error');
+        setNotifyFeedbackReason(res?.reason || res?.error || null);
+      }
+    } catch (err: unknown) {
       setNotifyFeedback('error');
+      const reason =
+        err && typeof err === 'object' && 'reason' in err
+          ? (err as { reason?: string }).reason
+          : null;
+      const message = err instanceof Error ? err.message : null;
+      setNotifyFeedbackReason(reason || message);
     } finally {
       setNotifyKey(null);
     }
@@ -499,7 +514,13 @@ export function TorrentPreferencesDialog({
                 <p className="text-xs text-muted-foreground">{t('notifySuccess')}</p>
               ) : null}
               {notifyFeedback === 'error' ? (
-                <p className="text-sm text-destructive">{t('notifyError')}</p>
+                <p className="text-sm text-destructive">
+                  {notifyFeedbackReason === 'telegram_chat_not_configured'
+                    ? t('notifyChatMissing')
+                    : notifyFeedbackReason === 'telegram_bot_not_configured'
+                      ? t('notifyBotMissing')
+                      : notifyFeedbackReason || t('notifyError')}
+                </p>
               ) : null}
               {!candidates.data?.length ? (
                 <p className="text-sm text-muted-foreground">{t('noCandidates')}</p>

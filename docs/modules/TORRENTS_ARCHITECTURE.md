@@ -89,7 +89,11 @@ flowchart LR
 12. Torrent bencode → magnet/info hash.
 13. Pin-only и hunting auto-pin; UI-поиск кандидатов для pin — только по кнопке (открепить / заменить pin).
     Unpin и смена pin удаляют прежнюю раздачу из `torrent_releases`.
-14. Ручная отправка: `POST /api/torrents/watchlist/[id]/notify` из UI кандидатов.
+14. **Ручная отправка уведомления (`POST /api/torrents/watchlist/[id]/notify`):**
+    - Использует готовые данные выбранного кандидата (`title`, `quality`, `size`, `seeders`, `magnetUrl`, `downloadUrl`, `infoUrl`) напрямую, исключая повторный 20-секундный поиск в Prowlarr.
+    - При отсутствии magnet-ссылки выполняет точечный запрос `getDownloadArtifact(indexerId, guid)` ровно для одной конкретной раздачи.
+    - Автоматически резолвит `telegram_chat_id`: если в строке вотчлиста поле пустое, подтягивает `telegramChatId` из профиля пользователя (`user_settings`) и сохраняет в запись.
+    - Возвращает структурированный статус 400 (`telegram_chat_not_configured`, `telegram_bot_not_configured`) для отображения понятных подсказок пользователю в UI.
 
 Trigger:
 - Scheduler: `*/30 * * * *` → queue `torrents.watcher`

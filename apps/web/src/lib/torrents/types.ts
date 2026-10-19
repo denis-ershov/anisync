@@ -70,6 +70,8 @@ export type TorrentReleaseCandidate = {
   magnetUrl?: string | null;
   downloadUrl?: string | null;
   infoUrl?: string | null;
+  indexerId?: number;
+  guid?: string;
 };
 
 export type TorrentHealthSnapshot = {

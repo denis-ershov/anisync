@@ -79,6 +79,15 @@ export async function notifyTorrentRelease(
     releaseKey: string;
     aliases?: string[];
     title?: string;
+    quality?: string | null;
+    size?: number | null;
+    seeders?: number | null;
+    tracker?: string | null;
+    magnetUrl?: string | null;
+    downloadUrl?: string | null;
+    infoUrl?: string | null;
+    indexerId?: number;
+    guid?: string;
   }
 ) {
   return TorrentWatcherService.notifyRelease(userId, itemId, input);

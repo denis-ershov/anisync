@@ -669,6 +669,8 @@
       "notify": "Отправить в Telegram",
       "notifySuccess": "Уведомление отправлено в Telegram.",
       "notifyError": "Не удалось отправить уведомление в Telegram.",
+      "notifyChatMissing": "Укажите Telegram Chat ID в настройках уведомлений профиля.",
+      "notifyBotMissing": "Telegram-бот не настроен на сервере.",
       "loading": "Поиск раздач",
       "candidatesError": "Не удалось получить раздачи из Prowlarr.",
       "save": "Сохранить",

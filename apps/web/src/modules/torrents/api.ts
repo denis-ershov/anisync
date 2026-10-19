@@ -11,7 +11,11 @@ async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     const message = typeof payload.error === 'string' ? payload.error : response.statusText;
-    throw new Error(message || 'Request failed');
+    const error = new Error(message || 'Request failed') as Error & { reason?: string };
+    if (typeof payload.reason === 'string') {
+      error.reason = payload.reason;
+    }
+    throw error;
   }
 
   return response.json() as Promise<T>;
@@ -129,13 +133,9 @@ export async function notifyTorrentReleaseCandidate(
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      releaseKey: candidate.releaseKey,
-      aliases: candidate.aliases,
-      title: candidate.title,
-    }),
+    body: JSON.stringify(candidate),
   });
-  return parseJson<{ ok: boolean; telegramOk: boolean }>(response);
+  return parseJson<{ ok: boolean; telegramOk: boolean; reason?: string; error?: string }>(response);
 }
 
 export async function fetchTorrentReleases(imdbId: string) {

@@ -1,10 +1,11 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 
-import { db, torrentNotificationLog, torrentReleases, torrentWatchlist } from '@/lib/db';
+import { db, torrentNotificationLog, torrentReleases, torrentWatchlist, userSettings } from '@/lib/db';
 import { ProwlarrClient } from '@/lib/integrations/prowlarr/client';
 import {
   formatTorrentNotification,
   sendTelegramMessage,
+  type TorrentNotificationLinks,
 } from '@/lib/integrations/telegram/bot';
 import { createLogger } from '@/lib/observability/logger';
 import { NotificationHubService } from '@/lib/services/notification-hub-service';
@@ -624,6 +625,8 @@ export class TorrentWatcherService {
             magnetUrl: links.magnet,
             downloadUrl: links.downloadUrl,
             infoUrl: links.infoUrl,
+            indexerId: release.indexerId,
+            guid: release.guid,
           },
         ];
       } catch (err) {
@@ -640,8 +643,17 @@ export class TorrentWatcherService {
       releaseKey: string;
       aliases?: string[];
       title?: string;
+      quality?: string | null;
+      size?: number | null;
+      seeders?: number | null;
+      tracker?: string | null;
+      magnetUrl?: string | null;
+      downloadUrl?: string | null;
+      infoUrl?: string | null;
+      indexerId?: number;
+      guid?: string;
     }
-  ): Promise<{ ok: boolean; telegramOk: boolean }> {
+  ): Promise<{ ok: boolean; telegramOk: boolean; reason?: string }> {
     const [item] = await db
       .select()
       .from(torrentWatchlist)
@@ -649,8 +661,36 @@ export class TorrentWatcherService {
       .limit(1);
     if (!item) throw new Error('Watchlist item not found');
 
-    const client = ProwlarrClient.fromEnv();
-    if (!client) throw new Error('Prowlarr is not configured');
+    let chatId = item.telegramChatId?.trim() || null;
+    if (!chatId) {
+      try {
+        const [settings] = await db
+          .select()
+          .from(userSettings)
+          .where(eq(userSettings.userId, userId))
+          .limit(1);
+        chatId = settings?.notificationPreferences?.telegramChatId?.trim() || null;
+        if (chatId) {
+          void db
+            .update(torrentWatchlist)
+            .set({ telegramChatId: chatId })
+            .where(eq(torrentWatchlist.id, itemId))
+            .catch(() => undefined);
+        }
+      } catch {
+        // userSettings lookup failure shouldn't crash
+      }
+    }
+
+    const finalChatId = chatId || process.env.TELEGRAM_CHAT_ID?.trim() || null;
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      log.warn('Manual notify skipped: TELEGRAM_BOT_TOKEN is not configured');
+      return { ok: false, telegramOk: false, reason: 'telegram_bot_not_configured' };
+    }
+    if (!finalChatId) {
+      log.warn({ itemId, userId }, 'Manual notify skipped: Telegram chat ID is not configured');
+      return { ok: false, telegramOk: false, reason: 'telegram_chat_not_configured' };
+    }
 
     const wanted = new Set(
       [input.releaseKey, ...(input.aliases ?? [])]
@@ -661,43 +701,129 @@ export class TorrentWatcherService {
       throw new Error('Invalid release candidate');
     }
 
-    const releases = await searchForItem(client, item, { skipPreferencesFilter: true });
-    const release =
-      releases.find((candidate) =>
-        computeReleaseIdentity(candidate).aliases.some((alias) => wanted.has(alias))
-      ) ?? null;
-    if (!release) {
-      throw new Error('Release not found in Prowlarr results');
-    }
+    let magnetUrl = input.magnetUrl?.trim() || null;
+    let downloadUrl = input.downloadUrl?.trim() || null;
+    let infoUrl = input.infoUrl?.trim() || null;
+    let title = input.title?.trim() || input.releaseKey;
+    let quality = input.quality ?? null;
+    let size = input.size ?? null;
+    let seeders = input.seeders ?? null;
 
-    // По возможности дотягиваем magnet через Prowlarr download (как в NW).
-    if (!resolveReleaseLinks(release).magnet && release.indexerId && release.guid) {
+    // 1. Если magnet отсутствует, но есть indexerId + guid — пытаемся точечно дотянуть артефакт (1 быстрый запрос)
+    if (!magnetUrl && input.indexerId && input.guid) {
       try {
-        const artifact = await client.getDownloadArtifact(release.indexerId, release.guid);
-        if (artifact.magnet) {
-          release.magnetUrl = artifact.magnet;
-        } else if (artifact.torrentBytes) {
-          const magnet = torrentBytesToMagnet(artifact.torrentBytes);
-          if (magnet) {
-            release.magnetUrl = magnet;
+        const client = ProwlarrClient.fromEnv();
+        if (client) {
+          const artifact = await client.getDownloadArtifact(input.indexerId, input.guid);
+          if (artifact.magnet) {
+            magnetUrl = artifact.magnet;
+          } else if (artifact.torrentBytes) {
+            const parsed = torrentBytesToMagnet(artifact.torrentBytes);
+            if (parsed) magnetUrl = parsed;
           }
         }
       } catch (error) {
-        log.warn({ err: error, guid: release.guid }, 'Manual notify: magnet resolve failed');
+        log.warn({ err: error, guid: input.guid }, 'Manual notify: magnet resolve artifact failed');
       }
     }
 
-    const title = input.title?.trim() || release.title || input.releaseKey;
-    const telegramOk = await notifyChannels({
-      userId,
-      item,
-      release,
+    // 2. Если ссылки или данные отсутствуют, ищем в локальной таблице torrentReleases
+    if (!magnetUrl || !downloadUrl) {
+      const dbReleases = await db
+        .select()
+        .from(torrentReleases)
+        .where(eq(torrentReleases.imdbId, item.imdbId));
+
+      const matched = dbReleases.find(
+        (r) =>
+          wanted.has(r.infoHash.toLowerCase()) ||
+          Boolean(r.title && wanted.has(r.title.toLowerCase()))
+      );
+
+      if (matched) {
+        if (!magnetUrl && matched.infoHash) {
+          magnetUrl = `magnet:?xt=urn:btih:${matched.infoHash}`;
+        }
+        title = title || matched.title || input.releaseKey;
+        quality = quality ?? matched.quality;
+        size = size ?? matched.size;
+        seeders = seeders ?? matched.seeders;
+      }
+    }
+
+    // 3. Крайний fallback: если совсем нет данных о названии/ссылках, только тогда ищем через searchForItem
+    if (!magnetUrl && !downloadUrl && !infoUrl && (!input.title || input.title === input.releaseKey)) {
+      try {
+        const client = ProwlarrClient.fromEnv();
+        if (client) {
+          const releases = await searchForItem(client, item, { skipPreferencesFilter: true });
+          const release = releases.find((candidate) =>
+            computeReleaseIdentity(candidate).aliases.some((alias) => wanted.has(alias))
+          );
+          if (release) {
+            const resolved = resolveReleaseLinks(release);
+            magnetUrl = resolved.magnet;
+            downloadUrl = resolved.downloadUrl;
+            infoUrl = resolved.infoUrl;
+            title = release.title || title;
+            quality = quality ?? qualityLabel(release);
+            size = size ?? mapSize(release.size);
+            seeders = seeders ?? release.seeders ?? null;
+          }
+        }
+      } catch (err) {
+        log.warn({ err }, 'Manual notify: fallback searchForItem failed, proceeding with available data');
+      }
+    }
+
+    const links: TorrentNotificationLinks = {
+      magnet: magnetUrl,
+      downloadUrl,
+      infoUrl,
+    };
+
+    const text = formatTorrentNotification({
+      title: item.title || item.imdbId,
       releaseTitle: title,
-      quality: qualityLabel(release),
-      size: mapSize(release.size),
-      seeders: release.seeders ?? null,
+      quality,
+      size,
+      seeders,
+      imdbId: item.imdbId,
+      year: item.year,
+      genre: item.genre,
+      rating: item.rating,
+      itemType: item.type,
       changeType: 'new',
-      manual: true,
+      links,
+    });
+
+    const telegramOk = await sendTelegramMessage({
+      text,
+      chatId: finalChatId,
+      photoUrl: item.posterUrl,
+    });
+
+    await db.insert(torrentNotificationLog).values({
+      userId,
+      imdbId: item.imdbId,
+      releaseTitle: title,
+      notificationText: text,
+      success: telegramOk,
+    });
+
+    await NotificationHubService.create({
+      userId,
+      type: 'system',
+      module: 'torrents',
+      channel: 'in_app',
+      title: `Torrent: ${item.title || item.imdbId}`,
+      message: title,
+      payload: {
+        imdbId: item.imdbId,
+        releaseTitle: title,
+        changeType: 'new',
+        manual: true,
+      },
     });
 
     return { ok: telegramOk, telegramOk };

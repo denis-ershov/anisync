@@ -669,6 +669,8 @@
       "notify": "Send to Telegram",
       "notifySuccess": "Notification sent to Telegram.",
       "notifyError": "Failed to send Telegram notification.",
+      "notifyChatMissing": "Please set your Telegram Chat ID in Notification Settings.",
+      "notifyBotMissing": "Telegram bot is not configured on the server.",
       "loading": "Searching releases",
       "candidatesError": "Could not load releases from Prowlarr.",
       "save": "Save",

@@ -770,6 +770,31 @@ test('filterReleasesByPreferences strictly differentiates 2160p SDR and 2160p HD
   assert.equal(mixed.some((r) => r.title === dvRelease.title), false);
 });
 
+test('formatTorrentNotification produces correct HTML message with direct candidate links', () => {
+  const { formatTorrentNotification } = require('@/lib/integrations/telegram/bot');
+  const message = formatTorrentNotification({
+    title: 'MobLand',
+    releaseTitle: 'MobLand - S2E1-5 - 2026 DUB 4K',
+    quality: '2160p SDR',
+    size: 5 * 1024 ** 3,
+    seeders: 42,
+    imdbId: 'tt31510819',
+    year: '2026',
+    genre: 'Crime, Drama',
+    rating: '8.4',
+    itemType: 'tv',
+    changeType: 'new',
+    links: {
+      magnet: 'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=MobLand',
+      downloadUrl: 'https://prowlarr.internal/download/1',
+      infoUrl: 'https://rutracker.org/viewtopic.php?t=123',
+    },
+  });
 
-
-
+  assert.ok(message.includes('MobLand'));
+  assert.ok(message.includes('2026'));
+  assert.ok(message.includes('5.00 GB'));
+  assert.ok(message.includes('magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567'));
+  assert.ok(message.includes('https://rutracker.org/viewtopic.php?t=123'));
+  assert.ok(message.includes('https://prowlarr.internal/download/1'));
+});
