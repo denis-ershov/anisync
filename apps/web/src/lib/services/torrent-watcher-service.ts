@@ -290,6 +290,24 @@ async function notifyChannels(input: {
   manual?: boolean;
 }) {
   const links = resolveReleaseLinks(input.release);
+  let plot = input.item.plot;
+  if (!plot && input.item.imdbId) {
+    try {
+      const { findContentByImdb } = await import('@/lib/integrations/tmdb/client');
+      const meta = await findContentByImdb(input.item.imdbId).catch(() => null);
+      if (meta?.plot) {
+        plot = meta.plot;
+        void db
+          .update(torrentWatchlist)
+          .set({ plot: meta.plot })
+          .where(eq(torrentWatchlist.id, input.item.id))
+          .catch(() => undefined);
+      }
+    } catch {
+      // noop
+    }
+  }
+
   const text = formatTorrentNotification({
     title: input.item.title || input.item.imdbId,
     releaseTitle: input.releaseTitle,
@@ -300,6 +318,7 @@ async function notifyChannels(input: {
     year: input.item.year,
     genre: input.item.genre,
     rating: input.item.rating,
+    plot,
     itemType: input.item.type,
     changeType: input.changeType,
     links,
@@ -782,6 +801,24 @@ export class TorrentWatcherService {
       infoUrl,
     };
 
+    let plot = item.plot;
+    if (!plot && item.imdbId) {
+      try {
+        const { findContentByImdb } = await import('@/lib/integrations/tmdb/client');
+        const meta = await findContentByImdb(item.imdbId).catch(() => null);
+        if (meta?.plot) {
+          plot = meta.plot;
+          void db
+            .update(torrentWatchlist)
+            .set({ plot: meta.plot })
+            .where(eq(torrentWatchlist.id, item.id))
+            .catch(() => undefined);
+        }
+      } catch {
+        // noop
+      }
+    }
+
     const text = formatTorrentNotification({
       title: item.title || item.imdbId,
       releaseTitle: title,
@@ -792,6 +829,7 @@ export class TorrentWatcherService {
       year: item.year,
       genre: item.genre,
       rating: item.rating,
+      plot,
       itemType: item.type,
       changeType: 'new',
       links,

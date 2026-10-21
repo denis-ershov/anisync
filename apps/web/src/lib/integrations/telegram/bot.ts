@@ -115,6 +115,19 @@ export type TorrentNotificationLinks = {
   infoUrl?: string | null;
 };
 
+function truncatePlot(plot: string, maxLength = 350): string {
+  const clean = plot
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) return '';
+  if (clean.length <= maxLength) return clean;
+  const truncated = clean.slice(0, maxLength);
+  const lastSpace = truncated.lastIndexOf(' ');
+  const sliceIndex = lastSpace > maxLength * 0.7 ? lastSpace : maxLength;
+  return clean.slice(0, sliceIndex).trim() + '…';
+}
+
 export function formatTorrentNotification(input: {
   title: string;
   releaseTitle: string;
@@ -125,13 +138,13 @@ export function formatTorrentNotification(input: {
   year?: string | null;
   genre?: string | null;
   rating?: number | string | null;
+  plot?: string | null;
   itemType?: string | null;
   changeType?: 'new' | 'update' | 'new_episode';
   links?: TorrentNotificationLinks | null;
 }): string {
   void input.quality;
   void input.seeders;
-  void input.imdbId;
 
   const title = escapeHtml(input.title || 'Unknown');
   const year = escapeHtml(String(input.year || '').trim());
@@ -157,11 +170,28 @@ export function formatTorrentNotification(input: {
   }
   info += '\n';
 
+  const rawImdbId = String(input.imdbId || '').trim();
+  const imdbUrl = /^tt\d+/i.test(rawImdbId)
+    ? `https://www.imdb.com/title/${encodeURIComponent(rawImdbId)}/`
+    : null;
+
   if (rating) {
-    info += `⭐️ IMDb: ${rating}\n`;
+    if (imdbUrl) {
+      info += `⭐️ IMDb: <a href="${escapeHref(imdbUrl)}">${rating}</a>\n`;
+    } else {
+      info += `⭐️ IMDb: ${rating}\n`;
+    }
+  } else if (imdbUrl) {
+    info += `⭐️ <a href="${escapeHref(imdbUrl)}">IMDb</a>\n`;
   }
+
   if (genre) {
     info += `🎭 ${genre}\n`;
+  }
+
+  const plot = truncatePlot(String(input.plot || ''));
+  if (plot) {
+    info += `\n📖 <i>${escapeHtml(plot)}</i>\n`;
   }
 
   info += `\n📥 <b>Релиз:</b>\n`;
@@ -198,6 +228,9 @@ export function formatTorrentNotification(input: {
   }
   if (infoUrl && /^https?:\/\//i.test(infoUrl)) {
     links.push(`<a href="${escapeHref(infoUrl)}">🔗 Страница раздачи</a>`);
+  }
+  if (imdbUrl) {
+    links.push(`<a href="${escapeHref(imdbUrl)}">⭐️ IMDb</a>`);
   }
 
   if (links.length) {

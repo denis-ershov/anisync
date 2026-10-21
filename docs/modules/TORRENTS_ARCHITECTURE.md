@@ -82,8 +82,10 @@ flowchart LR
    - На экранах `< sm` (смартфоны, iPhone SE, современные Android/iOS устройства) карточка принимает горизонтальный вид (media card) высотой ~140px с компактным постером 96px, лаконичной мета-информацией и тач-кнопками. На один экран смартфона помещается 4–5 карточек без горизонтального и избыточного вертикального скролла.
    - На экранах `sm` и шире сохраняется классическая 5-колоночная сетка вертикальных постеров.
 8. Dedup `(imdb_id, info_hash)` + `content_hash`.
-9. Telegram (per-item `telegram_chat_id` или env) + `torrent_notification_log` + in-app.
-   Формат как NightWatcher: постер + HTML (title/year/IMDb/genre, релиз, размер, magnet / Prowlarr / страница раздачи).
+9. **Telegram (per-item `telegram_chat_id` или env) + `torrent_notification_log` + in-app:**
+   - Формат NightWatcher+: постер + HTML (title/year/IMDb rating/genre, описание сюжета, релиз, размер, ссылки на magnet / Prowlarr / страницу раздачи / страницу IMDb).
+   - Кликабельная ссылка на IMDb в строке рейтинга (`⭐️ IMDb: <a href="...">8.4</a>`) и в строке действий (`⭐️ IMDb`).
+   - Описание фильма или сериала (`📖 <i>...</i>`) с умной обрезкой по границе слова (`truncatePlot` до ~350 символов) для гарантированного соблюдения лимита Telegram `caption` (1024 символа).
 10. `notify_once` для movie → disable.
 11. Concurrency 5.
 12. Torrent bencode → magnet/info hash.

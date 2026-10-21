@@ -770,7 +770,7 @@ test('filterReleasesByPreferences strictly differentiates 2160p SDR and 2160p HD
   assert.equal(mixed.some((r) => r.title === dvRelease.title), false);
 });
 
-test('formatTorrentNotification produces correct HTML message with direct candidate links', () => {
+test('formatTorrentNotification produces correct HTML message with direct candidate links, IMDb link and description', () => {
   const { formatTorrentNotification } = require('@/lib/integrations/telegram/bot');
   const message = formatTorrentNotification({
     title: 'MobLand',
@@ -782,6 +782,7 @@ test('formatTorrentNotification produces correct HTML message with direct candid
     year: '2026',
     genre: 'Crime, Drama',
     rating: '8.4',
+    plot: 'A local sheriff tries to keep the peace when a desperate family man robs a pill mill.',
     itemType: 'tv',
     changeType: 'new',
     links: {
@@ -797,4 +798,27 @@ test('formatTorrentNotification produces correct HTML message with direct candid
   assert.ok(message.includes('magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567'));
   assert.ok(message.includes('https://rutracker.org/viewtopic.php?t=123'));
   assert.ok(message.includes('https://prowlarr.internal/download/1'));
+  // Проверяем кликабельную ссылку на IMDb и в строке рейтинга, и в списке действий
+  assert.ok(message.includes('href="https://www.imdb.com/title/tt31510819/"'));
+  assert.ok(message.includes('>8.4</a>'));
+  assert.ok(message.includes('>⭐️ IMDb</a>'));
+  // Проверяем блок описания
+  assert.ok(message.includes('📖 <i>A local sheriff tries to keep the peace when a desperate family man robs a pill mill.</i>'));
+});
+
+test('formatTorrentNotification truncates overly long descriptions cleanly with ellipsis', () => {
+  const { formatTorrentNotification } = require('@/lib/integrations/telegram/bot');
+  const longPlot =
+    'This is a very long plot summary that goes on and on and describes the entire story arc in excruciating detail. '.repeat(10);
+  const message = formatTorrentNotification({
+    title: 'Test Movie',
+    releaseTitle: 'Test.Movie.2026.1080p',
+    imdbId: 'tt9999999',
+    plot: longPlot,
+  });
+
+  assert.ok(message.includes('📖 <i>'));
+  assert.ok(message.includes('…</i>'));
+  // Описание должно быть ограничено, чтобы всё сообщение легко помещалось в лимит caption Telegram (1024 символа)
+  assert.ok(message.length < 1000);
 });
