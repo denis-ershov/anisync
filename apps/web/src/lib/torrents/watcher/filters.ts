@@ -1,4 +1,3 @@
-import { extractSeasonFromTitle } from '@/lib/torrents/watcher/parsers';
 import type { ProwlarrRelease } from '@/lib/torrents/watcher/identity';
 
 /** Маркеры плохого звука / источника (substring, как в NightWatcher). */
@@ -368,7 +367,7 @@ export function filterResultsBySeason(
 
     // "сезон 1-3", "seasons 1-3", "season 1-3"
     for (const match of title.matchAll(
-      /\b(?:сезон[аыов]*|seasons?)[\s:]*(\d{1,2})\s*-\s*(\d{1,2})\b/g
+      /(?<!\d\s*)(?:^|[^a-zа-яё0-9])(?:сезон[аыов]*|seasons?)[\s:]*(\d{1,2})\s*-\s*(\d{1,2})(?=[^a-zа-яё0-9]|$)/g
     )) {
       const start = Number.parseInt(match[1], 10);
       const end = Number.parseInt(match[2], 10);
@@ -381,7 +380,7 @@ export function filterResultsBySeason(
 
     // "1-3 сезон", "1-3 seasons"
     for (const match of title.matchAll(
-      /\b(\d{1,2})\s*-\s*(\d{1,2})\s*(?:сезон[аыов]*|seasons?)\b/g
+      /(?:^|[^a-zа-яё0-9])(\d{1,2})\s*-\s*(\d{1,2})\s*(?:сезон[аыов]*|seasons?)(?=[^a-zа-яё0-9]|$)/g
     )) {
       const start = Number.parseInt(match[1], 10);
       const end = Number.parseInt(match[2], 10);
@@ -406,14 +405,14 @@ export function filterResultsBySeason(
 
     // "сезон 3", "season 3", "сезоны 3"
     for (const match of title.matchAll(
-      /\b(?:сезон[аыов]*|seasons?)[\s:]*(\d{1,2})\b/g
+      /(?<!\d\s*)(?:^|[^a-zа-яё0-9])(?:сезон[аыов]*|seasons?)[\s:]*(\d{1,2})(?=[^a-zа-яё0-9]|$)/g
     )) {
       foundSeasons.add(Number.parseInt(match[1], 10));
     }
 
     // "3 сезон", "3 season"
     for (const match of title.matchAll(
-      /\b(\d{1,2})\s*(?:сезон[аыов]*|seasons?)\b/g
+      /(?:^|[^a-zа-яё0-9])(\d{1,2})\s*(?:сезон[аыов]*|seasons?)(?=[^a-zа-яё0-9]|$)/g
     )) {
       foundSeasons.add(Number.parseInt(match[1], 10));
     }
@@ -994,88 +993,26 @@ function cleanQueryString(value: string): string {
     .join(' ');
 }
 
+/**
+ * Поисковый запрос к Prowlarr: «оригинальное название + год».
+ * Для сериала год — год выхода нужного сезона (Tulsa King 2026, а не 2022),
+ * для фильма — год релиза. Сезон, качество и озвучка отбираются фильтрами после поиска.
+ * Если оригинальное название русское — ищем по нему же (Колобок 2026).
+ */
 export function buildSearchQueries(input: {
   imdbId: string;
   title?: string | null;
   originalTitle?: string | null;
-  itemType?: string | null;
   year?: string | null;
-  targetSeason?: number | null;
+  /** Год выхода целевого сезона сериала; приоритетнее year. */
+  searchYear?: string | null;
 }): string[] {
-  const rawTitles: string[] = [];
-  if (input.originalTitle?.trim()) {
-    rawTitles.push(input.originalTitle.trim());
+  const name = cleanQueryString(
+    (input.originalTitle || '').trim() || (input.title || '').trim()
+  );
+  if (!name) {
+    return input.imdbId?.trim() ? [input.imdbId.trim()] : [];
   }
-  if (input.title?.trim() && input.title.trim() !== (input.originalTitle || '').trim()) {
-    rawTitles.push(input.title.trim());
-  }
-  if (!rawTitles.length && input.imdbId) {
-    rawTitles.push(input.imdbId.trim());
-  }
-  if (!rawTitles.length) {
-    return [];
-  }
-
-  const year = normalizeYear(input.year);
-  let seasonNum = input.targetSeason ?? null;
-  if (input.itemType === 'tv' && !seasonNum) {
-    seasonNum =
-      extractSeasonFromTitle(input.originalTitle) || extractSeasonFromTitle(input.title);
-  }
-
-  const queries: string[] = [];
-  for (const raw of rawTitles) {
-    const cleanBase = cleanQueryString(raw);
-    const variants = [cleanBase];
-
-    // Если есть подзаголовок, также добавляем главную часть (например "Слово пацана")
-    const parts = raw.split(/[:.·•-]/);
-    if (parts.length > 1) {
-      const cleanShort = cleanQueryString(parts[0]);
-      if (cleanShort && cleanShort !== cleanBase && cleanShort.split(/\s+/).length >= 2) {
-        variants.push(cleanShort);
-      }
-    }
-
-    for (const baseTitle of variants) {
-      if (input.itemType === 'tv' && seasonNum) {
-        // Запросы под разные стили оформления сезонов на трекерах (RuTracker: "1 сезон", зарубежные: "s01", EZTV: "s1")
-        const sPad = `s${String(seasonNum).padStart(2, '0')}`;
-        const sShort = `s${seasonNum}`;
-        if (year) {
-          queries.push(`${baseTitle} ${year} ${seasonNum} сезон`);
-          queries.push(`${baseTitle} ${year} ${sPad}`);
-          queries.push(`${baseTitle} ${year} ${sShort}`);
-          queries.push(`${baseTitle} ${year} сезон ${seasonNum}`);
-          queries.push(`${baseTitle} ${year} season ${seasonNum}`);
-          queries.push(`${baseTitle} ${year}`);
-        } else {
-          queries.push(`${baseTitle} ${seasonNum} сезон`);
-          queries.push(`${baseTitle} ${sPad}`);
-          queries.push(`${baseTitle} ${sShort}`);
-          queries.push(`${baseTitle} сезон ${seasonNum}`);
-          queries.push(baseTitle);
-        }
-      } else if (year) {
-        queries.push(`${baseTitle} ${year}`);
-        // Для сериалов также полезно включить базовое название без года
-        if (input.itemType === 'tv') {
-          queries.push(baseTitle);
-        }
-      } else {
-        queries.push(baseTitle);
-      }
-    }
-  }
-
-  const unique: string[] = [];
-  const seen = new Set<string>();
-  for (const query of queries) {
-    const clean = query.split(/\s+/).join(' ').trim();
-    if (clean && !seen.has(clean.toLowerCase())) {
-      seen.add(clean.toLowerCase());
-      unique.push(clean);
-    }
-  }
-  return unique;
+  const year = normalizeYear(input.searchYear) ?? normalizeYear(input.year);
+  return [year ? `${name} ${year}` : name];
 }

@@ -754,6 +754,35 @@ export async function getShowEpisodeForDisplay(tmdbId: number, lang = 'en') {
   return episode;
 }
 
+/**
+ * Год выхода сезона сериала для поиска раздач («Tulsa King 2026»).
+ * season = null → последний вышедший сезон.
+ */
+export function pickShowSeasonAirYear(
+  detail: Pick<TmdbDetail, 'seasons' | 'last_episode_to_air'>,
+  season: number | null,
+  today: string = new Date().toISOString().slice(0, 10)
+): string | null {
+  const seasons = (detail.seasons ?? []).filter((s) => s.season_number > 0);
+  let target = season;
+  if (!target) {
+    target =
+      detail.last_episode_to_air?.season_number ??
+      seasons
+        .filter((s) => s.air_date && s.air_date <= today)
+        .reduce<number | null>((max, s) => (max == null || s.season_number > max ? s.season_number : max), null);
+  }
+  if (!target) return null;
+  const airDate = seasons.find((s) => s.season_number === target)?.air_date;
+  const match = airDate?.match(/^(\d{4})/);
+  return match?.[1] ?? null;
+}
+
+export async function getShowSeasonAirYear(tmdbId: number, season: number | null): Promise<string | null> {
+  const detail = await getCachedShowDetail(tmdbId, 'en-US');
+  return pickShowSeasonAirYear(detail, season);
+}
+
 export async function getGenres(lang = "en") {
   await ensureGenres();
   const map = lang === "ru" ? genreMapRu : genreMapEn;

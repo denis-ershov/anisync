@@ -20,6 +20,7 @@ import {
 import { extractEpisodeInfo, extractSeasonFromTitle } from '@/lib/torrents/watcher/parsers';
 import { torrentBytesToMagnet } from '@/lib/torrents/watcher/torrent-file';
 import { shouldAdoptExistingRelease } from '@/lib/services/torrent-watcher-service';
+import { pickShowSeasonAirYear } from '@/lib/integrations/tmdb/client';
 
 test('extractInfoHashFromMagnet parses btih', () => {
   const hash = extractInfoHashFromMagnet(
@@ -79,33 +80,6 @@ test('hasJunkReleaseMarkers filters cam/ts/hdts and keeps clean releases', () =>
 test('hasBadAudioMarkers detects cam/ts', () => {
   assert.equal(hasBadAudioMarkers({ title: 'Movie CAM audio' }), true);
   assert.equal(hasBadAudioMarkers({ title: 'Movie WEB-DL 1080p' }), false);
-});
-
-test('buildSearchQueries embeds year and skips yearless movie queries', () => {
-  const movieQueries = buildSearchQueries({
-    imdbId: 'tt1',
-    originalTitle: 'Carrie',
-    title: 'Кэрри',
-    itemType: 'movie',
-    year: '2013',
-  });
-  assert.ok(movieQueries.every((q) => q.includes('2013')));
-  assert.ok(movieQueries.some((q) => q.includes('Carrie')));
-  assert.equal(
-    movieQueries.some((q) => q === 'Carrie' || q === 'Кэрри'),
-    false
-  );
-
-  const tvQueries = buildSearchQueries({
-    imdbId: 'tt1',
-    originalTitle: 'Show',
-    itemType: 'tv',
-    year: '2024',
-    targetSeason: 2,
-  });
-  assert.ok(tvQueries.some((q) => q.includes('сезон 2')));
-  assert.ok(tvQueries.some((q) => q.includes('s02')));
-  assert.ok(tvQueries.every((q) => q.includes('2024')));
 });
 
 test('filterResultsByImdbOrTitle rejects wrong-year remakes', () => {
@@ -298,22 +272,6 @@ test('filterResultsByImdbOrTitle matches multipart titles with subtitles (Сло
     'tv'
   );
   assert.equal(filtered.length, 1);
-});
-
-test('buildSearchQueries generates queries for domestic TV series with season variants', () => {
-  const queries = buildSearchQueries({
-    imdbId: 'tt28280054',
-    title: 'Слово пацана. Кровь на асфальте',
-    originalTitle: 'Слово пацана. Кровь на асфальте',
-    itemType: 'tv',
-    year: '2023',
-    targetSeason: 1,
-  });
-
-  assert.ok(queries.some((q) => q.includes('1 сезон')));
-  assert.ok(queries.some((q) => q.includes('сезон 1')));
-  assert.ok(queries.some((q) => q.includes('s01')));
-  assert.ok(queries.some((q) => q.startsWith('Слово пацана')));
 });
 
 test('filterResultsByImdbOrTitle and filterReleasesByPreferences correctly process Холоп 3 and sequels', () => {
@@ -633,24 +591,6 @@ test('computeReleaseIdentity and extractInfoHashFromMagnet handle malformed URI 
   assert.ok(identity.aliases.length > 0);
 });
 
-test('buildSearchQueries preserves exact original title VisionQuest without splitting', () => {
-  const queries = buildSearchQueries({
-    imdbId: 'tt23112594',
-    title: 'Квест Вижна',
-    originalTitle: 'VisionQuest',
-    itemType: 'tv',
-    year: '2026',
-    targetSeason: null,
-  });
-
-  assert.ok(queries.includes('VisionQuest 2026'));
-  assert.ok(queries.includes('Квест Вижна 2026'));
-  assert.ok(queries.includes('VisionQuest'));
-  assert.ok(queries.includes('Квест Вижна'));
-  // Проверяем, что исходный тайтл не разделялся
-  assert.equal(queries.includes('Vision Quest 2026'), false);
-});
-
 test('filterResultsByImdbOrTitle matches exact VisionQuest release and rejects irrelevant titles', () => {
   const releases = [
     { title: 'VisionQuest [S01E01-02 of 08] (2026) WEB-DL 1080p | P, D RUS' },
@@ -821,4 +761,127 @@ test('formatTorrentNotification truncates overly long descriptions cleanly with 
   assert.ok(message.includes('…</i>'));
   // Описание должно быть ограничено, чтобы всё сообщение легко помещалось в лимит caption Telegram (1024 символа)
   assert.ok(message.length < 1000);
+});
+
+// ===== Поиск: «оригинальное название + год», дальше только фильтры =====
+
+test('buildSearchQueries: one query = original title + year', () => {
+  assert.deepEqual(
+    buildSearchQueries({ imdbId: 'tt1', title: 'Кэрри', originalTitle: 'Carrie', year: '2013' }),
+    ['Carrie 2013']
+  );
+  // Сериал: год сезона важнее года премьеры
+  assert.deepEqual(
+    buildSearchQueries({
+      imdbId: 'tt13016388',
+      title: 'Король Талсы',
+      originalTitle: 'Tulsa King',
+      year: '2022',
+      searchYear: '2026',
+    }),
+    ['Tulsa King 2026']
+  );
+  assert.deepEqual(
+    buildSearchQueries({ imdbId: 'tt23112594', title: 'Квест Вижна', originalTitle: 'VisionQuest', year: '2026' }),
+    ['VisionQuest 2026']
+  );
+  // Русский оригинал — ищем по нему
+  assert.deepEqual(
+    buildSearchQueries({ imdbId: 'tt2', title: 'Колобок', originalTitle: 'Колобок', year: '2026' }),
+    ['Колобок 2026']
+  );
+  // Нет оригинального названия — берём локализованное; нет года — без года
+  assert.deepEqual(buildSearchQueries({ imdbId: 'tt3', title: 'Колобок', originalTitle: null }), ['Колобок']);
+});
+
+test('pickShowSeasonAirYear returns season year, or latest aired season year', () => {
+  const detail = {
+    seasons: [
+      { season_number: 0, air_date: '2021-01-01' },
+      { season_number: 1, air_date: '2022-11-13' },
+      { season_number: 2, air_date: '2024-09-15' },
+      { season_number: 3, air_date: '2025-09-21' },
+      { season_number: 4, air_date: '2026-10-26' },
+      { season_number: 5, air_date: null },
+    ],
+    last_episode_to_air: null,
+  };
+  assert.equal(pickShowSeasonAirYear(detail, 2), '2024');
+  assert.equal(pickShowSeasonAirYear(detail, 5), null);
+  assert.equal(pickShowSeasonAirYear(detail, null, '2026-10-28'), '2026');
+  assert.equal(
+    pickShowSeasonAirYear(
+      { ...detail, last_episode_to_air: { season_number: 3, episode_number: 1, air_date: null, name: null } },
+      null
+    ),
+    '2025'
+  );
+});
+
+test('filterResultsBySeason understands RuTracker "Сезон: N" format', () => {
+  const releases = [
+    { title: 'Пацаны / The Boys / Сезон: 5 / Серии: 1-3 из 8 [2026, WEB-DL 1080p] MVO (LostFilm)' },
+    { title: 'Сёгун / Shōgun / Сезон: 2 / Серии: 1-10 из 10 [2026, WEB-DL 1080p] MVO' },
+    { title: 'Сериал / Show / Сезоны: 1-5 / Серии: 1-40 из 40 [2019-2026]' },
+    { title: 'Шоу 5 сезон WEB-DL 1080p' },
+  ];
+  assert.deepEqual(
+    filterResultsBySeason(releases, 5).map((r) => r.title),
+    [releases[0].title, releases[2].title, releases[3].title]
+  );
+});
+
+function runPipeline(
+  titles: string[],
+  item: { title: string; originalTitle: string; year: string; season: number | null; quality?: string; audio?: string }
+) {
+  const releases = titles.map((title) => ({ title }));
+  let filtered = filterResultsByImdbOrTitle(releases, 'tt0', item.title, item.originalTitle, item.year, 'tv');
+  if (item.season) filtered = filterResultsBySeason(filtered, item.season);
+  filtered = filterReleasesByPreferences(filtered, item.quality ?? null, item.audio ?? 'russian', {
+    isRussianOrigin: isRussianTitleOrigin(item.title, item.originalTitle),
+  });
+  return filtered.map((r) => r.title);
+}
+
+test('pipeline: Tulsa King S4 results from Prowlarr "Tulsa King 2026"', () => {
+  const titles = [
+    'Король Талсы Tulsa King - S4E1-2 - 2026 DUB (TVShows), 4 x MVO, Sub WEBDL 1080p - RUSSIAN',
+    'Король Талсы Tulsa King - S1-4E1-31 - 2023-2026 MVO (LostFilm) WEBDL - RUSSIAN',
+    'Король Талсы / Tulsa King [04x01-02 из 10] (2026) WEB-DL-AVC от DoMiNo & selezen | HDrezka Studio',
+    'Король Талсы / Tulsa King / S4E1-2 of 10 [2026, США, Драма, криминал, комедия, WEB-DL] + Original RUS',
+    'Король Талсы / Tulsa King [S01-04E01-31 of 39] (2022-2026) WEB-DL-LostFilm RUS',
+    'Король Талсы / Tulsa King [S04E01 of 10] (2026) WEB-DL 1080p | P RUS',
+  ];
+  assert.equal(
+    runPipeline(titles, { title: 'Король Талсы', originalTitle: 'Tulsa King', year: '2022', season: 4 }).length,
+    titles.length
+  );
+  assert.equal(
+    runPipeline(titles, { title: 'Король Талсы', originalTitle: 'Tulsa King', year: '2022', season: 3 }).length,
+    2 // только паки S1-4
+  );
+});
+
+test('pipeline: Terminal List S2 and VisionQuest S1 results pass filters', () => {
+  const terminal = [
+    'The Terminal List - S2E1 - 2026 MVO (LostFilm) WEBDL - RUSSIAN',
+    'The Terminal List / S2E1-2 of 8 [2026, WEB-DL] + Original RUS',
+    'Список смертников / The Terminal List / S2E1-8 of 8 (2026) WEB-DL [H.265/2160p] [4K, HDR10+, DV 8.1, 10-bit] TVOE',
+    'The Terminal List [S02] (2026) WEB-DL 1080p | L RUS',
+  ];
+  assert.equal(
+    runPipeline(terminal, { title: 'Список смертников', originalTitle: 'The Terminal List', year: '2022', season: 2 }).length,
+    terminal.length
+  );
+  const vision = [
+    'Квест Вижна (Вижн в поиске себя) VisionQuest - S1E1-5 - 2026 DUB, 3 x MVO, Sub 4K, HEVC, HDR10+ WEBDL 2160p - RUSSIAN',
+    'Квест Вижна / VisionQuest / S1E1-4 of 8 [2026, США, Фантастика, боевик, WEB-DL] RUS',
+    'Квест Вижна / Квест Виженa / VisionQuest [S01E01-04 of 08] (2026) WEB-DL 1080p | P, D RUS',
+    '(Deep House, Tech House) Wareika - Wternal (Visionquest [VQCD004]) CD - 2013, FLAC (tracks+.cue), lossless',
+  ];
+  assert.equal(
+    runPipeline(vision, { title: 'Квест Вижна', originalTitle: 'VisionQuest', year: '2026', season: 1 }).length,
+    3
+  );
 });

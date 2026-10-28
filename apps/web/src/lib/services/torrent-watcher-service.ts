@@ -81,6 +81,22 @@ async function resolveInfoHash(
   return identity.primary;
 }
 
+async function resolveShowSearchYear(
+  item: WatchlistRow,
+  season: number | null
+): Promise<string | null> {
+  if (!item.tmdbId) {
+    return null;
+  }
+  try {
+    const { getShowSeasonAirYear } = await import('@/lib/integrations/tmdb/client');
+    return await getShowSeasonAirYear(item.tmdbId, season);
+  } catch (error) {
+    log.warn({ err: error, itemId: item.id, tmdbId: item.tmdbId }, 'Season year lookup failed');
+    return null;
+  }
+}
+
 async function searchForItem(
   client: ProwlarrClient,
   item: WatchlistRow,
@@ -93,59 +109,42 @@ async function searchForItem(
   const categories =
     item.type === 'movie' ? MOVIE_CATEGORIES : item.type === 'tv' ? TV_CATEGORIES : undefined;
 
-  const searchTasks: Promise<ProwlarrRelease[]>[] = [];
+  const effectiveSeason =
+    item.targetSeason ??
+    (item.type === 'tv'
+      ? extractSeasonFromTitle(item.originalTitle) || extractSeasonFromTitle(item.title)
+      : null);
 
-  if (item.imdbId && item.imdbId.trim()) {
-    searchTasks.push(
-      client
-        .searchByImdb(item.imdbId, {
-          categories,
-          type: item.type === 'tv' ? 'tvsearch' : 'movie',
-        })
-        .catch((error) => {
-          log.warn({ err: error, imdbId: item.imdbId }, 'IMDb search failed');
-          return [];
-        })
-    );
-  }
-
+  // Один запрос: «оригинальное название + год». Для сериала — год выхода нужного сезона.
+  const searchYear = item.type === 'tv' ? await resolveShowSearchYear(item, effectiveSeason) : null;
   const queries = buildSearchQueries({
     imdbId: item.imdbId,
     title: item.title,
     originalTitle: item.originalTitle,
-    itemType: item.type,
     year: item.year,
-    targetSeason: item.targetSeason,
+    searchYear,
   });
 
-  log.info({ itemId: item.id, queries }, '[search] Text queries to run');
-  for (const query of queries) {
-    searchTasks.push(
-      client
-        .searchByQuery(query, { categories })
-        .catch((error) => {
-          log.warn({ err: error, query }, 'Query search failed');
-          return [];
-        })
-    );
-  }
+  log.info({ itemId: item.id, queries, searchYear }, '[search] Text queries to run');
 
-  // Опрашиваем IMDb и текстовые запросы параллельно, чтобы не упираться в таймауты обратного прокси
-  const taskResults = await Promise.allSettled(searchTasks);
   const merged = new Map<string, ProwlarrRelease>();
-
-  for (const task of taskResults) {
-    if (task.status === 'fulfilled') {
-      for (const release of task.value) {
-        try {
-          const identity = computeReleaseIdentity(release);
-          const key = identity.primary || release.guid || release.infoHash || release.title;
-          if (key) {
-            merged.set(String(key).toLowerCase(), release);
-          }
-        } catch (err) {
-          log.warn({ err, title: release.title }, 'Skipping release with invalid identity');
+  for (const query of queries) {
+    let found: ProwlarrRelease[] = [];
+    try {
+      found = await client.searchByQuery(query, { categories });
+    } catch (error) {
+      log.warn({ err: error, query }, 'Query search failed');
+      continue;
+    }
+    for (const release of found) {
+      try {
+        const identity = computeReleaseIdentity(release);
+        const key = identity.primary || release.guid || release.infoHash || release.title;
+        if (key) {
+          merged.set(String(key).toLowerCase(), release);
         }
+      } catch (err) {
+        log.warn({ err, title: release.title }, 'Skipping release with invalid identity');
       }
     }
   }
@@ -190,12 +189,6 @@ async function searchForItem(
     },
     '[search] After filterResultsByImdbOrTitle'
   );
-
-  const effectiveSeason =
-    item.targetSeason ??
-    (item.type === 'tv'
-      ? extractSeasonFromTitle(item.originalTitle) || extractSeasonFromTitle(item.title)
-      : null);
 
   if (item.type === 'tv' && effectiveSeason) {
     const beforeSeason = filtered.length;

@@ -47,7 +47,7 @@ export class ProwlarrClient {
         'X-Api-Key': this.apiKey,
         Accept: 'application/json',
       },
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
       throw new Error(`Prowlarr searchByImdb failed: ${response.status}`);
@@ -76,7 +76,7 @@ export class ProwlarrClient {
         'X-Api-Key': this.apiKey,
         Accept: 'application/json',
       },
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
       throw new Error(`Prowlarr searchByQuery failed: ${response.status}`);
