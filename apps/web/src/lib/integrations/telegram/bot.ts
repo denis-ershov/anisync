@@ -16,6 +16,14 @@ function escapeHref(url: string): string {
 
 const TELEGRAM_CAPTION_LIMIT = 1024;
 
+// Telegram ограничивает длину caption по видимому тексту после разбора HTML-разметки,
+// поэтому теги и href (например, длинные magnet-ссылки) в лимит не входят.
+function visibleHtmlLength(html: string): number {
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(?:lt|gt|amp|quot);/g, '_').length;
+}
+
 export async function sendTelegramMessage(input: {
   text: string;
   chatId?: string | null;
@@ -60,8 +68,7 @@ export async function sendTelegramMessage(input: {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       if (input.photoUrl) {
-        const captionFits = input.text.length <= TELEGRAM_CAPTION_LIMIT;
-        if (captionFits) {
+        if (visibleHtmlLength(input.text) <= TELEGRAM_CAPTION_LIMIT) {
           const photoOk = await post('sendPhoto', {
             chat_id: targetChat,
             photo: input.photoUrl,
@@ -72,20 +79,19 @@ export async function sendTelegramMessage(input: {
             return true;
           }
         } else {
-          const photoOk = await post('sendPhoto', {
+          // Текст не влезает в caption: отправляем одно сообщение с картинкой в превью над текстом.
+          const previewOk = await post('sendMessage', {
             chat_id: targetChat,
-            photo: input.photoUrl,
+            text: input.text,
+            parse_mode: 'HTML',
+            link_preview_options: {
+              url: input.photoUrl,
+              prefer_large_media: true,
+              show_above_text: true,
+            },
           });
-          if (photoOk) {
-            const textOk = await post('sendMessage', {
-              chat_id: targetChat,
-              text: input.text,
-              parse_mode: 'HTML',
-              disable_web_page_preview: true,
-            });
-            if (textOk) {
-              return true;
-            }
+          if (previewOk) {
+            return true;
           }
         }
       }
