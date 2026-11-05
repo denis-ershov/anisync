@@ -31,7 +31,8 @@ export async function fetchUpcomingCatalog(
     type?: 'all' | 'movie' | 'show';
     sort?: 'popularity' | 'releaseDate' | 'rating';
     genreId?: number | null;
-  }
+  },
+  signal?: AbortSignal,
 ) {
   const search = new URLSearchParams({ lang });
   if (params.page) search.set('page', String(params.page));
@@ -42,6 +43,7 @@ export async function fetchUpcomingCatalog(
 
   const response = await fetch(`/api/releases/content/upcoming?${search.toString()}`, {
     credentials: 'include',
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000),
   });
 
   return parseJson<ReleaseCatalogPage>(response);

@@ -35,6 +35,7 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const res = await fetch(url, {
       ...init,
+      signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(5000)]) : AbortSignal.timeout(5000),
       headers: {
         Accept: 'application/json',
         ...(init?.headers ?? {}),

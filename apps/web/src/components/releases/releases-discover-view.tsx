@@ -161,6 +161,8 @@ export function ReleasesDiscoverView() {
     data: catalog,
     isLoading: catalogLoading,
     error: catalogError,
+    refetch: refetchCatalog,
+    isFetching: catalogFetching,
   } = useReleaseUpcomingCatalog(lang, catalogParams, !isSearchMode);
 
   const addMutation = useAddToReleaseWatchlist();
@@ -170,7 +172,7 @@ export function ReleasesDiscoverView() {
   const fetchError = isSearchMode ? searchError : catalogError;
   const errorMessage =
     actionError ??
-    (fetchError instanceof Error ? fetchError.message : fetchError ? t('errors.loadFailed') : null);
+    (fetchError ? t('errors.loadFailed') : null);
 
   const items = isSearchMode ? (searchResults ?? []) : (catalog?.items ?? []);
   const hasNextPage = isSearchMode ? false : (catalog?.hasNextPage ?? false);
@@ -309,7 +311,21 @@ export function ReleasesDiscoverView() {
         </Button>
       </div>
 
-      {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
+      {errorMessage ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-destructive/30 p-4">
+          <p className="min-w-0 flex-1 text-sm text-destructive">{errorMessage}</p>
+          {catalogError && !isSearchMode ? (
+            <Button type="button" variant="outline" className="min-h-11" disabled={catalogFetching}
+              onClick={() => void refetchCatalog()}>
+              {t('retry')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!isSearchMode && catalog?.partial ? (
+        <p role="status" className="text-sm text-muted-foreground">{t('partialCatalog')}</p>
+      ) : null}
 
       {loading ? (
         <div className={cardsGridClass}>
@@ -317,9 +333,9 @@ export function ReleasesDiscoverView() {
             <Skeleton key={index} className="aspect-[2/3] w-full rounded-xl" />
           ))}
         </div>
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && !fetchError ? (
         <p className="py-12 text-center text-sm text-muted-foreground">{t('emptyCatalog')}</p>
-      ) : (
+      ) : items.length > 0 ? (
         <div className={cardsGridClass}>
           {items.map((item) => {
             const watchlistItem = watchlistMap.get(`${item.tmdbId}:${item.type}`);
@@ -335,7 +351,7 @@ export function ReleasesDiscoverView() {
             );
           })}
         </div>
-      )}
+      ) : null}
 
       {!isSearchMode ? (
         <CatalogPaginationBar

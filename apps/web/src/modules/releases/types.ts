@@ -25,6 +25,7 @@ export type ReleaseCatalogItem = {
 };
 
 export type ReleaseCatalogPage = {
+  partial?: boolean;
   items: ReleaseCatalogItem[];
   page: number;
   pageSize: number;

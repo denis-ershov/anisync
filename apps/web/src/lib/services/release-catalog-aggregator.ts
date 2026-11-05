@@ -17,7 +17,6 @@ import {
   isTraktEnabled,
 } from '@/lib/integrations/trakt/client';
 import { createLogger } from '@/lib/observability/logger';
-import { MediaExternalIdsService } from '@/lib/services/media-external-ids-service';
 
 const log = createLogger('services:release-catalog-aggregator');
 
@@ -26,6 +25,15 @@ const TVMAZE_COUNTRY = process.env.TVMAZE_SCHEDULE_COUNTRY ?? 'RU';
 const TMDB_ENRICH_CONCURRENCY = 6;
 
 type NormalizedItem = UpcomingCatalogResult['items'][number] & { imdbId?: string | null };
+
+interface CatalogSnapshot {
+  items: NormalizedItem[];
+  updatedAt: number;
+}
+
+function poolCacheKey(lang: string, options: CatalogOptions, from: string, toExclusive: string): string {
+  return `releases:catalog:pool:v6:${lang}:${options.type ?? 'all'}:${options.sort ?? 'popularity'}:${options.genreId || 0}:${from}:${toExclusive}`;
+}
 
 function dateOnly(date: Date): string {
   const year = date.getFullYear();
@@ -399,13 +407,13 @@ async function fetchMergedPool(
   toExclusive: string,
   days: number,
 ): Promise<NormalizedItem[]> {
-  const poolCacheKey = `releases:catalog:pool:v5:${lang}:${type}:${sort}:${genreId ?? 0}:${from}:${toExclusive}`;
-  const cached = await cacheRead<NormalizedItem[]>(poolCacheKey);
-  if (cached) {
-    return cached;
+  const key = poolCacheKey(lang, { type, sort, genreId: genreId ?? undefined }, from, toExclusive);
+  const cached = await cacheRead<CatalogSnapshot>(key);
+  if (cached && Date.now() - cached.updatedAt < MERGED_CACHE_TTL_MS) {
+    return cached.items;
   }
 
-  const existingFetch = activePoolFetches.get(poolCacheKey);
+  const existingFetch = activePoolFetches.get(key);
   if (existingFetch) {
     return existingFetch;
   }
@@ -413,7 +421,7 @@ async function fetchMergedPool(
   const fetchPromise = (async () => {
     // Предварительно тянем 100 элементов пула (для мгновенной пагинации 1-4 страниц)
     const tmdbPoolSize = 100;
-    const tmdb = await getUpcoming(lang, {
+    const tmdbPromise = getUpcoming(lang, {
       page: 1,
       pageSize: tmdbPoolSize,
       type,
@@ -421,10 +429,11 @@ async function fetchMergedPool(
       genreId: genreId ?? undefined,
       from,
       toExclusive,
-    });
+    }, 120_000);
 
-    const [tvmazeItems, traktItems] = await Promise.all([
-      collectTvmazeItems(lang, from, days).catch((err) => {
+    const [tmdb, tvmazeItems, traktItems] = await Promise.all([
+      tmdbPromise,
+      (type === 'movie' ? Promise.resolve([]) : collectTvmazeItems(lang, from, days)).catch((err) => {
         log.error({ err }, 'TVmaze catalog collect failed');
         return [] as NormalizedItem[];
       }),
@@ -448,7 +457,7 @@ async function fetchMergedPool(
       const existing = map.get(key);
       if (existing) {
         map.set(key, enrichTmdbFromExternal(existing, item));
-      } else if (item.posterPath) {
+      } else if (item.posterPath && !genreId) {
         map.set(key, item);
       }
     }
@@ -492,19 +501,31 @@ async function fetchMergedPool(
 
     merged.sort(compareCatalogItems(sort));
 
-    await cacheWrite(poolCacheKey, merged, MERGED_CACHE_TTL_MS);
+    // Последний успешный снимок доступен во время обновления и сбоев источников.
+    if (!tmdb.partial && (merged.length > 0 || !cached)) {
+      await cacheWrite(key, { items: merged, updatedAt: Date.now() } satisfies CatalogSnapshot,
+        Math.max(MERGED_CACHE_TTL_MS * 2, 86_400_000));
+    }
     return merged;
   })();
 
-  activePoolFetches.set(poolCacheKey, fetchPromise);
+  activePoolFetches.set(key, fetchPromise);
   try {
     return await fetchPromise;
   } finally {
-    activePoolFetches.delete(poolCacheKey);
+    activePoolFetches.delete(key);
   }
 }
 
 export class ReleaseCatalogAggregator {
+  /** Полный сбор вызывается воркером или после отправки HTTP-ответа. */
+  static async refreshUpcoming(lang = 'en', options: CatalogOptions = {}): Promise<void> {
+    const { from, toExclusive, days } = resolveCatalogWindow();
+    const genreId = options.genreId && options.genreId > 0 ? Math.floor(options.genreId) : null;
+    await fetchMergedPool(lang, options.type ?? 'all', options.sort ?? 'popularity', genreId,
+      from, toExclusive, days);
+  }
+
   static async getUpcoming(lang = 'en', options: CatalogOptions = {}): Promise<UpcomingCatalogResult> {
     const page = options.page && options.page > 0 ? Math.floor(options.page) : 1;
     const pageSize = options.pageSize && options.pageSize > 0 ? Math.min(Math.floor(options.pageSize), 100) : 25;
@@ -512,9 +533,15 @@ export class ReleaseCatalogAggregator {
     const sort = options.sort ?? 'popularity';
     const genreId = options.genreId && options.genreId > 0 ? Math.floor(options.genreId) : null;
 
-    const { from, toExclusive, days } = resolveCatalogWindow();
+    const { from, toExclusive } = resolveCatalogWindow();
 
-    const merged = await fetchMergedPool(lang, type, sort, genreId, from, toExclusive, days);
+    const cached = await cacheRead<CatalogSnapshot>(poolCacheKey(lang,
+      { type, sort, genreId: genreId ?? undefined }, from, toExclusive));
+    if (!cached) {
+      // Первый посетитель запрашивает свою страницу, без полного сбора и внешних календарей.
+      return getUpcoming(lang, { page, pageSize, type, sort, genreId: genreId ?? undefined, from, toExclusive });
+    }
+    const merged = cached.items;
 
     const pageItems = paginateCatalogItems(merged, page, pageSize);
     const pageEnd = page * pageSize;

@@ -1,10 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 
 import { requireCurrentUserId } from '@/lib/api/auth';
 import { isReleasesModuleEnabled, releasesModuleDisabledResponse } from '@/lib/api/releases-module';
 import { getLang } from '@/lib/api/releases-request';
 import { withSloRoute } from '@/lib/api/with-slo';
 import { ReleaseWatchlistService } from '@/lib/services/release-watchlist-service';
+import { createLogger } from '@/lib/observability/logger';
+
+const log = createLogger('api:releases:watchlist');
 
 async function getHandler(request: NextRequest) {
   if (!isReleasesModuleEnabled()) {
@@ -18,6 +21,13 @@ async function getHandler(request: NextRequest) {
 
   try {
     const items = await ReleaseWatchlistService.listForUser(userId, getLang(request));
+    after(async () => {
+      try {
+        await ReleaseWatchlistService.scheduleRefreshIfNeeded();
+      } catch (err) {
+        log.error({ err }, 'Не удалось запланировать обновление расписания');
+      }
+    });
     return NextResponse.json(items);
   } catch (error) {
     return NextResponse.json(

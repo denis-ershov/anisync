@@ -83,6 +83,11 @@ function allDigitalDateKeys(payload: TmdbMovieReleaseDates): string[] {
     .filter((date): date is string => Boolean(date));
 }
 
+/** Самая ранняя подтверждённая цифровая дата во всех регионах для каталога. */
+export function pickEarliestDigitalReleaseDate(payload: TmdbMovieReleaseDates): string | null {
+  return earliestDateKey(allDigitalDateKeys(payload));
+}
+
 /**
  * Самая ранняя US digital date; если в US нет — earliest globally.
  * Для UI (torrent/releases карточки) без ограничения окна.

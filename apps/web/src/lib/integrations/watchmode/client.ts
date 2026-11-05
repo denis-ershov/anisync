@@ -42,13 +42,13 @@ async function getJson<T>(path: string, attempt = 0): Promise<T | null> {
   }
 
   try {
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(5000) });
 
     if (res.status === 429) {
       // Rate limit — делаем одну повторную попытку после задержки
       const retryAfter = Number.parseInt(res.headers.get('Retry-After') ?? '5', 10);
       log.warn({ path, retryAfter, attempt }, 'Watchmode rate limited (429)');
-      if (attempt < 1) {
+      if (attempt < 1 && Number.isFinite(retryAfter) && retryAfter <= 5) {
         await sleep(Math.max(1, retryAfter) * 1000);
         return getJson<T>(path, attempt + 1);
       }

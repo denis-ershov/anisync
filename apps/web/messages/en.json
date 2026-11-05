@@ -460,6 +460,8 @@
     },
     "searchPlaceholder": "Search movies and shows...",
     "emptyCatalog": "No titles found for the current filters.",
+    "retry": "Try again",
+    "partialCatalog": "Showing some releases. Some data is temporarily unavailable.",
     "emptyWatchlist": "Your watchlist is empty. Add titles from Discover.",
     "type": {
       "movie": "Movie",

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: AniSync Releases API
-  version: 0.2.0
+  version: 0.2.1
   description: >
     Releases module — multi-source catalog (TMDB + TVmaze + optional Trakt)
     and personal watchlist with digital/episode schedule dates
@@ -76,7 +76,9 @@ paths:
       description: >
         Returns CatalogPage. Sources are merged and deduplicated by type+tmdbId.
         Optional TRAKT_CLIENT_ID enriches streaming calendars; without it, TMDB+TVmaze only.
-        Contract is unchanged from the TMDB-only MVP.
+        Serves a cached snapshot while refreshing it after the response.
+        Without a snapshot, loads only the requested TMDB page with a 15-second network budget.
+        A partial response is marked with partial=true and is not HTTP-cached.
       parameters:
         - $ref: "#/components/parameters/lang"
         - name: page
@@ -116,6 +118,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CatalogPage"
+        "502":
+          description: Catalog providers unavailable and no usable snapshot or partial results
 
   /releases/content/genres:
     get:
@@ -415,6 +419,9 @@ components:
     CatalogPage:
       type: object
       properties:
+        partial:
+          type: boolean
+          description: Some provider data is unavailable; omitted for complete responses
         items:
           type: array
           items:

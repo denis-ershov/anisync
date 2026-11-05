@@ -75,27 +75,7 @@ export class ReleaseWatchlistService {
       .where(eq(releaseWatchlistEntries.userId, userId))
       .orderBy(asc(releaseWatchlistEntries.addedAt));
 
-    void ReleaseWatchlistService.scheduleRefreshIfNeeded();
-
-    const dtos = await Promise.all(
-      items.map(async (entry) => {
-        const dto = toDto(entry);
-        if (dto.type === 'movie') {
-          const canonicalDate = await MovieDigitalReleaseDateService.resolveDisplay(dto.tmdbId).catch(() => null);
-          if (canonicalDate && canonicalDate !== dto.releaseDate) {
-            dto.releaseDate = canonicalDate;
-            void db
-              .update(releaseWatchlistEntries)
-              .set({ releaseDate: canonicalDate, scheduleUpdatedAt: new Date() })
-              .where(eq(releaseWatchlistEntries.id, dto.id))
-              .catch(() => undefined);
-          }
-        }
-        return dto;
-      })
-    );
-
-    return dtos;
+    return items.map(toDto);
   }
 
   static async scheduleRefreshIfNeeded() {
@@ -108,7 +88,7 @@ export class ReleaseWatchlistService {
       return;
     }
 
-    await enqueueReleaseWatchlistRefresh().catch(() => undefined);
+    await enqueueReleaseWatchlistRefresh();
   }
 
   static async getStats(userId: number) {

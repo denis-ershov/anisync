@@ -12,6 +12,7 @@ import {
 import {
   pickCanonicalDigitalReleaseDate,
   pickDigitalReleaseDate,
+  pickEarliestDigitalReleaseDate,
   type TmdbMovieReleaseDates,
 } from '@/lib/integrations/tmdb/digital-release-dates';
 
@@ -59,7 +60,7 @@ function timeoutWithJitter(attempt: number): number {
   return base + jitter;
 }
 
-async function get<T>(path: string, params: Record<string, string> = {}): Promise<T> {
+async function get<T>(path: string, params: Record<string, string> = {}, signal?: AbortSignal): Promise<T> {
   const url = new URL(`${BASE}${path}`);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
@@ -72,7 +73,7 @@ async function get<T>(path: string, params: Record<string, string> = {}): Promis
     try {
       const res = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${apiKey()}` },
-        signal: controller.signal,
+        signal: signal ? AbortSignal.any([controller.signal, signal]) : controller.signal,
       });
 
       if (!res.ok) {
@@ -87,14 +88,14 @@ async function get<T>(path: string, params: Record<string, string> = {}): Promis
         throw new Error(`TMDB error ${res.status}`);
       }
 
-      return res.json() as Promise<T>;
+      return await res.json() as T;
     } catch (err) {
       const isAbort = err instanceof Error && err.name === "AbortError";
       log.error(
         { err, path, attempt, timeoutMs: TMDB_TIMEOUT_MS, aborted: isAbort },
         "TMDB request exception",
       );
-      if (attempt < TMDB_RETRIES) {
+      if (!signal?.aborted && attempt < TMDB_RETRIES) {
         await sleep(timeoutWithJitter(attempt + 1));
         continue;
       }
@@ -175,16 +176,16 @@ const genreMapEn: Record<number, string> = {};
 const genreMapRu: Record<number, string> = {};
 let genresLoadedAt = 0;
 
-async function ensureGenres() {
+async function ensureGenres(signal?: AbortSignal) {
   if (Date.now() - genresLoadedAt < GENRE_CACHE_TTL_MS && Object.keys(genreMapEn).length > 0) {
     return;
   }
   try {
     const [movEn, tvEn, movRu, tvRu] = await Promise.all([
-      get<{ genres: TmdbGenre[] }>("/genre/movie/list", { language: "en-US" }),
-      get<{ genres: TmdbGenre[] }>("/genre/tv/list", { language: "en-US" }),
-      get<{ genres: TmdbGenre[] }>("/genre/movie/list", { language: "ru-RU" }),
-      get<{ genres: TmdbGenre[] }>("/genre/tv/list", { language: "ru-RU" }),
+      get<{ genres: TmdbGenre[] }>("/genre/movie/list", { language: "en-US" }, signal),
+      get<{ genres: TmdbGenre[] }>("/genre/tv/list", { language: "en-US" }, signal),
+      get<{ genres: TmdbGenre[] }>("/genre/movie/list", { language: "ru-RU" }, signal),
+      get<{ genres: TmdbGenre[] }>("/genre/tv/list", { language: "ru-RU" }, signal),
     ]);
     for (const g of [...movEn.genres, ...tvEn.genres]) genreMapEn[g.id] = g.name;
     for (const g of [...movRu.genres, ...tvRu.genres]) genreMapRu[g.id] = g.name;
@@ -236,14 +237,14 @@ function excludedGenresParam(type: "movie" | "show"): string {
   return [...excluded].join(",");
 }
 
-async function getCachedShowDetail(tmdbId: number, tmdbLang: string): Promise<TmdbDetail> {
+async function getCachedShowDetail(tmdbId: number, tmdbLang: string, signal?: AbortSignal): Promise<TmdbDetail> {
   const key = buildDetailCacheKey(tmdbId, tmdbLang);
   const cached = await cacheRead<TmdbDetail>(key);
   if (cached) {
     return cached;
   }
 
-  const detail = await get<TmdbDetail>(`/tv/${tmdbId}`, { language: tmdbLang });
+  const detail = await get<TmdbDetail>(`/tv/${tmdbId}`, { language: tmdbLang }, signal);
   await cacheWrite(key, detail, DETAIL_CACHE_TTL_MS);
   return detail;
 }
@@ -311,6 +312,18 @@ export async function getMovieDigitalReleaseDateDisplay(movieId: number): Promis
     log.error({ err: e, tmdbId: movieId }, 'Failed to load movie digital release date for display');
     return null;
   }
+}
+
+async function getCatalogMovieDigitalDate(movieId: number, signal: AbortSignal): Promise<string | null> {
+  const key = `tmdb:movie:${movieId}:catalog-digital:v1`;
+  const cached = await cacheRead<{ value: string | null }>(key);
+  if (cached) return cached.value;
+
+  // Холодный каталог проверяет TMDB; дополнительные источники собирает фоновый агрегатор.
+  const payload = await get<TmdbMovieReleaseDates>(`/movie/${movieId}/release_dates`, {}, signal);
+  const value = pickEarliestDigitalReleaseDate(payload);
+  await cacheWrite(key, { value }, RELEASE_DATES_CACHE_TTL_MS);
+  return value;
 }
 
 function normalizeItem(item: TmdbMovie, type: "movie" | "show", lang: string) {
@@ -498,8 +511,10 @@ async function loadUpcomingShows(
   genreId: number | null,
   startPage: number,
   minItems: number,
+  signal: AbortSignal,
 ) {
   const shows: ReturnType<typeof normalizeShowDetail>[] = [];
+  let failedDetails = 0;
   let currentPage = startPage;
   let pagesScanned = 0;
   let totalPages = startPage;
@@ -508,7 +523,7 @@ async function loadUpcomingShows(
   const detailsPerPage = Math.max(UPCOMING_SHOW_DETAIL_LIMIT, minItems);
   const maxPagesToScan = scanPageLimit(UPCOMING_SHOW_SCAN_PAGES, minItems);
 
-  while (shows.length < minItems && pagesScanned < maxPagesToScan && currentPage <= totalPages) {
+  while (!signal.aborted && shows.length < minItems && pagesScanned < maxPagesToScan && currentPage <= totalPages) {
     const tvPage = await get<TmdbPage<TmdbMovie>>("/discover/tv", {
       language: tmdbLang,
       "air_date.gte": from,
@@ -519,15 +534,16 @@ async function loadUpcomingShows(
       ...(genreId ? { with_genres: String(mappedGenreIdForType("show", genreId)) } : {}),
       without_genres: excludedGenresParam("show"),
       page: String(currentPage),
-    });
+    }, signal);
     totalPages = tvPage.total_pages;
     totalResults = tvPage.total_results;
 
     const showDetails = await Promise.all(
       tvPage.results.slice(0, detailsPerPage).map(async show => {
         try {
-          return await getCachedShowDetail(show.id, tmdbLang);
+          return await getCachedShowDetail(show.id, tmdbLang, signal);
         } catch (e) {
+          failedDetails += 1;
           log.error({ err: e, tmdbId: show.id, page: currentPage }, "Failed to load TV details for upcoming");
           return null;
         }
@@ -536,9 +552,25 @@ async function loadUpcomingShows(
 
     const normalizedShows = showDetails
       .filter((detail): detail is TmdbDetail => Boolean(detail))
-      .filter(detail => inDateRange(detail.last_air_date, from, toExclusive))
+      .filter(detail => [detail.next_episode_to_air?.air_date, detail.last_air_date, detail.first_air_date]
+        .some(date => inDateRange(date, from, toExclusive)))
       .filter(detail => isAllowedCatalogGenreIds("show", detail.genres?.map(genre => genre.id)))
-      .map(detail => normalizeShowDetail(detail, lang));
+      .map(detail => {
+        const item = normalizeShowDetail(detail, lang);
+        const episode = detail.next_episode_to_air;
+        if (episode && inDateRange(episode.air_date, from, toExclusive)) {
+          item.nextEpisode = {
+            season: episode.season_number,
+            episode: episode.episode_number,
+            airDate: episode.air_date,
+            title: episode.name,
+          };
+          item.releaseDate = episode.air_date;
+        } else if (!inDateRange(item.releaseDate, from, toExclusive)) {
+          item.releaseDate = detail.first_air_date ?? null;
+        }
+        return item;
+      });
 
     shows.push(...normalizedShows);
 
@@ -546,7 +578,7 @@ async function loadUpcomingShows(
     pagesScanned += 1;
   }
 
-  return { shows, totalResults };
+  return { shows, totalResults, partial: failedDetails > 0 || signal.aborted };
 }
 
 async function loadUpcomingMovies(
@@ -559,8 +591,10 @@ async function loadUpcomingMovies(
   genreId: number | null,
   startPage: number,
   minItems: number,
+  signal: AbortSignal,
 ) {
   const movies: ReturnType<typeof normalizeItem>[] = [];
+  let failedDetails = 0;
   let currentPage = startPage;
   let pagesScanned = 0;
   let totalPages = startPage;
@@ -569,7 +603,7 @@ async function loadUpcomingMovies(
   const releaseDatesConcurrency = Math.max(1, Math.min(UPCOMING_MOVIE_RELEASE_DATES_CONCURRENCY, 10));
   const maxPagesToScan = scanPageLimit(UPCOMING_MOVIE_SCAN_PAGES, minItems);
 
-  while (movies.length < minItems && pagesScanned < maxPagesToScan && currentPage <= totalPages) {
+  while (!signal.aborted && movies.length < minItems && pagesScanned < maxPagesToScan && currentPage <= totalPages) {
     const moviePage = await get<TmdbPage<TmdbMovie>>("/discover/movie", {
       language: tmdbLang,
       with_release_type: "4",
@@ -580,15 +614,18 @@ async function loadUpcomingMovies(
       ...(genreId ? { with_genres: String(mappedGenreIdForType("movie", genreId)) } : {}),
       without_genres: excludedGenresParam("movie"),
       page: String(currentPage),
-    });
+    }, signal);
     totalPages = moviePage.total_pages;
     totalResults = moviePage.total_results;
 
-    for (let i = 0; i < moviePage.results.length; i += releaseDatesConcurrency) {
+    for (let i = 0; !signal.aborted && i < moviePage.results.length; i += releaseDatesConcurrency) {
       const chunk = moviePage.results.slice(i, i + releaseDatesConcurrency);
       const normalizedChunk = await Promise.all(
         chunk.filter(movie => isAllowedCatalogGenreIds("movie", movie.genre_ids)).map(async movie => {
-          const canonicalDate = await getMovieDigitalReleaseDateDisplay(movie.id).catch(() => null);
+          const canonicalDate = await getCatalogMovieDigitalDate(movie.id, signal).catch(() => {
+            failedDetails += 1;
+            return null;
+          });
 
           // Вариант А: Если фильм уже вышел в цифре ранее начала текущего окна каталога,
           // он не считается предстоящим релизом для этого окна.
@@ -599,7 +636,7 @@ async function loadUpcomingMovies(
           const digitalDate =
             canonicalDate && inDateRange(canonicalDate, from, toExclusive)
               ? canonicalDate
-              : await getMovieDigitalReleaseDate(movie.id, from, toExclusive);
+              : null;
 
           if (!digitalDate) {
             return null;
@@ -633,12 +670,13 @@ async function loadUpcomingMovies(
     pagesScanned += 1;
   }
 
-  return { movies, totalResults };
+  return { movies, totalResults, partial: failedDetails > 0 || signal.aborted };
 }
 
 type NormalizedItem = ReturnType<typeof normalizeItem>;
 
 export type UpcomingCatalogResult = {
+  partial?: boolean;
   items: NormalizedItem[];
   page: number;
   pageSize: number;
@@ -811,8 +849,7 @@ export async function getShowScheduleEpisode(tmdbId: number, lang = "en") {
 }
 
 // Digital release type = 4 in TMDB release_types enum
-export async function getUpcoming(lang = "en", options: CatalogOptions = {}): Promise<UpcomingCatalogResult> {
-  await ensureGenres();
+async function loadUpcoming(lang: string, options: CatalogOptions, budgetMs: number): Promise<UpcomingCatalogResult> {
   const page = clampPage(options.page);
   const pageSize = clampPageSize(options.pageSize);
   const type = options.type ?? "all";
@@ -825,20 +862,27 @@ export async function getUpcoming(lang = "en", options: CatalogOptions = {}): Pr
     return cached;
   }
 
+  const signal = AbortSignal.timeout(budgetMs);
+  await ensureGenres(signal);
+  signal.throwIfAborted();
+
   const tmdbLang = lang === "ru" ? "ru-RU" : "en-US";
   const fetchMovies = type === "all" || type === "movie";
   const fetchShows = type === "all" || type === "show";
   const pageEnd = page * pageSize;
   const minItemsForPage = pageEnd + 1;
 
-  const [movieData, showData] = await Promise.all([
+  const [movieResult, showResult] = await Promise.allSettled([
     fetchMovies
-      ? loadUpcomingMovies(tmdbLang, lang, from, toInclusive, toExclusive, sort, genreId, 1, minItemsForPage)
-      : Promise.resolve({ movies: [], totalResults: 0 }),
+      ? loadUpcomingMovies(tmdbLang, lang, from, toInclusive, toExclusive, sort, genreId, 1, minItemsForPage, signal)
+      : Promise.resolve({ movies: [], totalResults: 0, partial: false }),
     fetchShows
-      ? loadUpcomingShows(tmdbLang, lang, from, toInclusive, toExclusive, sort, genreId, 1, minItemsForPage)
-      : Promise.resolve({ shows: [], totalResults: 0 }),
+      ? loadUpcomingShows(tmdbLang, lang, from, toInclusive, toExclusive, sort, genreId, 1, minItemsForPage, signal)
+      : Promise.resolve({ shows: [], totalResults: 0, partial: false }),
   ]);
+  const movieData = movieResult.status === 'fulfilled' ? movieResult.value : { movies: [], partial: true };
+  const showData = showResult.status === 'fulfilled' ? showResult.value : { shows: [], partial: true };
+  const partial = movieData.partial || showData.partial || signal.aborted;
   const shows = showData.shows;
 
   const sortedItems = [
@@ -851,6 +895,7 @@ export async function getUpcoming(lang = "en", options: CatalogOptions = {}): Pr
   const knownResults = (page - 1) * pageSize + items.length + (hasNextPage ? 1 : 0);
 
   const result = {
+    ...(partial ? { partial: true } : {}),
     items,
     page,
     pageSize,
@@ -860,8 +905,29 @@ export async function getUpcoming(lang = "en", options: CatalogOptions = {}): Pr
     hasPreviousPage,
   };
 
-  await cacheWrite(cacheKey, result, UPCOMING_CACHE_TTL_MS);
+  // Прерванный сбор не должен закреплять неполную выдачу на 30 минут.
+  if (!partial) {
+    await cacheWrite(cacheKey, result, UPCOMING_CACHE_TTL_MS);
+  } else if (items.length === 0) {
+    throw new Error('Не удалось получить данные каталога TMDB');
+  }
   return result;
+}
+
+const activeUpcomingFetches = new Map<string, Promise<UpcomingCatalogResult>>();
+
+export async function getUpcoming(lang = 'en', options: CatalogOptions = {}, budgetMs = 15_000): Promise<UpcomingCatalogResult> {
+  const key = JSON.stringify([lang, options, budgetMs]);
+  const existing = activeUpcomingFetches.get(key);
+  if (existing) return existing;
+
+  const pending = loadUpcoming(lang, options, budgetMs);
+  activeUpcomingFetches.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    activeUpcomingFetches.delete(key);
+  }
 }
 
 export async function searchContent(query: string, lang = "en") {

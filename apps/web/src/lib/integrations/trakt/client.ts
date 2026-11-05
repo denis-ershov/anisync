@@ -80,6 +80,7 @@ async function getJson<T>(path: string, attempt = 0): Promise<T | null> {
   const url = `${BASE}${path}`;
   try {
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(5000),
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': USER_AGENT,
@@ -92,7 +93,7 @@ async function getJson<T>(path: string, attempt = 0): Promise<T | null> {
       const retryAfter = Number.parseInt(res.headers.get('Retry-After') ?? '10', 10);
       const ratelimit = res.headers.get('X-Ratelimit');
       log.warn({ path, retryAfter, ratelimit, attempt }, 'Trakt rate limited');
-      if (attempt < 1) {
+      if (attempt < 1 && Number.isFinite(retryAfter) && retryAfter <= 5) {
         await sleep(Math.max(1, retryAfter) * 1000);
         return getJson<T>(path, attempt + 1);
       }

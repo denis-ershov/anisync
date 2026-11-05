@@ -57,7 +57,7 @@ export function useReleaseWatchlistStats() {
 export function useReleaseUpcomingCatalog(lang: string, params: UpcomingCatalogParams, enabled = true) {
   return useQuery({
     queryKey: releaseQueryKeys.catalog.upcoming(lang, params),
-    queryFn: () => fetchUpcomingCatalog(lang, params),
+    queryFn: ({ signal }) => fetchUpcomingCatalog(lang, params, signal),
     enabled,
     placeholderData: (previousData) => previousData,
     ...defaultQueryOptions,
